@@ -71,6 +71,8 @@ sistema-de-chamados/
 
 🔌 **Contrato da API:** ver [`docs/openapi.yaml`](docs/openapi.yaml) — especificação OpenAPI 3.1 (endpoints, payloads e códigos de status). Abre em qualquer Swagger UI / Redoc.
 
+🖼️ **Wireframes:** ver [`docs/wireframes.html`](docs/wireframes.html) — esboços low-fidelity das 5 telas principais (login, abertura, listagem, detalhe e dashboard). Abra no navegador.
+
 ---
 
 ## 🧭 Decisões de Arquitetura

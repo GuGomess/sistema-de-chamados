@@ -1,0 +1,537 @@
+<title>Wireframes — Sistema de Chamados</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    /* Neutros escolhidos: cinza levemente frio (bias azul) — leitura de "wireframe", não default */
+    --paper: #eef0f3;
+    --surface: #f7f8fa;
+    --frame: #ffffff;
+    --ink: #23272e;
+    --muted: #6b7480;
+    --faint: #9aa2ad;
+    --line: #c4cad3;
+    --line-strong: #a7aeb9;
+    --block: #dfe3e8;   /* placeholder de conteúdo */
+    --block-2: #e7eaee;
+    /* Acento funcional único — só anotações, foco e chips de estado */
+    --accent: #3d5afe;
+    --accent-soft: #dfe3ff;
+    --note: #7a6000;
+    --note-bg: #fdf3d3;
+    --note-line: #e6cf7a;
+    --radius: 6px;
+    --mono: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", Menlo, Consolas, monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #14171b;
+      --surface: #1b1f24;
+      --frame: #21262c;
+      --ink: #e7eaee;
+      --muted: #9aa3ae;
+      --faint: #6b7480;
+      --line: #363c44;
+      --line-strong: #4a515b;
+      --block: #2c323a;
+      --block-2: #262b32;
+      --accent: #8a9bff;
+      --accent-soft: #2a3358;
+      --note: #e8cf85;
+      --note-bg: #2e2718;
+      --note-line: #5c4d24;
+    }
+  }
+  :root[data-theme="light"] {
+    --paper: #eef0f3; --surface: #f7f8fa; --frame: #ffffff; --ink: #23272e;
+    --muted: #6b7480; --faint: #9aa2ad; --line: #c4cad3; --line-strong: #a7aeb9;
+    --block: #dfe3e8; --block-2: #e7eaee; --accent: #3d5afe; --accent-soft: #dfe3ff;
+    --note: #7a6000; --note-bg: #fdf3d3; --note-line: #e6cf7a;
+  }
+  :root[data-theme="dark"] {
+    --paper: #14171b; --surface: #1b1f24; --frame: #21262c; --ink: #e7eaee;
+    --muted: #9aa3ae; --faint: #6b7480; --line: #363c44; --line-strong: #4a515b;
+    --block: #2c323a; --block-2: #262b32; --accent: #8a9bff; --accent-soft: #2a3358;
+    --note: #e8cf85; --note-bg: #2e2718; --note-line: #5c4d24;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ---------- Top bar ---------- */
+  header.top {
+    position: sticky; top: 0; z-index: 10;
+    background: color-mix(in srgb, var(--paper) 88%, transparent);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--line);
+  }
+  .top-inner {
+    max-width: 1080px; margin: 0 auto; padding: 12px 24px;
+    display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap;
+  }
+  .brand { font-weight: 650; letter-spacing: -0.01em; }
+  .brand .tag {
+    font-family: var(--mono); font-size: 11px; color: var(--muted);
+    border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px; margin-left: 8px;
+    text-transform: uppercase; letter-spacing: 0.08em;
+  }
+  nav.jump { margin-left: auto; display: flex; gap: 4px; flex-wrap: wrap; }
+  nav.jump a {
+    font-family: var(--mono); font-size: 12px; text-decoration: none;
+    color: var(--muted); padding: 4px 9px; border-radius: 999px; border: 1px solid transparent;
+  }
+  nav.jump a:hover { color: var(--ink); border-color: var(--line); }
+
+  main { max-width: 1080px; margin: 0 auto; padding: 32px 24px 80px; }
+
+  .intro { margin-bottom: 40px; }
+  .intro h1 { font-size: clamp(24px, 4vw, 34px); margin: 0 0 8px; letter-spacing: -0.02em; text-wrap: balance; }
+  .intro p { color: var(--muted); max-width: 62ch; margin: 0; }
+  .legend {
+    display: flex; gap: 18px; flex-wrap: wrap; margin-top: 18px;
+    font-family: var(--mono); font-size: 11.5px; color: var(--muted);
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 7px; }
+  .swatch { width: 22px; height: 12px; border-radius: 3px; border: 1px solid var(--line-strong); }
+  .swatch.block { background: var(--block); }
+  .swatch.field { background: var(--frame); }
+  .swatch.note { background: var(--note-bg); border-color: var(--note-line); }
+  .swatch.act { background: var(--accent-soft); border-color: var(--accent); }
+
+  /* ---------- Screen scaffold ---------- */
+  .screen { margin-top: 48px; scroll-margin-top: 72px; }
+  .screen-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 12px; }
+  .screen-num {
+    font-family: var(--mono); font-size: 12px; color: var(--frame);
+    background: var(--ink); border-radius: 5px; padding: 3px 8px; font-weight: 600;
+  }
+  .screen-head h2 { font-size: 19px; margin: 0; letter-spacing: -0.01em; }
+  .screen-head .who { font-family: var(--mono); font-size: 11.5px; color: var(--faint); margin-left: auto; }
+
+  .device {
+    background: var(--frame);
+    border: 1px solid var(--line-strong);
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 1px 2px rgba(0,0,0,.04), 0 8px 24px rgba(0,0,0,.05);
+  }
+  .chrome {
+    display: flex; align-items: center; gap: 8px;
+    padding: 9px 12px; border-bottom: 1px solid var(--line);
+    background: var(--surface);
+  }
+  .dots { display: flex; gap: 5px; }
+  .dots i { width: 10px; height: 10px; border-radius: 50%; background: var(--line-strong); display: block; }
+  .url {
+    font-family: var(--mono); font-size: 11.5px; color: var(--muted);
+    background: var(--frame); border: 1px solid var(--line); border-radius: 6px;
+    padding: 3px 10px; margin-left: 6px; flex: 1; max-width: 380px;
+  }
+  .canvas { padding: 20px; }
+
+  /* ---------- Wireframe primitives ---------- */
+  .wf-label { font-family: var(--mono); font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--faint); margin-bottom: 5px; }
+  .field {
+    border: 1px solid var(--line-strong); border-radius: var(--radius);
+    background: var(--frame); padding: 10px 12px; color: var(--muted); font-size: 13.5px;
+  }
+  .field.sm { padding: 7px 10px; font-size: 12.5px; }
+  .placeholder { color: var(--faint); }
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    border-radius: var(--radius); padding: 10px 16px; font-size: 13.5px; font-weight: 600;
+    border: 1px solid var(--accent); background: var(--accent-soft); color: var(--accent);
+    cursor: default;
+  }
+  .btn.ghost { background: var(--frame); border-color: var(--line-strong); color: var(--ink); font-weight: 500; }
+  .btn.block { width: 100%; }
+  .bar { height: 12px; border-radius: 4px; background: var(--block); }
+  .bar.short { width: 40%; } .bar.mid { width: 65%; } .bar.long { width: 88%; }
+  .block-area { background: var(--block); border-radius: var(--radius); }
+  .chip {
+    font-family: var(--mono); font-size: 11px; padding: 2px 9px; border-radius: 999px;
+    border: 1px solid var(--line-strong); color: var(--muted); background: var(--surface);
+  }
+  .chip.state { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+  .chip.warn { border-color: var(--note-line); color: var(--note); background: var(--note-bg); }
+
+  .note {
+    border-left: 3px solid var(--note-line); background: var(--note-bg); color: var(--note);
+    font-family: var(--mono); font-size: 11.5px; line-height: 1.5;
+    padding: 8px 12px; border-radius: 0 6px 6px 0; margin-top: 14px;
+  }
+  .note b { font-weight: 700; }
+
+  .stack { display: flex; flex-direction: column; gap: 14px; }
+  .row { display: flex; gap: 14px; flex-wrap: wrap; }
+  .row > * { flex: 1; min-width: 0; }
+
+  /* Login layout */
+  .login-wrap { max-width: 340px; margin: 8px auto; }
+  .login-logo {
+    width: 54px; height: 54px; border-radius: 12px; background: var(--block);
+    margin: 0 auto 18px; display: grid; place-items: center;
+    font-family: var(--mono); color: var(--faint); font-size: 11px;
+  }
+  .login-title { text-align: center; font-weight: 650; margin-bottom: 2px; }
+  .login-sub { text-align: center; color: var(--faint); font-size: 12.5px; margin-bottom: 20px; }
+
+  /* App shell (sidebar) */
+  .shell { display: grid; grid-template-columns: 168px 1fr; min-height: 380px; }
+  .side { border-right: 1px solid var(--line); background: var(--surface); padding: 14px 10px; display: flex; flex-direction: column; gap: 5px; }
+  .side .app { font-weight: 650; font-size: 13px; padding: 6px 8px 12px; }
+  .side .nav-i { font-size: 12.5px; color: var(--muted); padding: 8px 9px; border-radius: 6px; display: flex; align-items: center; gap: 8px; }
+  .side .nav-i::before { content:""; width: 12px; height: 12px; border-radius: 3px; background: var(--block); flex: none; }
+  .side .nav-i.on { background: var(--accent-soft); color: var(--accent); }
+  .side .nav-i.on::before { background: var(--accent); }
+  .side .me { margin-top: auto; font-family: var(--mono); font-size: 11px; color: var(--faint); padding: 8px; border-top: 1px solid var(--line); }
+  .content { padding: 18px; }
+  .content-head { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+  .content-head h3 { margin: 0; font-size: 16px; }
+  .content-head .sp { margin-left: auto; }
+
+  /* Table */
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th { text-align: left; font-family: var(--mono); font-size: 10.5px; letter-spacing: .05em; text-transform: uppercase; color: var(--faint); font-weight: 500; padding: 8px 10px; border-bottom: 1px solid var(--line-strong); }
+  td { padding: 10px; border-bottom: 1px solid var(--line); color: var(--muted); vertical-align: middle; }
+  .filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+  .pager { display: flex; gap: 6px; justify-content: flex-end; margin-top: 12px; }
+  .pager .pg { width: 26px; height: 26px; border-radius: 5px; border: 1px solid var(--line-strong); display: grid; place-items: center; font-size: 12px; color: var(--muted); font-family: var(--mono); }
+  .pager .pg.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+
+  /* KPI cards */
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .kpi { border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; background: var(--surface); }
+  .kpi .k-label { font-family: var(--mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--faint); }
+  .kpi .k-num { height: 26px; width: 52px; background: var(--block); border-radius: 5px; margin-top: 8px; }
+  .panel { border: 1px solid var(--line); border-radius: 8px; background: var(--surface); padding: 14px; }
+  .panel .p-title { font-size: 12.5px; font-weight: 600; margin-bottom: 12px; }
+  .chart { height: 150px; border-radius: 6px; background:
+      repeating-linear-gradient(90deg, transparent 0 38px, var(--line) 38px 39px),
+      linear-gradient(0deg, var(--block-2), var(--block-2)); position: relative; }
+  .bars { display: flex; align-items: flex-end; gap: 12px; height: 150px; padding: 0 6px; }
+  .bars i { flex: 1; background: var(--block); border-radius: 4px 4px 0 0; display: block; }
+
+  /* Detail */
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin: 16px 0 14px; }
+  .tabs .t { font-size: 12.5px; padding: 8px 12px; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px; }
+  .tabs .t.on { color: var(--accent); border-color: var(--accent); font-weight: 600; }
+  .comment { display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px dashed var(--line); }
+  .avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--block); flex: none; }
+  .comment .c-body { flex: 1; }
+  .attach { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 6px; margin-bottom: 8px; }
+  .attach .ic { width: 24px; height: 30px; border-radius: 3px; background: var(--block); flex: none; }
+  .timeline { position: relative; padding-left: 18px; }
+  .timeline::before { content:""; position: absolute; left: 5px; top: 4px; bottom: 4px; width: 2px; background: var(--line); }
+  .tl-item { position: relative; padding: 6px 0; }
+  .tl-item::before { content:""; position: absolute; left: -16px; top: 11px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); border: 2px solid var(--frame); }
+
+  .sla-strip { display: flex; gap: 14px; flex-wrap: wrap; padding: 12px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); margin-bottom: 14px; }
+  .sla-strip .sla-i { display: flex; flex-direction: column; gap: 3px; }
+  .sla-strip .sla-i .l { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: var(--faint); }
+  .sla-strip .sla-i .v { height: 12px; width: 90px; background: var(--block); border-radius: 3px; }
+
+  footer { max-width: 1080px; margin: 0 auto; padding: 24px; color: var(--faint); font-family: var(--mono); font-size: 11.5px; border-top: 1px solid var(--line); }
+
+  @media (max-width: 720px) {
+    .shell { grid-template-columns: 1fr; }
+    .side { flex-direction: row; overflow-x: auto; border-right: none; border-bottom: 1px solid var(--line); }
+    .side .me { display: none; }
+    .kpis { grid-template-columns: repeat(2, 1fr); }
+    nav.jump { width: 100%; margin-left: 0; }
+  }
+</style>
+
+<header class="top">
+  <div class="top-inner">
+    <div class="brand">🎫 Sistema de Chamados <span class="tag">wireframes low-fi</span></div>
+    <nav class="jump" aria-label="Ir para tela">
+      <a href="#login">01 · Login</a>
+      <a href="#novo">02 · Novo chamado</a>
+      <a href="#lista">03 · Listagem</a>
+      <a href="#detalhe">04 · Detalhe</a>
+      <a href="#dashboard">05 · Dashboard</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section class="intro">
+    <h1>Wireframes das telas principais</h1>
+    <p>
+      Esboços de baixa fidelidade das 5 telas do sistema, para alinhar layout e fluxo antes da
+      implementação em Angular. Os campos e dados de cada tela seguem o
+      <strong>modelo ER</strong> e o <strong>contrato da API</strong> (OpenAPI). Sem cores de marca
+      nem conteúdo final — apenas estrutura, hierarquia e comportamento.
+    </p>
+    <div class="legend" aria-hidden="true">
+      <span><span class="swatch block"></span> bloco de conteúdo</span>
+      <span><span class="swatch field"></span> campo de formulário</span>
+      <span><span class="swatch act"></span> ação primária</span>
+      <span><span class="swatch note"></span> nota de comportamento</span>
+    </div>
+  </section>
+
+  <!-- 01 · LOGIN -->
+  <section class="screen" id="login">
+    <div class="screen-head">
+      <span class="screen-num">01</span>
+      <h2>Login</h2>
+      <span class="who">todos os perfis</span>
+    </div>
+    <div class="device">
+      <div class="chrome"><span class="dots"><i></i><i></i><i></i></span><span class="url">app.chamados.local / login</span></div>
+      <div class="canvas">
+        <div class="login-wrap">
+          <div class="login-logo">logo</div>
+          <div class="login-title">Acessar o sistema</div>
+          <div class="login-sub">Entre com suas credenciais</div>
+          <div class="stack">
+            <div>
+              <div class="wf-label">E-mail</div>
+              <div class="field"><span class="placeholder">voce@empresa.com</span></div>
+            </div>
+            <div>
+              <div class="wf-label">Senha</div>
+              <div class="field"><span class="placeholder">••••••••</span></div>
+            </div>
+            <div class="btn block">Entrar</div>
+          </div>
+        </div>
+        <div class="note"><b>Comportamento:</b> credenciais inválidas → mensagem de erro acima do formulário (401). Ao autenticar, recebe JWT e é redirecionado conforme o perfil (Cliente → Meus chamados · Técnico/Admin → Dashboard). Ver <b>POST /auth/login</b>.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 02 · NOVO CHAMADO -->
+  <section class="screen" id="novo">
+    <div class="screen-head">
+      <span class="screen-num">02</span>
+      <h2>Abertura de chamado</h2>
+      <span class="who">cliente</span>
+    </div>
+    <div class="device">
+      <div class="chrome"><span class="dots"><i></i><i></i><i></i></span><span class="url">app.chamados.local / chamados / novo</span></div>
+      <div class="canvas">
+        <div class="shell">
+          <aside class="side">
+            <div class="app">Chamados</div>
+            <div class="nav-i">Dashboard</div>
+            <div class="nav-i on">Novo chamado</div>
+            <div class="nav-i">Meus chamados</div>
+            <div class="me">cliente@empresa.com<br>perfil: Cliente</div>
+          </aside>
+          <div class="content">
+            <div class="content-head"><h3>Abrir novo chamado</h3></div>
+            <div class="stack">
+              <div>
+                <div class="wf-label">Título</div>
+                <div class="field"><span class="placeholder">Resumo do problema</span></div>
+              </div>
+              <div class="row">
+                <div>
+                  <div class="wf-label">Categoria</div>
+                  <div class="field sm"><span class="placeholder">Selecione ▾</span></div>
+                </div>
+                <div>
+                  <div class="wf-label">Prioridade</div>
+                  <div class="field sm"><span class="placeholder">Selecione ▾</span></div>
+                </div>
+              </div>
+              <div>
+                <div class="wf-label">Descrição</div>
+                <div class="field" style="min-height:96px"><span class="placeholder">Descreva o ocorrido com detalhes…</span></div>
+              </div>
+              <div>
+                <div class="wf-label">Anexos</div>
+                <div class="field sm" style="border-style:dashed; text-align:center"><span class="placeholder">Arraste arquivos ou clique para enviar (prints, documentos)</span></div>
+              </div>
+              <div class="row" style="flex:none; justify-content:flex-end">
+                <div class="btn ghost" style="flex:none">Cancelar</div>
+                <div class="btn" style="flex:none">Abrir chamado</div>
+              </div>
+            </div>
+            <div class="note"><b>Comportamento:</b> solicitante = usuário logado. Prazos de SLA (resposta/resolução) são calculados a partir da <b>prioridade</b> na criação. Sucesso → 201 e redireciona ao detalhe. Ver <b>POST /chamados</b>.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 03 · LISTAGEM -->
+  <section class="screen" id="lista">
+    <div class="screen-head">
+      <span class="screen-num">03</span>
+      <h2>Listagem de chamados</h2>
+      <span class="who">escopo por perfil</span>
+    </div>
+    <div class="device">
+      <div class="chrome"><span class="dots"><i></i><i></i><i></i></span><span class="url">app.chamados.local / chamados</span></div>
+      <div class="canvas">
+        <div class="shell">
+          <aside class="side">
+            <div class="app">Chamados</div>
+            <div class="nav-i">Dashboard</div>
+            <div class="nav-i on">Chamados</div>
+            <div class="nav-i">Novo chamado</div>
+            <div class="me">tecnico@empresa.com<br>perfil: Técnico</div>
+          </aside>
+          <div class="content">
+            <div class="content-head">
+              <h3>Chamados</h3>
+              <span class="sp"></span>
+              <div class="btn" style="flex:none">+ Novo</div>
+            </div>
+            <div class="filters">
+              <div class="field sm" style="flex:1; min-width:160px"><span class="placeholder">🔍 Buscar por título…</span></div>
+              <div class="field sm"><span class="placeholder">Status ▾</span></div>
+              <div class="field sm"><span class="placeholder">Categoria ▾</span></div>
+              <div class="field sm"><span class="placeholder">Prioridade ▾</span></div>
+              <div class="field sm"><span class="placeholder">Técnico ▾</span></div>
+            </div>
+            <div style="overflow-x:auto">
+              <table>
+                <thead><tr><th>#</th><th>Título</th><th>Status</th><th>Prioridade</th><th>Técnico</th><th>SLA</th><th>Aberto</th></tr></thead>
+                <tbody>
+                  <tr><td>#1042</td><td><div class="bar long"></div></td><td><span class="chip state">Em atendimento</span></td><td><span class="chip">Alta</span></td><td><div class="bar short"></div></td><td><span class="chip warn">2h restantes</span></td><td><div class="bar short"></div></td></tr>
+                  <tr><td>#1041</td><td><div class="bar mid"></div></td><td><span class="chip">Aberto</span></td><td><span class="chip">Média</span></td><td><div class="bar short"></div></td><td><span class="chip">no prazo</span></td><td><div class="bar short"></div></td></tr>
+                  <tr><td>#1038</td><td><div class="bar long"></div></td><td><span class="chip warn">Aguardando cliente</span></td><td><span class="chip">Baixa</span></td><td><div class="bar short"></div></td><td><span class="chip">—</span></td><td><div class="bar short"></div></td></tr>
+                  <tr><td>#1030</td><td><div class="bar mid"></div></td><td><span class="chip">Resolvido</span></td><td><span class="chip">Crítica</span></td><td><div class="bar short"></div></td><td><span class="chip">cumprido</span></td><td><div class="bar short"></div></td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="pager"><span class="pg">‹</span><span class="pg on">1</span><span class="pg">2</span><span class="pg">3</span><span class="pg">›</span></div>
+            <div class="note"><b>Comportamento:</b> escopo por perfil — Cliente vê só os próprios, Técnico os atribuídos, Admin todos. Filtros + paginação viram query params. Linha clicável → detalhe. Ver <b>GET /chamados</b> (filtros, page, pageSize, sort).</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 04 · DETALHE -->
+  <section class="screen" id="detalhe">
+    <div class="screen-head">
+      <span class="screen-num">04</span>
+      <h2>Detalhe do chamado</h2>
+      <span class="who">cliente · técnico · admin</span>
+    </div>
+    <div class="device">
+      <div class="chrome"><span class="dots"><i></i><i></i><i></i></span><span class="url">app.chamados.local / chamados / 1042</span></div>
+      <div class="canvas">
+        <div class="content" style="padding:0">
+          <div class="content-head">
+            <h3>#1042 · Impressora não conecta à rede</h3>
+            <span class="sp"></span>
+            <span class="chip state">Em atendimento</span>
+            <span class="chip">Alta</span>
+          </div>
+
+          <div class="sla-strip">
+            <div class="sla-i"><span class="l">Solicitante</span><span class="v"></span></div>
+            <div class="sla-i"><span class="l">Técnico</span><span class="v"></span></div>
+            <div class="sla-i"><span class="l">Categoria</span><span class="v"></span></div>
+            <div class="sla-i"><span class="l">Prazo resposta</span><span class="v"></span></div>
+            <div class="sla-i"><span class="l">Prazo resolução</span><span class="v" style="background:var(--note-bg); box-shadow: inset 0 0 0 1px var(--note-line)"></span></div>
+          </div>
+
+          <div class="row" style="align-items:flex-start">
+            <div style="flex:2; min-width:280px">
+              <div class="wf-label">Descrição</div>
+              <div class="block-area" style="height:70px; margin-bottom:6px"></div>
+              <div class="bar long" style="margin-bottom:6px"></div>
+              <div class="bar mid"></div>
+
+              <div class="tabs" role="tablist">
+                <span class="t on">Comentários</span>
+                <span class="t">Anexos</span>
+                <span class="t">Histórico</span>
+              </div>
+
+              <!-- Aba comentários -->
+              <div class="comment"><div class="avatar"></div><div class="c-body"><div class="bar short" style="margin-bottom:6px"></div><div class="bar long"></div></div></div>
+              <div class="comment"><div class="avatar"></div><div class="c-body"><div class="bar short" style="margin-bottom:6px"></div><div class="bar mid"></div></div></div>
+              <div style="margin-top:12px">
+                <div class="field" style="min-height:60px"><span class="placeholder">Escrever comentário…</span></div>
+                <div class="row" style="flex:none; justify-content:space-between; align-items:center; margin-top:8px">
+                  <span class="chip" style="flex:none">☐ nota interna (técnico/admin)</span>
+                  <div class="btn" style="flex:none">Comentar</div>
+                </div>
+              </div>
+
+              <div class="note"><b>Abas:</b> Anexos lista arquivos (metadados + download); Histórico é a trilha de auditoria (status anterior → novo, autor, data), append-only. Ver <b>/chamados/{id}/comentarios · /anexos · /historico</b>.</div>
+            </div>
+
+            <div style="flex:1; min-width:200px">
+              <div class="panel" style="margin-bottom:14px">
+                <div class="p-title">Ações do técnico</div>
+                <div class="stack">
+                  <div><div class="wf-label">Alterar status</div><div class="field sm"><span class="placeholder">Em atendimento ▾</span></div></div>
+                  <div><div class="wf-label">Atribuir técnico</div><div class="field sm"><span class="placeholder">Selecionar ▾</span></div></div>
+                  <div class="btn block">Salvar alterações</div>
+                </div>
+                <div class="note" style="margin-top:12px"><b>PATCH /chamados/{id}:</b> cada mudança gera evento no Histórico. Transição inválida → 409.</div>
+              </div>
+              <div class="panel">
+                <div class="p-title">Histórico recente</div>
+                <div class="timeline">
+                  <div class="tl-item"><div class="bar mid" style="margin-bottom:4px"></div><div class="bar short"></div></div>
+                  <div class="tl-item"><div class="bar short" style="margin-bottom:4px"></div><div class="bar mid"></div></div>
+                  <div class="tl-item"><div class="bar mid"></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 05 · DASHBOARD -->
+  <section class="screen" id="dashboard">
+    <div class="screen-head">
+      <span class="screen-num">05</span>
+      <h2>Dashboard</h2>
+      <span class="who">técnico · administrador</span>
+    </div>
+    <div class="device">
+      <div class="chrome"><span class="dots"><i></i><i></i><i></i></span><span class="url">app.chamados.local / dashboard</span></div>
+      <div class="canvas">
+        <div class="shell">
+          <aside class="side">
+            <div class="app">Chamados</div>
+            <div class="nav-i on">Dashboard</div>
+            <div class="nav-i">Chamados</div>
+            <div class="nav-i">Usuários</div>
+            <div class="nav-i">Configurações</div>
+            <div class="me">admin@empresa.com<br>perfil: Administrador</div>
+          </aside>
+          <div class="content">
+            <div class="content-head"><h3>Visão geral</h3><span class="sp"></span><div class="field sm" style="flex:none"><span class="placeholder">Últimos 30 dias ▾</span></div></div>
+            <div class="kpis">
+              <div class="kpi"><div class="k-label">Total de chamados</div><div class="k-num"></div></div>
+              <div class="kpi"><div class="k-label">Abertos</div><div class="k-num"></div></div>
+              <div class="kpi" style="border-color:var(--note-line)"><div class="k-label" style="color:var(--note)">SLA em risco</div><div class="k-num" style="background:var(--note-bg)"></div></div>
+              <div class="kpi" style="border-color:var(--accent)"><div class="k-label" style="color:var(--accent)">SLA estourado</div><div class="k-num" style="background:var(--accent-soft)"></div></div>
+            </div>
+            <div class="row" style="margin-top:14px; align-items:stretch">
+              <div class="panel" style="flex:1.3"><div class="p-title">Chamados por status</div><div class="chart"></div></div>
+              <div class="panel" style="flex:1"><div class="p-title">Produtividade por técnico</div><div class="bars"><i style="height:60%"></i><i style="height:85%"></i><i style="height:45%"></i><i style="height:70%"></i><i style="height:30%"></i></div></div>
+            </div>
+            <div class="note"><b>Comportamento:</b> indicadores agregados servidos por <b>GET /dashboard/resumo</b> (contagem por status, SLA em risco/estourado, produtividade). Escopo respeita o perfil. Cards de SLA usam o acento/nota como cor semântica de alerta.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  Wireframes low-fidelity · Sistema de Chamados — base para a UI em Angular. Derivados de database/MODELO-ER.md e docs/openapi.yaml.
+</footer>
