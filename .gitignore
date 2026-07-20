@@ -32,3 +32,6 @@ appsettings.*.local.json
 # ===== Sistema Operacional =====
 Thumbs.db
 .DS_Store
+
+# ===== Artefatos locais do desenvolvedor =====
+documentacao.html
