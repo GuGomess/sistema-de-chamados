@@ -1,0 +1,7 @@
+@Chamados.Api_HostAddress = http://localhost:5000
+
+### Healthcheck
+GET {{Chamados.Api_HostAddress}}/health
+Accept: application/json
+
+###
