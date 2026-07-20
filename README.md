@@ -18,7 +18,7 @@ O projeto é organizado em camadas bem separadas — cada tecnologia tem um pape
 ### ⚙️ Backend
 | Tecnologia | Papel |
 |-----------|-------|
-| **.NET (ASP.NET Core Web API)** *ou* **Node.js** *(a definir)* | API REST que concentra as regras de negócio: autenticação, controle de perfis/permissões, cálculo e monitoramento de SLA, ciclo de vida dos chamados, comentários e uploads. |
+| **.NET (ASP.NET Core Web API)** | API REST que concentra as regras de negócio: autenticação, controle de perfis/permissões, cálculo e monitoramento de SLA, ciclo de vida dos chamados, comentários e uploads. |
 
 ### 🗄️ Banco de Dados
 | Tecnologia | Papel |
@@ -60,7 +60,7 @@ O projeto é organizado em camadas bem separadas — cada tecnologia tem um pape
 ```
 sistema-de-chamados/
 ├── frontend/           # Aplicação Angular
-├── backend/            # API REST (.NET ou Node.js)
+├── backend/            # API REST em .NET (ASP.NET Core)
 ├── database/           # Scripts / migrations do banco
 ├── docker-compose.yml  # Orquestração dos containers
 └── README.md
@@ -69,6 +69,16 @@ sistema-de-chamados/
 
 ---
 
+## 🧭 Decisões de Arquitetura
+
+Registro das decisões técnicas relevantes do projeto (ADR simplificado).
+
+| # | Decisão | Escolha | Justificativa |
+|---|---------|---------|---------------|
+| 1 | **Stack do backend** | **.NET (ASP.NET Core Web API)** | Tipagem forte do C# favorece regras de negócio bem definidas (SLA, perfis/permissões, ciclo de vida do chamado); **Entity Framework Core** para persistência e migrations; autenticação **JWT** e documentação **Swagger/OpenAPI** com suporte de primeira classe no ecossistema; boa sinergia caso o SGBD escolhido seja SQL Server. |
+
+---
+
 ## 🚧 Status do Projeto
 
-Fase inicial: definição de stack e setup do repositório.
+Fase inicial de planejamento. **Backend definido: .NET (ASP.NET Core Web API).** Próximas decisões em aberto: SGBD (SQL Server vs PostgreSQL) e contrato da API REST.
