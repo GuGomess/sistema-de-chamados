@@ -1,0 +1,13 @@
+<header class="app-header">
+  <a class="app-header__brand" routerLink="/">{{ title() }}</a>
+  <nav class="app-header__nav">
+    <a routerLink="/dashboard" routerLinkActive="is-active">Dashboard</a>
+    <a routerLink="/chamados" routerLinkActive="is-active">Chamados</a>
+    <a routerLink="/chamados/novo" routerLinkActive="is-active">Novo chamado</a>
+    <a routerLink="/login" routerLinkActive="is-active">Login</a>
+  </nav>
+</header>
+
+<main class="app-main">
+  <router-outlet />
+</main>
