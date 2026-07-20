@@ -69,6 +69,8 @@ sistema-de-chamados/
 
 📐 **Modelagem de dados:** ver [`database/MODELO-ER.md`](database/MODELO-ER.md) — diagrama ER e dicionário de dados das entidades.
 
+🔌 **Contrato da API:** ver [`docs/openapi.yaml`](docs/openapi.yaml) — especificação OpenAPI 3.1 (endpoints, payloads e códigos de status). Abre em qualquer Swagger UI / Redoc.
+
 ---
 
 ## 🧭 Decisões de Arquitetura

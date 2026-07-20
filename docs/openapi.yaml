@@ -1,0 +1,825 @@
+openapi: 3.1.0
+info:
+  title: Sistema de Chamados — API REST
+  version: 1.0.0
+  description: >
+    Contrato da API REST do Sistema de Chamados (help desk / service desk).
+    Define autenticação (JWT), ciclo de vida dos chamados, comentários, anexos,
+    histórico, gestão de domínios (status/categoria/prioridade/SLA), usuários e
+    dashboard. Este documento é a fonte da verdade do contrato; a implementação
+    (ASP.NET Core) e o schema físico (PostgreSQL via EF Core) seguem-no.
+servers:
+  - url: /api/v1
+    description: Base path da API
+
+tags:
+  - name: Auth
+    description: Autenticação e sessão
+  - name: Chamados
+    description: Ciclo de vida dos chamados
+  - name: Comentários
+    description: Mensagens dentro de um chamado
+  - name: Anexos
+    description: Arquivos anexados a um chamado
+  - name: Histórico
+    description: Trilha de auditoria do chamado
+  - name: Usuários
+    description: Gestão de usuários (Administrador)
+  - name: Domínios
+    description: Tabelas configuráveis — status, categorias, prioridades, SLA (Administrador)
+  - name: Dashboard
+    description: Indicadores e métricas
+
+security:
+  - bearerAuth: []
+
+paths:
+  # ---------------------------------------------------------------- Auth
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Autentica um usuário e retorna tokens JWT
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200':
+          description: Autenticado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Gera um novo access token a partir do refresh token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RefreshRequest' }
+      responses:
+        '200':
+          description: Novo par de tokens
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Retorna o usuário autenticado
+      responses:
+        '200':
+          description: Usuário atual
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Usuario' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  # ---------------------------------------------------------------- Chamados
+  /chamados:
+    get:
+      tags: [Chamados]
+      summary: Lista chamados (com filtros e paginação)
+      description: >
+        O escopo é aplicado pelo perfil: Cliente vê apenas os próprios chamados;
+        Técnico vê os atribuídos a ele; Administrador vê todos.
+      parameters:
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/PageSize' }
+        - { $ref: '#/components/parameters/Sort' }
+        - name: idStatus
+          in: query
+          schema: { type: integer, format: int64 }
+        - name: idCategoria
+          in: query
+          schema: { type: integer, format: int64 }
+        - name: idPrioridade
+          in: query
+          schema: { type: integer, format: int64 }
+        - name: idTecnico
+          in: query
+          schema: { type: integer, format: int64 }
+        - name: q
+          in: query
+          description: Busca textual em título/descrição
+          schema: { type: string }
+      responses:
+        '200':
+          description: Página de chamados
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ChamadoPage' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [Chamados]
+      summary: Abre um novo chamado
+      description: O solicitante é o usuário autenticado. Os prazos de SLA são calculados a partir da prioridade.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ChamadoCreate' }
+      responses:
+        '201':
+          description: Chamado criado
+          headers:
+            Location:
+              description: URI do chamado criado
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Chamado' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  /chamados/{id}:
+    parameters:
+      - { $ref: '#/components/parameters/IdPath' }
+    get:
+      tags: [Chamados]
+      summary: Detalha um chamado
+      responses:
+        '200':
+          description: Chamado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Chamado' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Chamados]
+      summary: Atualiza status, atribuição ou dados do chamado
+      description: >
+        Usado para mudança de status, atribuição de técnico e ajustes.
+        Cada alteração relevante gera um registro em Histórico.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ChamadoUpdate' }
+      responses:
+        '200':
+          description: Chamado atualizado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Chamado' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+
+  # ---------------------------------------------------------------- Comentários
+  /chamados/{id}/comentarios:
+    parameters:
+      - { $ref: '#/components/parameters/IdPath' }
+    get:
+      tags: [Comentários]
+      summary: Lista comentários do chamado
+      description: Comentários internos (interno=true) só são retornados para Técnico/Administrador.
+      responses:
+        '200':
+          description: Lista de comentários
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Comentario' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      tags: [Comentários]
+      summary: Adiciona um comentário ao chamado
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ComentarioCreate' }
+      responses:
+        '201':
+          description: Comentário criado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Comentario' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ---------------------------------------------------------------- Anexos
+  /chamados/{id}/anexos:
+    parameters:
+      - { $ref: '#/components/parameters/IdPath' }
+    get:
+      tags: [Anexos]
+      summary: Lista anexos do chamado (metadados)
+      responses:
+        '200':
+          description: Lista de anexos
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Anexo' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      tags: [Anexos]
+      summary: Envia um arquivo para o chamado
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [arquivo]
+              properties:
+                arquivo:
+                  type: string
+                  format: binary
+      responses:
+        '201':
+          description: Anexo criado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Anexo' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422':
+          description: Arquivo inválido (tipo não permitido ou tamanho excedido)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  # ---------------------------------------------------------------- Histórico
+  /chamados/{id}/historico:
+    parameters:
+      - { $ref: '#/components/parameters/IdPath' }
+    get:
+      tags: [Histórico]
+      summary: Lista o histórico (trilha de auditoria) do chamado
+      responses:
+        '200':
+          description: Lista de eventos de histórico (ordem cronológica)
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Historico' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ---------------------------------------------------------------- Usuários (admin)
+  /usuarios:
+    get:
+      tags: [Usuários]
+      summary: Lista usuários (Administrador)
+      parameters:
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/PageSize' }
+      responses:
+        '200':
+          description: Página de usuários
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UsuarioPage' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Usuários]
+      summary: Cria um usuário (Administrador)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UsuarioCreate' }
+      responses:
+        '201':
+          description: Usuário criado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Usuario' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  /usuarios/{id}:
+    parameters:
+      - { $ref: '#/components/parameters/IdPath' }
+    get:
+      tags: [Usuários]
+      summary: Detalha um usuário (Administrador)
+      responses:
+        '200':
+          description: Usuário
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Usuario' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [Usuários]
+      summary: Atualiza um usuário (Administrador)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UsuarioUpdate' }
+      responses:
+        '200':
+          description: Usuário atualizado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Usuario' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Usuários]
+      summary: Desativa um usuário (soft delete, Administrador)
+      responses:
+        '204': { description: Usuário desativado }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ---------------------------------------------------------------- Domínios (admin)
+  /categorias:
+    get:
+      tags: [Domínios]
+      summary: Lista categorias
+      responses:
+        '200':
+          description: Lista de categorias
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Categoria' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [Domínios]
+      summary: Cria categoria (Administrador)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CategoriaInput' }
+      responses:
+        '201':
+          description: Categoria criada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Categoria' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /categorias/{id}:
+    parameters:
+      - { $ref: '#/components/parameters/IdPath' }
+    put:
+      tags: [Domínios]
+      summary: Atualiza categoria (Administrador)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CategoriaInput' }
+      responses:
+        '200':
+          description: Categoria atualizada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Categoria' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Domínios]
+      summary: Desativa categoria (Administrador)
+      responses:
+        '204': { description: Categoria desativada }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /prioridades:
+    get:
+      tags: [Domínios]
+      summary: Lista prioridades
+      responses:
+        '200':
+          description: Lista de prioridades
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Prioridade' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [Domínios]
+      summary: Cria prioridade (Administrador)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PrioridadeInput' }
+      responses:
+        '201':
+          description: Prioridade criada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Prioridade' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /status:
+    get:
+      tags: [Domínios]
+      summary: Lista status
+      responses:
+        '200':
+          description: Lista de status
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Status' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /slas:
+    get:
+      tags: [Domínios]
+      summary: Lista as configurações de SLA
+      responses:
+        '200':
+          description: Lista de SLAs
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Sla' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [Domínios]
+      summary: Cria/atualiza SLA de uma prioridade (Administrador)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SlaInput' }
+      responses:
+        '201':
+          description: SLA criado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Sla' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  # ---------------------------------------------------------------- Dashboard
+  /dashboard/resumo:
+    get:
+      tags: [Dashboard]
+      summary: Indicadores agregados para o dashboard
+      description: >
+        Retorna contagens por status, chamados com SLA em risco/estourado e
+        produtividade por técnico. O escopo respeita o perfil do usuário.
+      responses:
+        '200':
+          description: Resumo de indicadores
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DashboardResumo' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    IdPath:
+      name: id
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+    Page:
+      name: page
+      in: query
+      description: Número da página (base 1)
+      schema: { type: integer, minimum: 1, default: 1 }
+    PageSize:
+      name: pageSize
+      in: query
+      description: Itens por página
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+    Sort:
+      name: sort
+      in: query
+      description: 'Campo de ordenação, prefixo "-" para descendente. Ex.: -criadoEm'
+      schema: { type: string }
+
+  responses:
+    BadRequest:
+      description: Requisição malformada
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Unauthorized:
+      description: Não autenticado (token ausente/inválido)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Forbidden:
+      description: Autenticado, mas sem permissão para o recurso
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    NotFound:
+      description: Recurso não encontrado
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Conflict:
+      description: 'Conflito (ex.: e-mail já existe, transição de status inválida)'
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    UnprocessableEntity:
+      description: Falha de validação dos campos
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  schemas:
+    # ----- Comuns -----
+    ErrorResponse:
+      type: object
+      description: Formato padronizado de erro para toda a API.
+      required: [status, title]
+      properties:
+        status: { type: integer, example: 422 }
+        title: { type: string, example: 'Falha de validação' }
+        detail: { type: string, example: 'Um ou mais campos são inválidos.' }
+        traceId: { type: string, example: '00-abc123...' }
+        errors:
+          type: object
+          description: Mapa campo → lista de mensagens (para 422)
+          additionalProperties:
+            type: array
+            items: { type: string }
+      examples:
+        - status: 422
+          title: 'Falha de validação'
+          errors:
+            titulo: ['O título é obrigatório.']
+    PageMeta:
+      type: object
+      required: [page, pageSize, totalItems, totalPages]
+      properties:
+        page: { type: integer, example: 1 }
+        pageSize: { type: integer, example: 20 }
+        totalItems: { type: integer, example: 137 }
+        totalPages: { type: integer, example: 7 }
+
+    # ----- Auth -----
+    LoginRequest:
+      type: object
+      required: [email, senha]
+      properties:
+        email: { type: string, format: email }
+        senha: { type: string, format: password, minLength: 6 }
+    RefreshRequest:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken: { type: string }
+    AuthResponse:
+      type: object
+      required: [accessToken, refreshToken, expiresIn, usuario]
+      properties:
+        accessToken: { type: string }
+        refreshToken: { type: string }
+        expiresIn: { type: integer, description: Segundos até expirar, example: 3600 }
+        usuario: { $ref: '#/components/schemas/Usuario' }
+
+    # ----- Perfil / Usuário -----
+    Perfil:
+      type: string
+      description: Papel de acesso do usuário
+      enum: [ADMINISTRADOR, TECNICO, CLIENTE]
+    Usuario:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        nome: { type: string }
+        email: { type: string, format: email }
+        perfil: { $ref: '#/components/schemas/Perfil' }
+        ativo: { type: boolean }
+        criadoEm: { type: string, format: date-time }
+    UsuarioCreate:
+      type: object
+      required: [nome, email, senha, perfil]
+      properties:
+        nome: { type: string, maxLength: 120 }
+        email: { type: string, format: email, maxLength: 160 }
+        senha: { type: string, format: password, minLength: 6 }
+        perfil: { $ref: '#/components/schemas/Perfil' }
+    UsuarioUpdate:
+      type: object
+      properties:
+        nome: { type: string, maxLength: 120 }
+        perfil: { $ref: '#/components/schemas/Perfil' }
+        ativo: { type: boolean }
+    UsuarioPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Usuario' }
+        meta: { $ref: '#/components/schemas/PageMeta' }
+
+    # ----- Domínios -----
+    Status:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        nome: { type: string }
+        ordem: { type: integer }
+        final: { type: boolean }
+    Categoria:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        nome: { type: string }
+        descricao: { type: string }
+        ativa: { type: boolean }
+    CategoriaInput:
+      type: object
+      required: [nome]
+      properties:
+        nome: { type: string, maxLength: 80 }
+        descricao: { type: string, maxLength: 255 }
+        ativa: { type: boolean, default: true }
+    Prioridade:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        nome: { type: string }
+        nivel: { type: integer }
+    PrioridadeInput:
+      type: object
+      required: [nome, nivel]
+      properties:
+        nome: { type: string, maxLength: 50 }
+        nivel: { type: integer }
+    Sla:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        idPrioridade: { type: integer, format: int64 }
+        tempoRespostaMin: { type: integer, description: Minutos para 1ª resposta }
+        tempoResolucaoMin: { type: integer, description: Minutos para resolução }
+        ativo: { type: boolean }
+    SlaInput:
+      type: object
+      required: [idPrioridade, tempoRespostaMin, tempoResolucaoMin]
+      properties:
+        idPrioridade: { type: integer, format: int64 }
+        tempoRespostaMin: { type: integer, minimum: 1 }
+        tempoResolucaoMin: { type: integer, minimum: 1 }
+        ativo: { type: boolean, default: true }
+
+    # ----- Chamado -----
+    Chamado:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        titulo: { type: string }
+        descricao: { type: string }
+        solicitante: { $ref: '#/components/schemas/Usuario' }
+        tecnico:
+          oneOf:
+            - { $ref: '#/components/schemas/Usuario' }
+            - { type: 'null' }
+        status: { $ref: '#/components/schemas/Status' }
+        categoria: { $ref: '#/components/schemas/Categoria' }
+        prioridade: { $ref: '#/components/schemas/Prioridade' }
+        criadoEm: { type: string, format: date-time }
+        atualizadoEm: { type: string, format: date-time }
+        prazoResposta: { type: string, format: date-time, nullable: true }
+        prazoResolucao: { type: string, format: date-time, nullable: true }
+        resolvidoEm: { type: string, format: date-time, nullable: true }
+        fechadoEm: { type: string, format: date-time, nullable: true }
+    ChamadoCreate:
+      type: object
+      required: [titulo, descricao, idCategoria, idPrioridade]
+      properties:
+        titulo: { type: string, maxLength: 160 }
+        descricao: { type: string }
+        idCategoria: { type: integer, format: int64 }
+        idPrioridade: { type: integer, format: int64 }
+    ChamadoUpdate:
+      type: object
+      description: Campos opcionais; apenas os enviados são alterados.
+      properties:
+        idStatus: { type: integer, format: int64 }
+        idTecnico: { type: integer, format: int64, nullable: true }
+        idCategoria: { type: integer, format: int64 }
+        idPrioridade: { type: integer, format: int64 }
+    ChamadoPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Chamado' }
+        meta: { $ref: '#/components/schemas/PageMeta' }
+
+    # ----- Comentário / Anexo / Histórico -----
+    Comentario:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        idChamado: { type: integer, format: int64 }
+        autor: { $ref: '#/components/schemas/Usuario' }
+        mensagem: { type: string }
+        interno: { type: boolean }
+        criadoEm: { type: string, format: date-time }
+    ComentarioCreate:
+      type: object
+      required: [mensagem]
+      properties:
+        mensagem: { type: string }
+        interno:
+          type: boolean
+          default: false
+          description: Nota interna, visível apenas a Técnico/Administrador
+    Anexo:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        idChamado: { type: integer, format: int64 }
+        autor: { $ref: '#/components/schemas/Usuario' }
+        nomeArquivo: { type: string }
+        tipoMime: { type: string }
+        tamanhoBytes: { type: integer, format: int64 }
+        url: { type: string, description: URL para download do anexo }
+        criadoEm: { type: string, format: date-time }
+    Historico:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        idChamado: { type: integer, format: int64 }
+        autor: { $ref: '#/components/schemas/Usuario' }
+        statusAnterior:
+          oneOf:
+            - { $ref: '#/components/schemas/Status' }
+            - { type: 'null' }
+        statusNovo:
+          oneOf:
+            - { $ref: '#/components/schemas/Status' }
+            - { type: 'null' }
+        acao: { type: string, example: 'Mudança de status' }
+        detalhe: { type: string }
+        criadoEm: { type: string, format: date-time }
+
+    # ----- Dashboard -----
+    DashboardResumo:
+      type: object
+      properties:
+        totalChamados: { type: integer }
+        porStatus:
+          type: array
+          items:
+            type: object
+            properties:
+              status: { type: string }
+              total: { type: integer }
+        slaEmRisco: { type: integer, description: Chamados abertos próximos do prazo }
+        slaEstourado: { type: integer, description: Chamados com prazo vencido }
+        produtividadeTecnicos:
+          type: array
+          items:
+            type: object
+            properties:
+              tecnico: { type: string }
+              resolvidos: { type: integer }
+              emAndamento: { type: integer }
