@@ -2,7 +2,7 @@
 
 Sistema web de **help desk / service desk** para registro, atendimento e acompanhamento de chamados de suporte. Clientes abrem solicitações, técnicos as atendem dentro de prazos de **SLA**, e administradores acompanham tudo por um **dashboard** — com histórico completo, comentários e anexos em cada chamado.
 
-> ⚠️ Projeto em fase inicial de setup. Algumas decisões de stack ainda estão em aberto (marcadas como *a definir*).
+> ⚠️ Projeto em fase inicial de setup. A stack já está definida (ver seção **Decisões de Arquitetura**); a implementação começa na Fase 1.
 
 ---
 
@@ -23,7 +23,7 @@ O projeto é organizado em camadas bem separadas — cada tecnologia tem um pape
 ### 🗄️ Banco de Dados
 | Tecnologia | Papel |
 |-----------|-------|
-| **SQL Server** *ou* **PostgreSQL** *(a definir)* | Persistência dos dados: usuários, chamados, histórico de status, comentários, metadados dos arquivos e configurações de SLA. |
+| **PostgreSQL** | Persistência dos dados: usuários, chamados, histórico de status, comentários, metadados dos arquivos e configurações de SLA. |
 
 ### 🐳 Infraestrutura / DevOps
 | Tecnologia | Papel |
@@ -75,10 +75,11 @@ Registro das decisões técnicas relevantes do projeto (ADR simplificado).
 
 | # | Decisão | Escolha | Justificativa |
 |---|---------|---------|---------------|
-| 1 | **Stack do backend** | **.NET (ASP.NET Core Web API)** | Tipagem forte do C# favorece regras de negócio bem definidas (SLA, perfis/permissões, ciclo de vida do chamado); **Entity Framework Core** para persistência e migrations; autenticação **JWT** e documentação **Swagger/OpenAPI** com suporte de primeira classe no ecossistema; boa sinergia caso o SGBD escolhido seja SQL Server. |
+| 1 | **Stack do backend** | **.NET (ASP.NET Core Web API)** | Tipagem forte do C# favorece regras de negócio bem definidas (SLA, perfis/permissões, ciclo de vida do chamado); **Entity Framework Core** para persistência e migrations; autenticação **JWT** e documentação **Swagger/OpenAPI** com suporte de primeira classe no ecossistema. |
+| 2 | **SGBD** | **PostgreSQL** | Banco relacional gratuito e open-source, sem custo de licença; imagem Docker leve (`postgres:16-alpine`) que facilita padronizar o ambiente via `docker-compose`; integra-se ao EF Core pelo provider **Npgsql**. Atende bem à modelagem relacional dos chamados (histórico, comentários, SLA) e é portável para qualquer ambiente de deploy. |
 
 ---
 
 ## 🚧 Status do Projeto
 
-Fase inicial de planejamento. **Backend definido: .NET (ASP.NET Core Web API).** Próximas decisões em aberto: SGBD (SQL Server vs PostgreSQL) e contrato da API REST.
+Fase inicial de planejamento. **Backend definido: .NET (ASP.NET Core Web API)** · **SGBD definido: PostgreSQL.** Próxima decisão em aberto: contrato da API REST. Já há um `docker-compose.yml` com o serviço de banco e um `.env.example` de referência.
