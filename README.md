@@ -61,11 +61,13 @@ O projeto é organizado em camadas bem separadas — cada tecnologia tem um pape
 sistema-de-chamados/
 ├── frontend/           # Aplicação Angular
 ├── backend/            # API REST em .NET (ASP.NET Core)
-├── database/           # Scripts / migrations do banco
+├── database/           # Modelagem (ER) e, futuramente, migrations do banco
 ├── docker-compose.yml  # Orquestração dos containers
 └── README.md
 ```
 > Estrutura proposta — será ajustada conforme o projeto evolui.
+
+📐 **Modelagem de dados:** ver [`database/MODELO-ER.md`](database/MODELO-ER.md) — diagrama ER e dicionário de dados das entidades.
 
 ---
 
