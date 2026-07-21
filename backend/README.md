@@ -62,3 +62,8 @@ Exemplo de resposta do healthcheck:
 Nenhum segredo é versionado. A connection string e demais configs são lidas via
 variáveis de ambiente (ex.: `ConnectionStrings__DefaultConnection`) — ver
 [`../.env.example`](../.env.example).
+
+A seção `Jwt` em `appsettings.json` (chave, issuer, audience, expiração) já está
+com placeholders vazios e é sobrescrita via `Jwt__Key` / `Jwt__Issuer` /
+`Jwt__Audience` / `Jwt__ExpiresMinutes` — o consumo (geração/validação de token)
+entra na tarefa "Endpoint de login + JWT" (Fase 2).

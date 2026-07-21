@@ -12,7 +12,7 @@ services:
     volumes:
       - db-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-chamados} -d ${POSTGRES_DB:-chamados}"]
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-chamados} -d ${POSTGRES_DB:-chamados}" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -25,6 +25,10 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
       ConnectionStrings__DefaultConnection: ${ConnectionStrings__DefaultConnection}
+      Jwt__Key: ${Jwt__Key}
+      Jwt__Issuer: ${Jwt__Issuer}
+      Jwt__Audience: ${Jwt__Audience}
+      Jwt__ExpiresMinutes: ${Jwt__ExpiresMinutes:-60}
     ports:
       - "${API_PORT:-5000}:8080"
     depends_on:
