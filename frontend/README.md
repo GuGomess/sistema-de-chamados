@@ -48,13 +48,13 @@ src/environments/
 
 ## Rotas
 
-| Rota              | Tela                 |
-| ----------------- | -------------------- |
-| `/login`          | Login (rota inicial) |
-| `/dashboard`      | Dashboard            |
-| `/chamados`       | Listagem de chamados |
-| `/chamados/novo`  | Abertura de chamado  |
-| `/chamados/:id`   | Detalhe do chamado   |
+| Rota             | Tela                 |
+| ---------------- | -------------------- |
+| `/login`         | Login (rota inicial) |
+| `/dashboard`     | Dashboard            |
+| `/chamados`      | Listagem de chamados |
+| `/chamados/novo` | Abertura de chamado  |
+| `/chamados/:id`  | Detalhe do chamado   |
 
 ## Ambiente e integração com a API
 
