@@ -88,4 +88,4 @@ Registro das decisões técnicas relevantes do projeto (ADR simplificado).
 
 ## 🚧 Status do Projeto
 
-Fase inicial de planejamento. **Backend definido: .NET (ASP.NET Core Web API)** · **SGBD definido: PostgreSQL.** Próxima decisão em aberto: contrato da API REST. Já há um `docker-compose.yml` com o serviço de banco e um `.env.example` de referência.
+Fase inicial de planejamento. **Backend definido: .NET (ASP.NET Core Web API)** · **SGBD definido: PostgreSQL.** Próxima decisão em aberto: contrato da API REST. O `docker-compose.yml` já orquestra os três serviços (`db`, `backend`, `frontend`) em rede local, com portas e variáveis configuráveis via `.env` (veja `.env.example`).
