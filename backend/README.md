@@ -55,8 +55,8 @@ A migration `SeedUsuarioAdmin` cria um usuário Administrador para permitir test
 login antes de existir um CRUD de usuários:
 
 ```
-email: admin@chamados.local
-senha: Admin@123
+email: gus@admin.com
+senha: admin@123
 ```
 
 > Apenas para desenvolvimento. Remover/substituir quando o CRUD de usuários existir.
