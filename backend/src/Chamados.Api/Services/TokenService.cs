@@ -2,6 +2,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
+using Chamados.Api.Constants;
 using Chamados.Api.Models.Entities;
 using Chamados.Api.Options;
 using Microsoft.Extensions.Options;
@@ -26,7 +27,7 @@ public class TokenService : ITokenService
             new Claim(JwtRegisteredClaimNames.Email, usuario.Email),
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
             new Claim(ClaimTypes.Name, usuario.Nome),
-            new Claim(ClaimTypes.Role, usuario.Perfil.Nome)
+            new Claim(ClaimTypes.Role, Perfis.NormalizarCodigo(usuario.Perfil.Nome))
         };
 
         var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtOptions.Key));

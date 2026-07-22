@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using Chamados.Api.Constants;
 using Chamados.Api.Data;
 using Chamados.Api.Options;
 using Chamados.Api.Services;
@@ -42,10 +43,15 @@ builder.Services
 
 // Autorização: por padrão toda rota exige usuário autenticado (alinhado ao
 // contrato em docs/openapi.yaml); endpoints públicos usam [AllowAnonymous].
+// Policies nomeadas por papel ficam disponíveis para os controllers que
+// ainda serão criados (ex.: [Authorize(Policy = "Administrador")]).
 builder.Services.AddAuthorizationBuilder()
     .SetFallbackPolicy(new AuthorizationPolicyBuilder()
         .RequireAuthenticatedUser()
-        .Build());
+        .Build())
+    .AddPolicy(Perfis.Administrador, policy => policy.RequireRole(Perfis.Administrador))
+    .AddPolicy(Perfis.Tecnico, policy => policy.RequireRole(Perfis.Tecnico))
+    .AddPolicy(Perfis.Cliente, policy => policy.RequireRole(Perfis.Cliente));
 
 // Health checks (liveness). Checagem de dependência com o PostgreSQL
 // fica para quando o healthcheck precisar refletir o estado do banco.

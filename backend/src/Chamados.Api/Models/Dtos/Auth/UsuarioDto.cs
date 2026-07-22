@@ -1,5 +1,4 @@
-using System.Globalization;
-using System.Text;
+using Chamados.Api.Constants;
 using Chamados.Api.Models.Entities;
 
 namespace Chamados.Api.Models.Dtos.Auth;
@@ -23,23 +22,8 @@ public class UsuarioDto
         Id = usuario.Id,
         Nome = usuario.Nome,
         Email = usuario.Email,
-        Perfil = ToPerfilCode(usuario.Perfil.Nome),
+        Perfil = Perfis.NormalizarCodigo(usuario.Perfil.Nome),
         Ativo = usuario.Ativo,
         CriadoEm = usuario.CriadoEm
     };
-
-    private static string ToPerfilCode(string perfilNome)
-    {
-        var normalized = perfilNome.Normalize(NormalizationForm.FormD);
-        var builder = new StringBuilder();
-        foreach (var c in normalized)
-        {
-            if (CharUnicodeInfo.GetUnicodeCategory(c) != UnicodeCategory.NonSpacingMark)
-            {
-                builder.Append(c);
-            }
-        }
-
-        return builder.ToString().ToUpperInvariant();
-    }
 }
