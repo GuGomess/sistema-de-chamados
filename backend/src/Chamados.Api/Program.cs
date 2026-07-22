@@ -1,13 +1,18 @@
 using System.Text.Json;
+using Chamados.Api.Data;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // --- Serviços ---
 builder.Services.AddControllers();
 
-// Health checks (liveness). Checagens de dependências (ex.: PostgreSQL)
-// serão adicionadas quando o EF Core / migrations entrarem no projeto.
+builder.Services.AddDbContext<ChamadosDbContext>(options =>
+    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+// Health checks (liveness). Checagem de dependência com o PostgreSQL
+// fica para quando o healthcheck precisar refletir o estado do banco.
 builder.Services.AddHealthChecks();
 
 // Swagger / OpenAPI (habilitado apenas em Development).
