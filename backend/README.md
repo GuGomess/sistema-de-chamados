@@ -7,7 +7,7 @@ API REST que concentra as regras de negócio do Sistema de Chamados: autenticaç
 - **.NET 9 / ASP.NET Core Web API** (controllers)
 - **Entity Framework Core** (persistência e migrations) com provider **Npgsql** — _a integrar em tarefa própria_
 - **PostgreSQL** como SGBD — ver modelagem em [`../database/MODELO-ER.md`](../database/MODELO-ER.md)
-- Autenticação **JWT** — _a integrar em tarefa própria_
+- Autenticação **JWT** — emissão do token em `POST /api/v1/auth/login`
 - Documentação **Swagger/OpenAPI** (habilitada em Development)
 - Contrato da API: [`../docs/openapi.yaml`](../docs/openapi.yaml)
 
@@ -45,8 +45,21 @@ A API sobe em **http://localhost:5000** — a mesma porta que o proxy do fronten
 | Método | Rota                        | Descrição                              |
 | ------ | --------------------------- | -------------------------------------- |
 | GET    | `/health`                   | Healthcheck (liveness) em JSON         |
+| POST   | `/api/v1/auth/login`        | Autentica (`email`, `senha`) e retorna JWT |
 | GET    | `/swagger`                  | Swagger UI (apenas em Development)      |
 | GET    | `/swagger/v1/swagger.json`  | Documento OpenAPI gerado               |
+
+### Usuário de desenvolvimento (seed)
+
+A migration `SeedUsuarioAdmin` cria um usuário Administrador para permitir testar o
+login antes de existir um CRUD de usuários:
+
+```
+email: admin@chamados.local
+senha: Admin@123
+```
+
+> Apenas para desenvolvimento. Remover/substituir quando o CRUD de usuários existir.
 
 Exemplo de resposta do healthcheck:
 
@@ -65,5 +78,6 @@ variáveis de ambiente (ex.: `ConnectionStrings__DefaultConnection`) — ver
 
 A seção `Jwt` em `appsettings.json` (chave, issuer, audience, expiração) já está
 com placeholders vazios e é sobrescrita via `Jwt__Key` / `Jwt__Issuer` /
-`Jwt__Audience` / `Jwt__ExpiresMinutes` — o consumo (geração/validação de token)
-entra na tarefa "Endpoint de login + JWT" (Fase 2).
+`Jwt__Audience` / `Jwt__ExpiresMinutes`. `POST /api/v1/auth/login` usa essa
+configuração para emitir o access token; a validação do JWT nas demais rotas
+(middleware de autenticação) entra em tarefa própria (Fase 2).

@@ -1,5 +1,7 @@
 using System.Text.Json;
 using Chamados.Api.Data;
+using Chamados.Api.Options;
+using Chamados.Api.Services;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
 
@@ -10,6 +12,9 @@ builder.Services.AddControllers();
 
 builder.Services.AddDbContext<ChamadosDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
+builder.Services.AddScoped<ITokenService, TokenService>();
 
 // Health checks (liveness). Checagem de dependência com o PostgreSQL
 // fica para quando o healthcheck precisar refletir o estado do banco.
