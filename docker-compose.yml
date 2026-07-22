@@ -1,3 +1,5 @@
+name: sistema-de-chamados
+
 services:
   db:
     image: postgres:16-alpine
