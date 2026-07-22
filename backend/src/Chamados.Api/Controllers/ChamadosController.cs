@@ -1,6 +1,5 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
-using System.Text.Json;
 using Chamados.Api.Constants;
 using Chamados.Api.Data;
 using Chamados.Api.Models.Dtos;
@@ -16,8 +15,6 @@ namespace Chamados.Api.Controllers;
 public class ChamadosController : ControllerBase
 {
     private const long StatusAbertoId = 1;
-
-    private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
 
     private readonly ChamadosDbContext _dbContext;
 
@@ -54,7 +51,7 @@ public class ChamadosController : ControllerBase
         }
         else if (User.IsInRole(Perfis.Tecnico))
         {
-            query = query.Where(c => c.TecnicoId == usuarioId.Value);
+            query = query.Where(c => c.TecnicoId == usuarioId.Value || c.TecnicoId == null);
         }
 
         if (idStatus.HasValue) query = query.Where(c => c.StatusId == idStatus.Value);
@@ -155,7 +152,7 @@ public class ChamadosController : ControllerBase
     }
 
     [HttpPatch("{id:long}")]
-    public async Task<ActionResult<ChamadoDto>> Atualizar(long id, [FromBody] JsonElement body)
+    public async Task<ActionResult<ChamadoDto>> Atualizar(long id, [FromBody] ChamadoUpdateRequest request)
     {
         var usuarioId = ObterUsuarioId();
         if (usuarioId is null)
@@ -173,9 +170,6 @@ public class ChamadosController : ControllerBase
         {
             return StatusCode(StatusCodes.Status403Forbidden, ErrorResponse.Create(403, "Sem permissão para atualizar este chamado."));
         }
-
-        var request = body.Deserialize<ChamadoUpdateRequest>(JsonOptions) ?? new ChamadoUpdateRequest();
-        request.IdTecnicoInformado = body.ValueKind == JsonValueKind.Object && body.TryGetProperty("idTecnico", out _);
 
         var erros = new Dictionary<string, string[]>();
 
@@ -203,27 +197,144 @@ public class ChamadosController : ControllerBase
                 chamado.PrioridadeId = request.IdPrioridade.Value;
         }
 
-        if (request.IdTecnicoInformado)
-        {
-            if (request.IdTecnico is null)
-            {
-                chamado.TecnicoId = null;
-            }
-            else if (!await _dbContext.Usuarios.AnyAsync(u => u.Id == request.IdTecnico.Value && u.Ativo))
-            {
-                erros["idTecnico"] = new[] { "Usuário técnico não encontrado." };
-            }
-            else
-            {
-                chamado.TecnicoId = request.IdTecnico.Value;
-            }
-        }
-
         if (erros.Count > 0)
         {
             return UnprocessableEntity(new ErrorResponse { Status = 422, Title = "Falha de validação", Errors = erros });
         }
 
+        chamado.AtualizadoEm = DateTimeOffset.UtcNow;
+        await _dbContext.SaveChangesAsync();
+
+        var chamadoAtualizado = await ChamadosComIncludes().FirstAsync(c => c.Id == chamado.Id);
+        return Ok(ChamadoDto.FromEntity(chamadoAtualizado));
+    }
+
+    [HttpPost("{id:long}/atribuir")]
+    public async Task<ActionResult<ChamadoDto>> Atribuir(long id, [FromBody] AtribuirTecnicoRequest request)
+    {
+        var usuarioId = ObterUsuarioId();
+        if (usuarioId is null)
+        {
+            return Unauthorized();
+        }
+
+        if (!User.IsInRole(Perfis.Administrador))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, ErrorResponse.Create(403, "Apenas administradores podem atribuir um chamado a um técnico."));
+        }
+
+        var chamado = await ChamadosComIncludes().FirstOrDefaultAsync(c => c.Id == id);
+        if (chamado is null)
+        {
+            return NotFound(ErrorResponse.Create(404, "Chamado não encontrado."));
+        }
+
+        if (chamado.Status.Final)
+        {
+            return UnprocessableEntity(new ErrorResponse
+            {
+                Status = 422,
+                Title = "Falha de validação",
+                Errors = new Dictionary<string, string[]> { ["status"] = new[] { "Chamado está em status final e não pode ser atribuído." } }
+            });
+        }
+
+        var tecnico = await _dbContext.Usuarios.Include(u => u.Perfil).FirstOrDefaultAsync(u => u.Id == request.IdTecnico);
+        if (tecnico is null || !tecnico.Ativo || Perfis.NormalizarCodigo(tecnico.Perfil.Nome) != Perfis.Tecnico)
+        {
+            return UnprocessableEntity(new ErrorResponse
+            {
+                Status = 422,
+                Title = "Falha de validação",
+                Errors = new Dictionary<string, string[]> { ["idTecnico"] = new[] { "Usuário técnico não encontrado." } }
+            });
+        }
+
+        chamado.TecnicoId = tecnico.Id;
+        chamado.AtualizadoEm = DateTimeOffset.UtcNow;
+        await _dbContext.SaveChangesAsync();
+
+        var chamadoAtualizado = await ChamadosComIncludes().FirstAsync(c => c.Id == chamado.Id);
+        return Ok(ChamadoDto.FromEntity(chamadoAtualizado));
+    }
+
+    [HttpPost("{id:long}/assumir")]
+    public async Task<ActionResult<ChamadoDto>> Assumir(long id)
+    {
+        var usuarioId = ObterUsuarioId();
+        if (usuarioId is null)
+        {
+            return Unauthorized();
+        }
+
+        if (!User.IsInRole(Perfis.Tecnico))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, ErrorResponse.Create(403, "Apenas técnicos podem assumir um chamado."));
+        }
+
+        var chamado = await ChamadosComIncludes().FirstOrDefaultAsync(c => c.Id == id);
+        if (chamado is null)
+        {
+            return NotFound(ErrorResponse.Create(404, "Chamado não encontrado."));
+        }
+
+        if (chamado.Status.Final)
+        {
+            return UnprocessableEntity(new ErrorResponse
+            {
+                Status = 422,
+                Title = "Falha de validação",
+                Errors = new Dictionary<string, string[]> { ["status"] = new[] { "Chamado está em status final e não pode ser assumido." } }
+            });
+        }
+
+        if (chamado.TecnicoId is not null)
+        {
+            return Conflict(ErrorResponse.Create(409, "Chamado já está atribuído a um técnico."));
+        }
+
+        chamado.TecnicoId = usuarioId.Value;
+        chamado.AtualizadoEm = DateTimeOffset.UtcNow;
+        await _dbContext.SaveChangesAsync();
+
+        var chamadoAtualizado = await ChamadosComIncludes().FirstAsync(c => c.Id == chamado.Id);
+        return Ok(ChamadoDto.FromEntity(chamadoAtualizado));
+    }
+
+    [HttpPost("{id:long}/liberar")]
+    public async Task<ActionResult<ChamadoDto>> Liberar(long id)
+    {
+        var usuarioId = ObterUsuarioId();
+        if (usuarioId is null)
+        {
+            return Unauthorized();
+        }
+
+        var chamado = await ChamadosComIncludes().FirstOrDefaultAsync(c => c.Id == id);
+        if (chamado is null)
+        {
+            return NotFound(ErrorResponse.Create(404, "Chamado não encontrado."));
+        }
+
+        var podeLiberar = User.IsInRole(Perfis.Administrador)
+            || (User.IsInRole(Perfis.Tecnico) && chamado.TecnicoId == usuarioId.Value);
+
+        if (!podeLiberar)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, ErrorResponse.Create(403, "Sem permissão para liberar este chamado."));
+        }
+
+        if (chamado.TecnicoId is null)
+        {
+            return UnprocessableEntity(new ErrorResponse
+            {
+                Status = 422,
+                Title = "Falha de validação",
+                Errors = new Dictionary<string, string[]> { ["idTecnico"] = new[] { "Chamado não possui técnico atribuído." } }
+            });
+        }
+
+        chamado.TecnicoId = null;
         chamado.AtualizadoEm = DateTimeOffset.UtcNow;
         await _dbContext.SaveChangesAsync();
 
@@ -242,7 +353,7 @@ public class ChamadosController : ControllerBase
     private bool PodeAcessar(Chamado chamado, long usuarioId)
     {
         if (User.IsInRole(Perfis.Administrador)) return true;
-        if (User.IsInRole(Perfis.Tecnico)) return chamado.TecnicoId == usuarioId;
+        if (User.IsInRole(Perfis.Tecnico)) return chamado.TecnicoId == usuarioId || chamado.TecnicoId is null;
         if (User.IsInRole(Perfis.Cliente)) return chamado.SolicitanteId == usuarioId;
         return false;
     }

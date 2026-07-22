@@ -91,7 +91,8 @@ paths:
       summary: Lista chamados (com filtros e paginação)
       description: >
         O escopo é aplicado pelo perfil: Cliente vê apenas os próprios chamados;
-        Técnico vê os atribuídos a ele; Administrador vê todos.
+        Técnico vê os atribuídos a ele e os ainda sem técnico (pool disponível
+        para assumir); Administrador vê todos.
       parameters:
         - { $ref: '#/components/parameters/Page' }
         - { $ref: '#/components/parameters/PageSize' }
@@ -158,10 +159,11 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
     patch:
       tags: [Chamados]
-      summary: Atualiza status, atribuição ou dados do chamado
+      summary: Atualiza status, categoria ou prioridade do chamado
       description: >
-        Usado para mudança de status, atribuição de técnico e ajustes.
-        Cada alteração relevante gera um registro em Histórico.
+        Usado para mudança de status e ajustes de categoria/prioridade.
+        A atribuição de técnico é feita pelos endpoints dedicados
+        `/atribuir`, `/assumir` e `/liberar`.
       requestBody:
         required: true
         content:
@@ -178,6 +180,70 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  /chamados/{id}/atribuir:
+    parameters:
+      - { $ref: '#/components/parameters/IdPath' }
+    post:
+      tags: [Chamados]
+      summary: Atribui o chamado a um técnico (Administrador)
+      description: >
+        Só o Administrador pode atribuir um chamado a um técnico específico.
+        O técnico informado precisa estar ativo e ter perfil TECNICO; o
+        chamado não pode estar em status final.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AtribuirTecnicoRequest' }
+      responses:
+        '200':
+          description: Chamado atribuído
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Chamado' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  /chamados/{id}/assumir:
+    parameters:
+      - { $ref: '#/components/parameters/IdPath' }
+    post:
+      tags: [Chamados]
+      summary: Técnico assume um chamado sem técnico atribuído
+      description: >
+        O técnico autenticado se autoatribui ao chamado. Falha com 409 se o
+        chamado já tiver um técnico e com 422 se estiver em status final.
+      responses:
+        '200':
+          description: Chamado assumido
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Chamado' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  /chamados/{id}/liberar:
+    parameters:
+      - { $ref: '#/components/parameters/IdPath' }
+    post:
+      tags: [Chamados]
+      summary: Remove o técnico atribuído ao chamado (libera para o pool)
+      description: >
+        Administrador pode liberar qualquer chamado; Técnico só pode liberar
+        um chamado que esteja atribuído a ele mesmo.
+      responses:
+        '200':
+          description: Chamado liberado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Chamado' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
 
   # ---------------------------------------------------------------- Comentários
@@ -742,9 +808,13 @@ components:
       description: Campos opcionais; apenas os enviados são alterados.
       properties:
         idStatus: { type: integer, format: int64 }
-        idTecnico: { type: integer, format: int64, nullable: true }
         idCategoria: { type: integer, format: int64 }
         idPrioridade: { type: integer, format: int64 }
+    AtribuirTecnicoRequest:
+      type: object
+      required: [idTecnico]
+      properties:
+        idTecnico: { type: integer, format: int64 }
     ChamadoPage:
       type: object
       properties:
