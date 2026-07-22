@@ -1,0 +1,139 @@
+.chamado-detalhe-wrap {
+  max-width: 960px;
+  margin: 2rem auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+
+  .erro {
+    color: #b00020;
+    background: #fdecea;
+    padding: 0.5rem 0.75rem;
+    border-radius: 4px;
+    font-size: 0.9rem;
+  }
+
+  .content-head {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+
+    h1 {
+      margin: 0;
+      font-size: 1.3rem;
+      flex: 1 1 auto;
+    }
+
+    .chip {
+      padding: 0.25rem 0.6rem;
+      border-radius: 999px;
+      background: #eef1f6;
+      font-size: 0.8rem;
+
+      &.status {
+        background: #dbeafe;
+        color: #1a56db;
+      }
+    }
+  }
+
+  .sla-strip {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    background: #f5f7fa;
+    border-radius: 6px;
+
+    .sla-i {
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+
+      .l {
+        font-size: 0.7rem;
+        color: #666;
+        text-transform: uppercase;
+        letter-spacing: 0.02em;
+      }
+
+      .v {
+        font-size: 0.9rem;
+      }
+    }
+  }
+
+  .corpo {
+    display: flex;
+    gap: 1.5rem;
+    align-items: flex-start;
+    flex-wrap: wrap;
+
+    .descricao {
+      flex: 2 1 320px;
+
+      h2 {
+        margin: 0 0 0.5rem;
+        font-size: 1rem;
+      }
+
+      p {
+        margin: 0 0 0.5rem;
+        white-space: pre-wrap;
+      }
+
+      .meta {
+        color: #666;
+        font-size: 0.8rem;
+      }
+    }
+
+    .acoes {
+      flex: 1 1 220px;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      padding: 1rem;
+      background: #fff;
+      border: 1px solid #e5e5e5;
+      border-radius: 6px;
+
+      h2 {
+        margin: 0;
+        font-size: 1rem;
+      }
+
+      form {
+        display: flex;
+        flex-direction: column;
+        gap: 0.6rem;
+      }
+
+      label {
+        display: flex;
+        flex-direction: column;
+        gap: 0.2rem;
+        font-size: 0.8rem;
+        color: #555;
+      }
+
+      select {
+        padding: 0.4rem;
+        font-size: 0.9rem;
+        font-family: inherit;
+      }
+
+      button {
+        padding: 0.45rem 0.9rem;
+        font-size: 0.9rem;
+        cursor: pointer;
+
+        &:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+        }
+      }
+    }
+  }
+}

@@ -1,4 +1,92 @@
-<section>
-  <h1>Detalhe do chamado</h1>
-  <p>Detalhe do chamado — placeholder.</p>
+<section class="chamado-detalhe-wrap">
+  @if (carregando()) {
+    <p>Carregando chamado...</p>
+  } @else if (erro()) {
+    <p class="erro" role="alert">{{ erro() }}</p>
+  } @else if (chamado(); as chamado) {
+    <div class="content-head">
+      <h1>#{{ chamado.id }} · {{ chamado.titulo }}</h1>
+      <span class="chip status">{{ chamado.status.nome }}</span>
+      <span class="chip">{{ chamado.prioridade.nome }}</span>
+    </div>
+
+    <div class="sla-strip">
+      <div class="sla-i">
+        <span class="l">Solicitante</span>
+        <span class="v">{{ chamado.solicitante.nome }}</span>
+      </div>
+      <div class="sla-i">
+        <span class="l">Técnico</span>
+        <span class="v">{{ chamado.tecnico?.nome ?? 'Não atribuído' }}</span>
+      </div>
+      <div class="sla-i">
+        <span class="l">Categoria</span>
+        <span class="v">{{ chamado.categoria.nome }}</span>
+      </div>
+      <div class="sla-i">
+        <span class="l">Prazo resposta</span>
+        <span class="v">{{ chamado.prazoResposta ? (chamado.prazoResposta | date: 'dd/MM/yyyy HH:mm') : '—' }}</span>
+      </div>
+      <div class="sla-i">
+        <span class="l">Prazo resolução</span>
+        <span class="v">{{ chamado.prazoResolucao ? (chamado.prazoResolucao | date: 'dd/MM/yyyy HH:mm') : '—' }}</span>
+      </div>
+    </div>
+
+    <div class="corpo">
+      <div class="descricao">
+        <h2>Descrição</h2>
+        <p>{{ chamado.descricao }}</p>
+        <p class="meta">
+          Aberto em {{ chamado.criadoEm | date: 'dd/MM/yyyy HH:mm' }} · Atualizado em
+          {{ chamado.atualizadoEm | date: 'dd/MM/yyyy HH:mm' }}
+        </p>
+      </div>
+
+      @if (podeAssumir() || podeLiberar() || podeEditar()) {
+        <aside class="acoes">
+          <h2>Ações</h2>
+
+          @if (acaoErro()) {
+            <p class="erro" role="alert">{{ acaoErro() }}</p>
+          }
+
+          @if (podeAssumir()) {
+            <button type="button" [disabled]="salvando()" (click)="assumir()">Assumir chamado</button>
+          }
+
+          @if (podeEditar()) {
+            <form [formGroup]="form" (ngSubmit)="salvarAlteracoes()" novalidate>
+              <label>
+                Alterar status
+                <select formControlName="idStatus">
+                  @for (s of statusList(); track s.id) {
+                    <option [ngValue]="s.id">{{ s.nome }}</option>
+                  }
+                </select>
+              </label>
+
+              @if (ehAdministrador()) {
+                <label>
+                  Atribuir técnico
+                  <select formControlName="idTecnico">
+                    <option [ngValue]="null">Não atribuído</option>
+                    @for (tecnico of tecnicos(); track tecnico.id) {
+                      <option [ngValue]="tecnico.id">{{ tecnico.nome }}</option>
+                    }
+                  </select>
+                </label>
+              }
+
+              <button type="submit" [disabled]="salvando()">Salvar alterações</button>
+            </form>
+          }
+
+          @if (podeLiberar()) {
+            <button type="button" [disabled]="salvando()" (click)="liberar()">Liberar chamado</button>
+          }
+        </aside>
+      }
+    </div>
+  }
 </section>

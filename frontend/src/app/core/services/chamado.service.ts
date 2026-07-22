@@ -4,11 +4,13 @@ import { Observable } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
 import {
+  AtribuirTecnicoRequest,
   Categoria,
   Chamado,
   ChamadoCreateRequest,
   ChamadoFiltros,
   ChamadoPage,
+  ChamadoUpdateRequest,
   Prioridade,
   Status,
   UsuarioResumo,
@@ -20,6 +22,27 @@ export class ChamadoService {
 
   criar(chamado: ChamadoCreateRequest): Observable<Chamado> {
     return this.http.post<Chamado>(`${environment.apiBaseUrl}/v1/chamados`, chamado);
+  }
+
+  detalhar(id: number): Observable<Chamado> {
+    return this.http.get<Chamado>(`${environment.apiBaseUrl}/v1/chamados/${id}`);
+  }
+
+  atualizar(id: number, request: ChamadoUpdateRequest): Observable<Chamado> {
+    return this.http.patch<Chamado>(`${environment.apiBaseUrl}/v1/chamados/${id}`, request);
+  }
+
+  atribuir(id: number, idTecnico: number): Observable<Chamado> {
+    const request: AtribuirTecnicoRequest = { idTecnico };
+    return this.http.post<Chamado>(`${environment.apiBaseUrl}/v1/chamados/${id}/atribuir`, request);
+  }
+
+  assumir(id: number): Observable<Chamado> {
+    return this.http.post<Chamado>(`${environment.apiBaseUrl}/v1/chamados/${id}/assumir`, {});
+  }
+
+  liberar(id: number): Observable<Chamado> {
+    return this.http.post<Chamado>(`${environment.apiBaseUrl}/v1/chamados/${id}/liberar`, {});
   }
 
   listar(filtros: ChamadoFiltros): Observable<ChamadoPage> {

@@ -34,6 +34,16 @@ export interface ChamadoCreateRequest {
   idPrioridade: number;
 }
 
+export interface ChamadoUpdateRequest {
+  idStatus?: number;
+  idCategoria?: number;
+  idPrioridade?: number;
+}
+
+export interface AtribuirTecnicoRequest {
+  idTecnico: number;
+}
+
 export interface Chamado {
   id: number;
   titulo: string;
