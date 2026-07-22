@@ -1,7 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, inject, signal } from '@angular/core';
 import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 
 import { AuthService } from '../../core/services/auth.service';
 import { PerfilCodigo } from '../../core/models/auth.model';
@@ -22,6 +22,7 @@ export class Login {
   private readonly formBuilder = inject(FormBuilder);
   private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
 
   protected readonly carregando = signal(false);
   protected readonly erro = signal<string | null>(null);
@@ -43,7 +44,10 @@ export class Login {
     this.authService.login(this.form.getRawValue()).subscribe({
       next: (auth) => {
         this.carregando.set(false);
-        this.router.navigateByUrl(ROTA_POR_PERFIL[auth.usuario.perfil] ?? '/dashboard');
+        const returnUrl = this.route.snapshot.queryParamMap.get('returnUrl');
+        this.router.navigateByUrl(
+          returnUrl || ROTA_POR_PERFIL[auth.usuario.perfil] || '/dashboard',
+        );
       },
       error: (error: HttpErrorResponse) => {
         this.carregando.set(false);
