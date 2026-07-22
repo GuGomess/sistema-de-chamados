@@ -17,4 +17,8 @@ public class Usuario
     public bool Ativo { get; set; } = true;
 
     public DateTimeOffset CriadoEm { get; set; }
+
+    public ICollection<Chamado> ChamadosSolicitados { get; set; } = new List<Chamado>();
+
+    public ICollection<Chamado> ChamadosAtendidos { get; set; } = new List<Chamado>();
 }
