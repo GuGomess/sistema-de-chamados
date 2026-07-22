@@ -32,7 +32,9 @@ public class ChamadosController : ControllerBase
         [FromQuery] long? idCategoria = null,
         [FromQuery] long? idPrioridade = null,
         [FromQuery] long? idTecnico = null,
-        [FromQuery] string? q = null)
+        [FromQuery] string? q = null,
+        [FromQuery] DateTimeOffset? dataInicio = null,
+        [FromQuery] DateTimeOffset? dataFim = null)
     {
         var usuarioId = ObterUsuarioId();
         if (usuarioId is null)
@@ -63,6 +65,9 @@ public class ChamadosController : ControllerBase
         {
             query = query.Where(c => EF.Functions.ILike(c.Titulo, $"%{q}%") || EF.Functions.ILike(c.Descricao, $"%{q}%"));
         }
+
+        if (dataInicio.HasValue) query = query.Where(c => c.CriadoEm >= dataInicio.Value);
+        if (dataFim.HasValue) query = query.Where(c => c.CriadoEm <= dataFim.Value);
 
         var descending = sort is null || sort.StartsWith('-');
         var campo = sort?.TrimStart('-');

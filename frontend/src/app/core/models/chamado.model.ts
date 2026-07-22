@@ -50,3 +50,28 @@ export interface Chamado {
   resolvidoEm: string | null;
   fechadoEm: string | null;
 }
+
+export interface PageMeta {
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+}
+
+export interface ChamadoPage {
+  items: Chamado[];
+  meta: PageMeta;
+}
+
+export interface ChamadoFiltros {
+  page?: number;
+  pageSize?: number;
+  sort?: string;
+  q?: string;
+  idStatus?: number | null;
+  idCategoria?: number | null;
+  idPrioridade?: number | null;
+  idTecnico?: number | null;
+  dataInicio?: string | null;
+  dataFim?: string | null;
+}

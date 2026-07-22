@@ -1,4 +1,103 @@
-<section>
-  <h1>Chamados</h1>
-  <p>Listagem de chamados — placeholder.</p>
+<section class="chamados-lista-wrap">
+  <div class="content-head">
+    <h1>Chamados</h1>
+    <a class="btn" routerLink="/chamados/novo">+ Novo</a>
+  </div>
+
+  @if (erro()) {
+    <p class="erro" role="alert">{{ erro() }}</p>
+  }
+
+  @if (carregandoOpcoes()) {
+    <p>Carregando filtros...</p>
+  } @else {
+    <form class="filtros" [formGroup]="form" (ngSubmit)="onFiltrar()" novalidate>
+      <input type="text" formControlName="q" placeholder="Buscar por título ou descrição" />
+
+      <select formControlName="idStatus">
+        <option [ngValue]="null">Status</option>
+        @for (s of status(); track s.id) {
+          <option [ngValue]="s.id">{{ s.nome }}</option>
+        }
+      </select>
+
+      <select formControlName="idCategoria">
+        <option [ngValue]="null">Categoria</option>
+        @for (categoria of categorias(); track categoria.id) {
+          <option [ngValue]="categoria.id">{{ categoria.nome }}</option>
+        }
+      </select>
+
+      <select formControlName="idPrioridade">
+        <option [ngValue]="null">Prioridade</option>
+        @for (prioridade of prioridades(); track prioridade.id) {
+          <option [ngValue]="prioridade.id">{{ prioridade.nome }}</option>
+        }
+      </select>
+
+      <select formControlName="idTecnico">
+        <option [ngValue]="null">Técnico</option>
+        @for (tecnico of tecnicos(); track tecnico.id) {
+          <option [ngValue]="tecnico.id">{{ tecnico.nome }}</option>
+        }
+      </select>
+
+      <label>
+        De
+        <input type="date" formControlName="dataInicio" />
+      </label>
+
+      <label>
+        Até
+        <input type="date" formControlName="dataFim" />
+      </label>
+
+      <button type="submit" [disabled]="carregando()">Filtrar</button>
+    </form>
+
+    @if (carregando()) {
+      <p>Carregando chamados...</p>
+    } @else if (chamados().length === 0) {
+      <p>Nenhum chamado encontrado com os filtros selecionados.</p>
+    } @else {
+      <div class="tabela-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Título</th>
+              <th>Status</th>
+              <th>Prioridade</th>
+              <th>Técnico</th>
+              <th>Aberto em</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (chamado of chamados(); track chamado.id) {
+              <tr (click)="abrirChamado(chamado)">
+                <td>#{{ chamado.id }}</td>
+                <td>{{ chamado.titulo }}</td>
+                <td>{{ chamado.status.nome }}</td>
+                <td>{{ chamado.prioridade.nome }}</td>
+                <td>{{ chamado.tecnico?.nome ?? '—' }}</td>
+                <td>{{ chamado.criadoEm | date: 'dd/MM/yyyy HH:mm' }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      @if (meta(); as m) {
+        <div class="paginacao">
+          <button type="button" [disabled]="m.page <= 1" (click)="irParaPagina(m.page - 1)">
+            Anterior
+          </button>
+          <span>Página {{ m.page }} de {{ m.totalPages }} ({{ m.totalItems }} chamados)</span>
+          <button type="button" [disabled]="m.page >= m.totalPages" (click)="irParaPagina(m.page + 1)">
+            Próxima
+          </button>
+        </div>
+      }
+    }
+  }
 </section>

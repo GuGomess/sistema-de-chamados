@@ -113,6 +113,14 @@ paths:
           in: query
           description: Busca textual em título/descrição
           schema: { type: string }
+        - name: dataInicio
+          in: query
+          description: Filtra chamados criados a partir desta data/hora (inclusive)
+          schema: { type: string, format: date-time }
+        - name: dataFim
+          in: query
+          description: Filtra chamados criados até esta data/hora (inclusive)
+          schema: { type: string, format: date-time }
       responses:
         '200':
           description: Página de chamados
@@ -142,6 +150,23 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  /usuarios/tecnicos:
+    get:
+      tags: [Usuários]
+      summary: Lista técnicos ativos
+      description: >
+        Endpoint enxuto (sem paginação) usado para popular seletores de
+        técnico, como o filtro da listagem de chamados. Distinto do
+        CRUD administrativo em `/usuarios`.
+      responses:
+        '200':
+          description: Lista de técnicos ativos
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Usuario' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
   /chamados/{id}:
     parameters:
       - { $ref: '#/components/parameters/IdPath' }
