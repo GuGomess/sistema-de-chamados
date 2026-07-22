@@ -1,0 +1,60 @@
+.chamado-novo-wrap {
+  max-width: 480px;
+  margin: 3rem auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+
+  .subtitle {
+    margin: 0 0 1rem;
+    color: #666;
+  }
+
+  form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  label {
+    margin-top: 0.75rem;
+    font-size: 0.9rem;
+  }
+
+  input,
+  select,
+  textarea {
+    padding: 0.5rem;
+    font-size: 1rem;
+    font-family: inherit;
+  }
+
+  textarea {
+    resize: vertical;
+  }
+
+  .campo-erro {
+    color: #b00020;
+    font-size: 0.8rem;
+  }
+
+  .erro {
+    color: #b00020;
+    background: #fdecea;
+    padding: 0.5rem 0.75rem;
+    border-radius: 4px;
+    font-size: 0.9rem;
+  }
+
+  button {
+    margin-top: 1.25rem;
+    padding: 0.6rem;
+    font-size: 1rem;
+    cursor: pointer;
+
+    &:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+  }
+}

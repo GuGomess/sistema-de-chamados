@@ -1,4 +1,52 @@
-<section>
+<section class="chamado-novo-wrap">
   <h1>Novo chamado</h1>
-  <p>Abertura de chamado — placeholder.</p>
+  <p class="subtitle">Descreva o problema para que um técnico possa te atender</p>
+
+  @if (erro()) {
+    <p class="erro" role="alert">{{ erro() }}</p>
+  }
+
+  @if (carregandoOpcoes()) {
+    <p>Carregando formulário...</p>
+  } @else {
+    <form [formGroup]="form" (ngSubmit)="onSubmit()" novalidate>
+      <label for="titulo">Título</label>
+      <input id="titulo" type="text" formControlName="titulo" maxlength="160" />
+      @if (form.controls.titulo.invalid && form.controls.titulo.touched) {
+        <span class="campo-erro">Informe um título com até 160 caracteres.</span>
+      }
+
+      <label for="idCategoria">Categoria</label>
+      <select id="idCategoria" formControlName="idCategoria">
+        <option [ngValue]="null" disabled>Selecione uma categoria</option>
+        @for (categoria of categorias(); track categoria.id) {
+          <option [ngValue]="categoria.id">{{ categoria.nome }}</option>
+        }
+      </select>
+      @if (form.controls.idCategoria.invalid && form.controls.idCategoria.touched) {
+        <span class="campo-erro">Selecione uma categoria.</span>
+      }
+
+      <label for="idPrioridade">Prioridade</label>
+      <select id="idPrioridade" formControlName="idPrioridade">
+        <option [ngValue]="null" disabled>Selecione uma prioridade</option>
+        @for (prioridade of prioridades(); track prioridade.id) {
+          <option [ngValue]="prioridade.id">{{ prioridade.nome }}</option>
+        }
+      </select>
+      @if (form.controls.idPrioridade.invalid && form.controls.idPrioridade.touched) {
+        <span class="campo-erro">Selecione uma prioridade.</span>
+      }
+
+      <label for="descricao">Descrição</label>
+      <textarea id="descricao" formControlName="descricao" rows="6"></textarea>
+      @if (form.controls.descricao.invalid && form.controls.descricao.touched) {
+        <span class="campo-erro">Descreva o problema.</span>
+      }
+
+      <button type="submit" [disabled]="enviando()">
+        {{ enviando() ? 'Enviando...' : 'Abrir chamado' }}
+      </button>
+    </form>
+  }
 </section>
