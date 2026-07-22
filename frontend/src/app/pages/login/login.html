@@ -1,4 +1,26 @@
-<section>
-  <h1>Login</h1>
-  <p>Tela de autenticação — placeholder.</p>
+<section class="login-wrap">
+  <h1>Acessar o sistema</h1>
+  <p class="subtitle">Entre com suas credenciais</p>
+
+  @if (erro()) {
+    <p class="erro" role="alert">{{ erro() }}</p>
+  }
+
+  <form [formGroup]="form" (ngSubmit)="onSubmit()" novalidate>
+    <label for="email">E-mail</label>
+    <input id="email" type="email" formControlName="email" autocomplete="username" />
+    @if (form.controls.email.invalid && form.controls.email.touched) {
+      <span class="campo-erro">Informe um e-mail válido.</span>
+    }
+
+    <label for="senha">Senha</label>
+    <input id="senha" type="password" formControlName="senha" autocomplete="current-password" />
+    @if (form.controls.senha.invalid && form.controls.senha.touched) {
+      <span class="campo-erro">A senha deve ter ao menos 6 caracteres.</span>
+    }
+
+    <button type="submit" [disabled]="carregando()">
+      {{ carregando() ? 'Entrando...' : 'Entrar' }}
+    </button>
+  </form>
 </section>
