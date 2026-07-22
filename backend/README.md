@@ -79,5 +79,7 @@ variáveis de ambiente (ex.: `ConnectionStrings__DefaultConnection`) — ver
 A seção `Jwt` em `appsettings.json` (chave, issuer, audience, expiração) já está
 com placeholders vazios e é sobrescrita via `Jwt__Key` / `Jwt__Issuer` /
 `Jwt__Audience` / `Jwt__ExpiresMinutes`. `POST /api/v1/auth/login` usa essa
-configuração para emitir o access token; a validação do JWT nas demais rotas
-(middleware de autenticação) entra em tarefa própria (Fase 2).
+configuração para emitir o access token. As demais rotas exigem esse token por
+padrão (política de autorização _fallback_ configurada em `Program.cs`); apenas
+endpoints marcados com `[AllowAnonymous]` (como o login) e o `/health` ficam
+públicos.

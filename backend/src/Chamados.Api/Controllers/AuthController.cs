@@ -2,6 +2,7 @@ using Chamados.Api.Data;
 using Chamados.Api.Models.Dtos.Auth;
 using Chamados.Api.Models.Entities;
 using Chamados.Api.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -22,6 +23,7 @@ public class AuthController : ControllerBase
         _tokenService = tokenService;
     }
 
+    [AllowAnonymous]
     [HttpPost("login")]
     public async Task<ActionResult<AuthResponse>> Login(LoginRequest request)
     {
