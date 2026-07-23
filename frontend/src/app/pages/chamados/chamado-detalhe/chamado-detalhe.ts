@@ -10,6 +10,8 @@ import { ChamadoService } from '../../../core/services/chamado.service';
 import {
   Chamado,
   PrazoResolucaoUpdateRequest,
+  PrazoRespostaUpdateRequest,
+  SituacaoSla,
   Status,
   UsuarioResumo,
 } from '../../../core/models/chamado.model';
@@ -52,6 +54,10 @@ export class ChamadoDetalhe implements OnInit {
     justificativa: [''],
   });
 
+  protected readonly prazoRespostaForm = this.formBuilder.nonNullable.group({
+    prazoResposta: [''],
+  });
+
   ngOnInit(): void {
     this.carregarChamado();
 
@@ -61,6 +67,17 @@ export class ChamadoDetalhe implements OnInit {
 
     if (this.ehAdministrador()) {
       this.chamadoService.listarTecnicos().subscribe({ next: (tecnicos) => this.tecnicos.set(tecnicos) });
+    }
+  }
+
+  protected situacaoSlaLabel(situacao: SituacaoSla): string {
+    switch (situacao) {
+      case 'EmRisco':
+        return 'Em risco';
+      case 'Vencido':
+        return 'Vencido';
+      default:
+        return 'Em dia';
     }
   }
 
@@ -131,6 +148,24 @@ export class ChamadoDetalhe implements OnInit {
     };
 
     this.executarAcao(this.chamadoService.ajustarPrazoResolucao(this.id, request));
+  }
+
+  protected ajustarPrazoResposta(): void {
+    if (this.salvando()) {
+      return;
+    }
+
+    const { prazoResposta } = this.prazoRespostaForm.getRawValue();
+    if (!prazoResposta) {
+      this.acaoErro.set('Informe o novo prazo de resposta.');
+      return;
+    }
+
+    const request: PrazoRespostaUpdateRequest = {
+      prazoResposta: new Date(prazoResposta).toISOString(),
+    };
+
+    this.executarAcao(this.chamadoService.ajustarPrazoResposta(this.id, request));
   }
 
   protected salvarAlteracoes(): void {
@@ -216,6 +251,10 @@ export class ChamadoDetalhe implements OnInit {
         prazoResolucao: chamado.prazoResolucao ? this.paraDatetimeLocal(chamado.prazoResolucao) : '',
         justificativa: '',
       },
+      { emitEvent: false },
+    );
+    this.prazoRespostaForm.patchValue(
+      { prazoResposta: chamado.prazoResposta ? this.paraDatetimeLocal(chamado.prazoResposta) : '' },
       { emitEvent: false },
     );
   }

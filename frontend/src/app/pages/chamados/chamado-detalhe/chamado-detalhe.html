@@ -25,11 +25,25 @@
       </div>
       <div class="sla-i">
         <span class="l">Prazo resposta</span>
-        <span class="v">{{ chamado.prazoResposta ? (chamado.prazoResposta | date: 'dd/MM/yyyy HH:mm') : '—' }}</span>
+        <span class="v">
+          {{ chamado.prazoResposta ? (chamado.prazoResposta | date: 'dd/MM/yyyy HH:mm') : '—' }}
+          @if (chamado.prazoResposta && chamado.situacaoSlaResposta !== 'EmDia') {
+            <span class="badge {{ 'sla-' + chamado.situacaoSlaResposta.toLowerCase() }}">{{
+              situacaoSlaLabel(chamado.situacaoSlaResposta)
+            }}</span>
+          }
+        </span>
       </div>
       <div class="sla-i">
         <span class="l">Prazo resolução</span>
-        <span class="v">{{ chamado.prazoResolucao ? (chamado.prazoResolucao | date: 'dd/MM/yyyy HH:mm') : '—' }}</span>
+        <span class="v">
+          {{ chamado.prazoResolucao ? (chamado.prazoResolucao | date: 'dd/MM/yyyy HH:mm') : '—' }}
+          @if (chamado.prazoResolucao && chamado.situacaoSlaResolucao !== 'EmDia') {
+            <span class="badge {{ 'sla-' + chamado.situacaoSlaResolucao.toLowerCase() }}">{{
+              situacaoSlaLabel(chamado.situacaoSlaResolucao)
+            }}</span>
+          }
+        </span>
       </div>
     </div>
 
@@ -87,6 +101,14 @@
           }
 
           @if (podeAjustarPrazo()) {
+            <form [formGroup]="prazoRespostaForm" (ngSubmit)="ajustarPrazoResposta()" novalidate class="prazo-form">
+              <label>
+                Novo prazo de resposta
+                <input type="datetime-local" formControlName="prazoResposta" />
+              </label>
+              <button type="submit" [disabled]="salvando()">Ajustar prazo</button>
+            </form>
+
             <form [formGroup]="prazoForm" (ngSubmit)="ajustarPrazo()" novalidate class="prazo-form">
               <label>
                 Novo prazo de resolução

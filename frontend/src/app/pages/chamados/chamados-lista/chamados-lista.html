@@ -68,6 +68,7 @@
               <th>Título</th>
               <th>Status</th>
               <th>Prioridade</th>
+              <th>SLA</th>
               <th>Técnico</th>
               <th>Aberto em</th>
             </tr>
@@ -79,6 +80,15 @@
                 <td>{{ chamado.titulo }}</td>
                 <td>{{ chamado.status.nome }}</td>
                 <td>{{ chamado.prioridade.nome }}</td>
+                <td>
+                  @if (situacaoSlaGeral(chamado); as situacao) {
+                    @if (situacao !== 'EmDia') {
+                      <span class="badge {{ 'sla-' + situacao.toLowerCase() }}">{{ situacaoSlaLabel(situacao) }}</span>
+                    } @else {
+                      —
+                    }
+                  }
+                </td>
                 <td>{{ chamado.tecnico?.nome ?? '—' }}</td>
                 <td>{{ chamado.criadoEm | date: 'dd/MM/yyyy HH:mm' }}</td>
               </tr>

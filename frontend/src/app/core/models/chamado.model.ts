@@ -20,6 +20,8 @@ export interface Status {
   final: boolean;
 }
 
+export type SituacaoSla = 'EmDia' | 'EmRisco' | 'Vencido';
+
 export interface UsuarioResumo {
   id: number;
   nome: string;
@@ -49,6 +51,10 @@ export interface PrazoResolucaoUpdateRequest {
   justificativa: string;
 }
 
+export interface PrazoRespostaUpdateRequest {
+  prazoResposta: string;
+}
+
 export interface Chamado {
   id: number;
   titulo: string;
@@ -64,6 +70,8 @@ export interface Chamado {
   prazoResolucao: string | null;
   resolvidoEm: string | null;
   fechadoEm: string | null;
+  situacaoSlaResposta: SituacaoSla;
+  situacaoSlaResolucao: SituacaoSla;
 }
 
 export interface PageMeta {

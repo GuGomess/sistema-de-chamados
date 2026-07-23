@@ -11,6 +11,7 @@ import {
   Chamado,
   PageMeta,
   Prioridade,
+  SituacaoSla,
   Status,
   UsuarioResumo,
 } from '../../../core/models/chamado.model';
@@ -83,6 +84,27 @@ export class ChamadosLista implements OnInit {
 
   protected abrirChamado(chamado: Chamado): void {
     this.router.navigate(['/chamados', chamado.id]);
+  }
+
+  protected situacaoSlaLabel(situacao: SituacaoSla): string {
+    switch (situacao) {
+      case 'EmRisco':
+        return 'Em risco';
+      case 'Vencido':
+        return 'Vencido';
+      default:
+        return 'Em dia';
+    }
+  }
+
+  protected situacaoSlaGeral(chamado: Chamado): SituacaoSla {
+    if (chamado.situacaoSlaResposta === 'Vencido' || chamado.situacaoSlaResolucao === 'Vencido') {
+      return 'Vencido';
+    }
+    if (chamado.situacaoSlaResposta === 'EmRisco' || chamado.situacaoSlaResolucao === 'EmRisco') {
+      return 'EmRisco';
+    }
+    return 'EmDia';
   }
 
   private buscar(): void {

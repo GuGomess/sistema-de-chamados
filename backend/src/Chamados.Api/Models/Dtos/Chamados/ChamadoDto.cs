@@ -33,6 +33,10 @@ public class ChamadoDto
 
     public DateTimeOffset? FechadoEm { get; set; }
 
+    public SituacaoSla SituacaoSlaResposta { get; set; }
+
+    public SituacaoSla SituacaoSlaResolucao { get; set; }
+
     public static ChamadoDto FromEntity(Chamado chamado) => new()
     {
         Id = chamado.Id,
@@ -48,7 +52,9 @@ public class ChamadoDto
         PrazoResposta = chamado.PrazoResposta,
         PrazoResolucao = chamado.PrazoResolucao,
         ResolvidoEm = chamado.ResolvidoEm,
-        FechadoEm = chamado.FechadoEm
+        FechadoEm = chamado.FechadoEm,
+        SituacaoSlaResposta = chamado.SituacaoSlaResposta,
+        SituacaoSlaResolucao = chamado.SituacaoSlaResolucao
     };
 }
 

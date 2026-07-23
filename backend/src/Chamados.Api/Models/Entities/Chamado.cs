@@ -39,4 +39,8 @@ public class Chamado
     public DateTimeOffset? ResolvidoEm { get; set; }
 
     public DateTimeOffset? FechadoEm { get; set; }
+
+    public SituacaoSla SituacaoSlaResposta { get; set; } = SituacaoSla.EmDia;
+
+    public SituacaoSla SituacaoSlaResolucao { get; set; } = SituacaoSla.EmDia;
 }

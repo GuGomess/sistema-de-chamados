@@ -88,6 +88,24 @@
         background: #f5f7fa;
       }
     }
+
+    .badge {
+      display: inline-block;
+      padding: 0.1rem 0.5rem;
+      border-radius: 999px;
+      font-size: 0.7rem;
+      font-weight: 600;
+
+      &.sla-emrisco {
+        background: #fef3c7;
+        color: #92400e;
+      }
+
+      &.sla-vencido {
+        background: #fee2e2;
+        color: #b91c1c;
+      }
+    }
   }
 
   .paginacao {

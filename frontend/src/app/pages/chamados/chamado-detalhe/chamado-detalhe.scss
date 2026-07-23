@@ -61,6 +61,26 @@
       .v {
         font-size: 0.9rem;
       }
+
+      .badge {
+        display: inline-block;
+        margin-left: 0.35rem;
+        padding: 0.1rem 0.5rem;
+        border-radius: 999px;
+        font-size: 0.7rem;
+        font-weight: 600;
+        vertical-align: middle;
+
+        &.sla-emrisco {
+          background: #fef3c7;
+          color: #92400e;
+        }
+
+        &.sla-vencido {
+          background: #fee2e2;
+          color: #b91c1c;
+        }
+      }
     }
   }
 

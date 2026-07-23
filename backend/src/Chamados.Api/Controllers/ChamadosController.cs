@@ -5,6 +5,7 @@ using Chamados.Api.Data;
 using Chamados.Api.Models.Dtos;
 using Chamados.Api.Models.Dtos.Chamados;
 using Chamados.Api.Models.Entities;
+using Chamados.Api.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -470,6 +471,7 @@ public class ChamadosController : ControllerBase
         var prazoAnterior = chamado.PrazoResolucao;
         chamado.PrazoResolucao = request.PrazoResolucao;
         chamado.AtualizadoEm = DateTimeOffset.UtcNow;
+        chamado.SituacaoSlaResolucao = SlaSituacaoCalculator.Calcular(chamado.CriadoEm, request.PrazoResolucao, chamado.AtualizadoEm);
         await _dbContext.SaveChangesAsync();
 
         var prazoAnteriorTexto = prazoAnterior is null ? "não definido" : prazoAnterior.Value.UtcDateTime.ToString("dd/MM/yyyy HH:mm") + " UTC";
@@ -481,6 +483,61 @@ public class ChamadosController : ControllerBase
             AutorId = usuarioId.Value,
             Acao = "Ajuste de prazo de resolução",
             Detalhe = $"Prazo alterado de {prazoAnteriorTexto} para {prazoNovoTexto}. Justificativa: {request.Justificativa}"
+        });
+        await _dbContext.SaveChangesAsync();
+
+        var chamadoAtualizado = await ChamadosComIncludes().FirstAsync(c => c.Id == chamado.Id);
+        return Ok(ChamadoDto.FromEntity(chamadoAtualizado));
+    }
+
+    [HttpPatch("{id:long}/prazo-resposta")]
+    public async Task<ActionResult<ChamadoDto>> AjustarPrazoResposta(long id, [FromBody] PrazoRespostaUpdateRequest request)
+    {
+        var usuarioId = ObterUsuarioId();
+        if (usuarioId is null)
+        {
+            return Unauthorized();
+        }
+
+        var chamado = await ChamadosComIncludes().FirstOrDefaultAsync(c => c.Id == id);
+        if (chamado is null)
+        {
+            return NotFound(ErrorResponse.Create(404, "Chamado não encontrado."));
+        }
+
+        var podeAjustar = User.IsInRole(Perfis.Administrador)
+            || (User.IsInRole(Perfis.Tecnico) && chamado.TecnicoId == usuarioId.Value);
+
+        if (!podeAjustar)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, ErrorResponse.Create(403, "Sem permissão para ajustar o prazo de resposta deste chamado."));
+        }
+
+        if (chamado.Status.Final)
+        {
+            return UnprocessableEntity(new ErrorResponse
+            {
+                Status = 422,
+                Title = "Falha de validação",
+                Errors = new Dictionary<string, string[]> { ["status"] = new[] { "Chamado está em status final e não pode ter o prazo ajustado." } }
+            });
+        }
+
+        var prazoAnterior = chamado.PrazoResposta;
+        chamado.PrazoResposta = request.PrazoResposta;
+        chamado.AtualizadoEm = DateTimeOffset.UtcNow;
+        chamado.SituacaoSlaResposta = SlaSituacaoCalculator.Calcular(chamado.CriadoEm, request.PrazoResposta, chamado.AtualizadoEm);
+        await _dbContext.SaveChangesAsync();
+
+        var prazoAnteriorTexto = prazoAnterior is null ? "não definido" : prazoAnterior.Value.UtcDateTime.ToString("dd/MM/yyyy HH:mm") + " UTC";
+        var prazoNovoTexto = request.PrazoResposta.UtcDateTime.ToString("dd/MM/yyyy HH:mm") + " UTC";
+
+        _dbContext.Historicos.Add(new Historico
+        {
+            ChamadoId = chamado.Id,
+            AutorId = usuarioId.Value,
+            Acao = "Ajuste de prazo de resposta",
+            Detalhe = $"Prazo alterado de {prazoAnteriorTexto} para {prazoNovoTexto}."
         });
         await _dbContext.SaveChangesAsync();
 

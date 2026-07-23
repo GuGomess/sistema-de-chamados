@@ -156,6 +156,16 @@ public class ChamadosDbContext : DbContext
             entity.Property(c => c.PrazoResolucao).HasColumnName("prazo_resolucao");
             entity.Property(c => c.ResolvidoEm).HasColumnName("resolvido_em");
             entity.Property(c => c.FechadoEm).HasColumnName("fechado_em");
+            entity.Property(c => c.SituacaoSlaResposta)
+                .HasColumnName("situacao_sla_resposta")
+                .HasConversion<string>()
+                .HasMaxLength(20)
+                .HasDefaultValue(SituacaoSla.EmDia);
+            entity.Property(c => c.SituacaoSlaResolucao)
+                .HasColumnName("situacao_sla_resolucao")
+                .HasConversion<string>()
+                .HasMaxLength(20)
+                .HasDefaultValue(SituacaoSla.EmDia);
 
             entity.HasOne(c => c.Solicitante)
                 .WithMany(u => u.ChamadosSolicitados)

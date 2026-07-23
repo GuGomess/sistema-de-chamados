@@ -296,6 +296,32 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  /chamados/{id}/prazo-resposta:
+    parameters:
+      - { $ref: '#/components/parameters/IdPath' }
+    patch:
+      tags: [Chamados]
+      summary: Ajusta manualmente o prazo de resposta do chamado (Técnico atribuído/Administrador)
+      description: >
+        Sobrescreve o `prazoResposta` calculado automaticamente a partir do
+        SLA da prioridade. Diferente do ajuste de prazo de resolução, não
+        exige justificativa; gera um evento em `/historico`; falha com 422
+        se o chamado estiver em status final.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PrazoRespostaUpdateRequest' }
+      responses:
+        '200':
+          description: Prazo de resposta ajustado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Chamado' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
 
   # ---------------------------------------------------------------- Comentários
   /chamados/{id}/comentarios:
@@ -824,6 +850,13 @@ components:
         tempoRespostaMin: { type: integer, minimum: 1 }
         tempoResolucaoMin: { type: integer, minimum: 1 }
         ativo: { type: boolean, default: true }
+    SituacaoSla:
+      type: string
+      description: >
+        Situação do chamado em relação ao prazo de SLA, recalculada
+        periodicamente pelo monitoramento de SLA. "EmRisco" a partir de 80%
+        do tempo decorrido até o prazo; "Vencido" quando o prazo é ultrapassado.
+      enum: [EmDia, EmRisco, Vencido]
 
     # ----- Chamado -----
     Chamado:
@@ -846,6 +879,8 @@ components:
         prazoResolucao: { type: string, format: date-time, nullable: true }
         resolvidoEm: { type: string, format: date-time, nullable: true }
         fechadoEm: { type: string, format: date-time, nullable: true }
+        situacaoSlaResposta: { $ref: '#/components/schemas/SituacaoSla' }
+        situacaoSlaResolucao: { $ref: '#/components/schemas/SituacaoSla' }
     ChamadoCreate:
       type: object
       required: [titulo, descricao, idCategoria, idPrioridade]
@@ -872,6 +907,11 @@ components:
       properties:
         prazoResolucao: { type: string, format: date-time }
         justificativa: { type: string, minLength: 1 }
+    PrazoRespostaUpdateRequest:
+      type: object
+      required: [prazoResposta]
+      properties:
+        prazoResposta: { type: string, format: date-time }
     ChamadoPage:
       type: object
       properties:
