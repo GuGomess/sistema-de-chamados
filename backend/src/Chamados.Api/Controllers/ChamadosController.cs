@@ -424,6 +424,70 @@ public class ChamadosController : ControllerBase
         return Ok(ChamadoDto.FromEntity(chamadoAtualizado));
     }
 
+    [HttpPatch("{id:long}/prazo-resolucao")]
+    public async Task<ActionResult<ChamadoDto>> AjustarPrazoResolucao(long id, [FromBody] PrazoResolucaoUpdateRequest request)
+    {
+        var usuarioId = ObterUsuarioId();
+        if (usuarioId is null)
+        {
+            return Unauthorized();
+        }
+
+        var chamado = await ChamadosComIncludes().FirstOrDefaultAsync(c => c.Id == id);
+        if (chamado is null)
+        {
+            return NotFound(ErrorResponse.Create(404, "Chamado não encontrado."));
+        }
+
+        var podeAjustar = User.IsInRole(Perfis.Administrador)
+            || (User.IsInRole(Perfis.Tecnico) && chamado.TecnicoId == usuarioId.Value);
+
+        if (!podeAjustar)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, ErrorResponse.Create(403, "Sem permissão para ajustar o prazo de resolução deste chamado."));
+        }
+
+        if (chamado.Status.Final)
+        {
+            return UnprocessableEntity(new ErrorResponse
+            {
+                Status = 422,
+                Title = "Falha de validação",
+                Errors = new Dictionary<string, string[]> { ["status"] = new[] { "Chamado está em status final e não pode ter o prazo ajustado." } }
+            });
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Justificativa))
+        {
+            return UnprocessableEntity(new ErrorResponse
+            {
+                Status = 422,
+                Title = "Falha de validação",
+                Errors = new Dictionary<string, string[]> { ["justificativa"] = new[] { "Justificativa é obrigatória." } }
+            });
+        }
+
+        var prazoAnterior = chamado.PrazoResolucao;
+        chamado.PrazoResolucao = request.PrazoResolucao;
+        chamado.AtualizadoEm = DateTimeOffset.UtcNow;
+        await _dbContext.SaveChangesAsync();
+
+        var prazoAnteriorTexto = prazoAnterior is null ? "não definido" : prazoAnterior.Value.UtcDateTime.ToString("dd/MM/yyyy HH:mm") + " UTC";
+        var prazoNovoTexto = request.PrazoResolucao.UtcDateTime.ToString("dd/MM/yyyy HH:mm") + " UTC";
+
+        _dbContext.Historicos.Add(new Historico
+        {
+            ChamadoId = chamado.Id,
+            AutorId = usuarioId.Value,
+            Acao = "Ajuste de prazo de resolução",
+            Detalhe = $"Prazo alterado de {prazoAnteriorTexto} para {prazoNovoTexto}. Justificativa: {request.Justificativa}"
+        });
+        await _dbContext.SaveChangesAsync();
+
+        var chamadoAtualizado = await ChamadosComIncludes().FirstAsync(c => c.Id == chamado.Id);
+        return Ok(ChamadoDto.FromEntity(chamadoAtualizado));
+    }
+
     [HttpGet("{id:long}/historico")]
     public async Task<ActionResult<List<HistoricoDto>>> Historico(long id)
     {

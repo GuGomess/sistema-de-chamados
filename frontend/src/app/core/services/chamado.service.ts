@@ -11,6 +11,7 @@ import {
   ChamadoFiltros,
   ChamadoPage,
   ChamadoUpdateRequest,
+  PrazoResolucaoUpdateRequest,
   Prioridade,
   Status,
   UsuarioResumo,
@@ -43,6 +44,10 @@ export class ChamadoService {
 
   liberar(id: number): Observable<Chamado> {
     return this.http.post<Chamado>(`${environment.apiBaseUrl}/v1/chamados/${id}/liberar`, {});
+  }
+
+  ajustarPrazoResolucao(id: number, request: PrazoResolucaoUpdateRequest): Observable<Chamado> {
+    return this.http.patch<Chamado>(`${environment.apiBaseUrl}/v1/chamados/${id}/prazo-resolucao`, request);
   }
 
   listar(filtros: ChamadoFiltros): Observable<ChamadoPage> {

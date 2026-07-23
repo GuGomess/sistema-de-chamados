@@ -270,6 +270,32 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  /chamados/{id}/prazo-resolucao:
+    parameters:
+      - { $ref: '#/components/parameters/IdPath' }
+    patch:
+      tags: [Chamados]
+      summary: Ajusta manualmente o prazo de resolução do chamado (Técnico atribuído/Administrador)
+      description: >
+        Sobrescreve o `prazoResolucao` calculado automaticamente a partir do
+        SLA da prioridade — na prática, prazos rígidos nem sempre refletem a
+        realidade do atendimento. Exige justificativa e gera um evento em
+        `/historico`; falha com 422 se o chamado estiver em status final.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PrazoResolucaoUpdateRequest' }
+      responses:
+        '200':
+          description: Prazo de resolução ajustado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Chamado' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
 
   # ---------------------------------------------------------------- Comentários
   /chamados/{id}/comentarios:
@@ -840,6 +866,12 @@ components:
       required: [idTecnico]
       properties:
         idTecnico: { type: integer, format: int64 }
+    PrazoResolucaoUpdateRequest:
+      type: object
+      required: [prazoResolucao, justificativa]
+      properties:
+        prazoResolucao: { type: string, format: date-time }
+        justificativa: { type: string, minLength: 1 }
     ChamadoPage:
       type: object
       properties:

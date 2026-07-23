@@ -7,7 +7,12 @@ import { concatMap, from, Observable } from 'rxjs';
 
 import { AuthService } from '../../../core/services/auth.service';
 import { ChamadoService } from '../../../core/services/chamado.service';
-import { Chamado, Status, UsuarioResumo } from '../../../core/models/chamado.model';
+import {
+  Chamado,
+  PrazoResolucaoUpdateRequest,
+  Status,
+  UsuarioResumo,
+} from '../../../core/models/chamado.model';
 
 interface ErrorResponse {
   errors?: Record<string, string[]>;
@@ -40,6 +45,11 @@ export class ChamadoDetalhe implements OnInit {
   protected readonly form = this.formBuilder.nonNullable.group({
     idStatus: [null as number | null],
     idTecnico: [null as number | null],
+  });
+
+  protected readonly prazoForm = this.formBuilder.nonNullable.group({
+    prazoResolucao: [''],
+    justificativa: [''],
   });
 
   ngOnInit(): void {
@@ -88,12 +98,39 @@ export class ChamadoDetalhe implements OnInit {
     return this.ehAdministrador() && !!chamado && !chamado.status.final;
   }
 
+  protected podeAjustarPrazo(): boolean {
+    const chamado = this.chamado();
+    if (!chamado || chamado.status.final) {
+      return false;
+    }
+    return this.ehAdministrador() || (this.ehTecnico() && chamado.tecnico?.id === this.usuarioId);
+  }
+
   protected assumir(): void {
     this.executarAcao(this.chamadoService.assumir(this.id));
   }
 
   protected liberar(): void {
     this.executarAcao(this.chamadoService.liberar(this.id));
+  }
+
+  protected ajustarPrazo(): void {
+    if (this.salvando()) {
+      return;
+    }
+
+    const { prazoResolucao, justificativa } = this.prazoForm.getRawValue();
+    if (!prazoResolucao || !justificativa.trim()) {
+      this.acaoErro.set('Informe o novo prazo e uma justificativa.');
+      return;
+    }
+
+    const request: PrazoResolucaoUpdateRequest = {
+      prazoResolucao: new Date(prazoResolucao).toISOString(),
+      justificativa: justificativa.trim(),
+    };
+
+    this.executarAcao(this.chamadoService.ajustarPrazoResolucao(this.id, request));
   }
 
   protected salvarAlteracoes(): void {
@@ -174,6 +211,19 @@ export class ChamadoDetalhe implements OnInit {
       { idStatus: chamado.status.id, idTecnico: chamado.tecnico?.id ?? null },
       { emitEvent: false },
     );
+    this.prazoForm.patchValue(
+      {
+        prazoResolucao: chamado.prazoResolucao ? this.paraDatetimeLocal(chamado.prazoResolucao) : '',
+        justificativa: '',
+      },
+      { emitEvent: false },
+    );
+  }
+
+  private paraDatetimeLocal(iso: string): string {
+    const data = new Date(iso);
+    const pad = (valor: number) => String(valor).padStart(2, '0');
+    return `${data.getFullYear()}-${pad(data.getMonth() + 1)}-${pad(data.getDate())}T${pad(data.getHours())}:${pad(data.getMinutes())}`;
   }
 
   private mensagemErroCarregar(error: HttpErrorResponse): string {

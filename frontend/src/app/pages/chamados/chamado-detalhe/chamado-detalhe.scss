@@ -118,10 +118,18 @@
         color: #555;
       }
 
-      select {
+      select,
+      input,
+      textarea {
         padding: 0.4rem;
         font-size: 0.9rem;
         font-family: inherit;
+        resize: vertical;
+      }
+
+      .prazo-form {
+        padding-top: 0.75rem;
+        border-top: 1px solid #e5e5e5;
       }
 
       button {

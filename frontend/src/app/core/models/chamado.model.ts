@@ -44,6 +44,11 @@ export interface AtribuirTecnicoRequest {
   idTecnico: number;
 }
 
+export interface PrazoResolucaoUpdateRequest {
+  prazoResolucao: string;
+  justificativa: string;
+}
+
 export interface Chamado {
   id: number;
   titulo: string;

@@ -43,7 +43,7 @@
         </p>
       </div>
 
-      @if (podeAssumir() || podeLiberar() || podeAlterarStatus()) {
+      @if (podeAssumir() || podeLiberar() || podeAlterarStatus() || podeAjustarPrazo()) {
         <aside class="acoes">
           <h2>Ações</h2>
 
@@ -84,6 +84,24 @@
 
           @if (podeLiberar()) {
             <button type="button" [disabled]="salvando()" (click)="liberar()">Liberar chamado</button>
+          }
+
+          @if (podeAjustarPrazo()) {
+            <form [formGroup]="prazoForm" (ngSubmit)="ajustarPrazo()" novalidate class="prazo-form">
+              <label>
+                Novo prazo de resolução
+                <input type="datetime-local" formControlName="prazoResolucao" />
+              </label>
+              <label>
+                Justificativa
+                <textarea
+                  formControlName="justificativa"
+                  rows="2"
+                  placeholder="Motivo do ajuste (obrigatório)"
+                ></textarea>
+              </label>
+              <button type="submit" [disabled]="salvando()">Ajustar prazo</button>
+            </form>
           }
         </aside>
       }
