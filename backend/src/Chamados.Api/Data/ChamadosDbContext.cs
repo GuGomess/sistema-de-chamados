@@ -19,6 +19,8 @@ public class ChamadosDbContext : DbContext
 
     public DbSet<Prioridade> Prioridades => Set<Prioridade>();
 
+    public DbSet<Sla> Slas => Set<Sla>();
+
     public DbSet<Chamado> Chamados => Set<Chamado>();
 
     public DbSet<Historico> Historicos => Set<Historico>();
@@ -110,6 +112,30 @@ public class ChamadosDbContext : DbContext
                 new Prioridade { Id = 2, Nome = "Média", Nivel = 2 },
                 new Prioridade { Id = 3, Nome = "Alta", Nivel = 3 },
                 new Prioridade { Id = 4, Nome = "Crítica", Nivel = 4 }
+            );
+        });
+
+        modelBuilder.Entity<Sla>(entity =>
+        {
+            entity.ToTable("sla");
+            entity.Property(s => s.Id).HasColumnName("id");
+            entity.Property(s => s.PrioridadeId).HasColumnName("id_prioridade");
+            entity.Property(s => s.TempoRespostaMin).HasColumnName("tempo_resposta_min");
+            entity.Property(s => s.TempoResolucaoMin).HasColumnName("tempo_resolucao_min");
+            entity.Property(s => s.Ativo).HasColumnName("ativo").HasDefaultValue(true);
+
+            entity.HasIndex(s => s.PrioridadeId).IsUnique();
+
+            entity.HasOne(s => s.Prioridade)
+                .WithMany()
+                .HasForeignKey(s => s.PrioridadeId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasData(
+                new Sla { Id = 1, PrioridadeId = 1, TempoRespostaMin = 480, TempoResolucaoMin = 2880, Ativo = true },
+                new Sla { Id = 2, PrioridadeId = 2, TempoRespostaMin = 240, TempoResolucaoMin = 1440, Ativo = true },
+                new Sla { Id = 3, PrioridadeId = 3, TempoRespostaMin = 60, TempoResolucaoMin = 480, Ativo = true },
+                new Sla { Id = 4, PrioridadeId = 4, TempoRespostaMin = 15, TempoResolucaoMin = 240, Ativo = true }
             );
         });
 

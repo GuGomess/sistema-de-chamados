@@ -118,6 +118,9 @@ public class ChamadosController : ControllerBase
             return UnprocessableEntity(new ErrorResponse { Status = 422, Title = "Falha de validação", Errors = erros });
         }
 
+        var sla = await _dbContext.Slas.FirstOrDefaultAsync(s => s.PrioridadeId == request.IdPrioridade && s.Ativo);
+
+        var criadoEm = DateTimeOffset.UtcNow;
         var chamado = new Chamado
         {
             Titulo = request.Titulo,
@@ -125,7 +128,9 @@ public class ChamadosController : ControllerBase
             SolicitanteId = usuarioId.Value,
             StatusId = StatusAbertoId,
             CategoriaId = request.IdCategoria,
-            PrioridadeId = request.IdPrioridade
+            PrioridadeId = request.IdPrioridade,
+            PrazoResposta = sla is null ? null : criadoEm.AddMinutes(sla.TempoRespostaMin),
+            PrazoResolucao = sla is null ? null : criadoEm.AddMinutes(sla.TempoResolucaoMin)
         };
 
         _dbContext.Chamados.Add(chamado);
