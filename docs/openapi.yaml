@@ -27,6 +27,8 @@ tags:
     description: Gestão de usuários (Administrador)
   - name: Domínios
     description: Tabelas configuráveis — status, categorias, prioridades, SLA (Administrador)
+  - name: Notificações
+    description: Alertas de SLA do usuário autenticado
   - name: Dashboard
     description: Indicadores e métricas
 
@@ -121,6 +123,10 @@ paths:
           in: query
           description: Filtra chamados criados até esta data/hora (inclusive)
           schema: { type: string, format: date-time }
+        - name: situacaoSla
+          in: query
+          description: Filtra por situação de SLA de resposta OU resolução
+          schema: { $ref: '#/components/schemas/SituacaoSla' }
       responses:
         '200':
           description: Página de chamados
@@ -150,6 +156,21 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  /chamados/resumo-sla:
+    get:
+      tags: [Chamados]
+      summary: Contagem de chamados abertos com SLA em risco/vencido
+      description: >
+        Alimenta os indicadores de alerta de SLA do dashboard. Considera
+        apenas chamados não finalizados; o escopo respeita o perfil do
+        usuário (igual ao `GET /chamados`).
+      responses:
+        '200':
+          description: Contagem de chamados por situação de SLA
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ResumoSla' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
   /usuarios/tecnicos:
     get:
       tags: [Usuários]
@@ -634,6 +655,62 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '409': { $ref: '#/components/responses/Conflict' }
 
+  # ---------------------------------------------------------------- Notificações
+  /notificacoes:
+    get:
+      tags: [Notificações]
+      summary: Lista notificações do usuário autenticado
+      description: >
+        Retorna as notificações mais recentes (até 50) destinadas ao usuário
+        autenticado — geradas automaticamente pelo monitoramento de SLA
+        (chamados em risco ou vencidos), destinadas ao técnico atribuído e a
+        todos os Administradores ativos.
+      parameters:
+        - name: apenasNaoLidas
+          in: query
+          schema: { type: boolean, default: false }
+      responses:
+        '200':
+          description: Lista de notificações
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Notificacao' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /notificacoes/nao-lidas/contagem:
+    get:
+      tags: [Notificações]
+      summary: Contagem de notificações não lidas do usuário autenticado
+      description: Usado para o indicador (badge) do sino de notificações.
+      responses:
+        '200':
+          description: Contagem de não lidas
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NotificacaoContagem' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /notificacoes/{id}/lida:
+    parameters:
+      - { $ref: '#/components/parameters/IdPath' }
+    patch:
+      tags: [Notificações]
+      summary: Marca uma notificação como lida
+      responses:
+        '204':
+          description: Notificação marcada como lida
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /notificacoes/lidas:
+    patch:
+      tags: [Notificações]
+      summary: Marca todas as notificações do usuário autenticado como lidas
+      responses:
+        '204':
+          description: Notificações marcadas como lidas
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
   # ---------------------------------------------------------------- Dashboard
   /dashboard/resumo:
     get:
@@ -967,6 +1044,33 @@ components:
         acao: { type: string, example: 'Mudança de status' }
         detalhe: { type: string }
         criadoEm: { type: string, format: date-time }
+
+    # ----- Notificações -----
+    TipoNotificacao:
+      type: string
+      description: >
+        Origem da notificação. Hoje gerada apenas pelo monitoramento de SLA:
+        "SlaEmRisco" quando o chamado atinge 80% do tempo decorrido até o
+        prazo, "SlaVencido" quando o prazo é ultrapassado.
+      enum: [SlaEmRisco, SlaVencido]
+    Notificacao:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        idChamado: { type: integer, format: int64 }
+        tipo: { $ref: '#/components/schemas/TipoNotificacao' }
+        mensagem: { type: string }
+        lida: { type: boolean }
+        criadoEm: { type: string, format: date-time }
+    NotificacaoContagem:
+      type: object
+      properties:
+        naoLidas: { type: integer }
+    ResumoSla:
+      type: object
+      properties:
+        emRisco: { type: integer, description: Chamados abertos com SLA de resposta ou resolução em risco }
+        vencidos: { type: integer, description: Chamados abertos com SLA de resposta ou resolução vencido }
 
     # ----- Dashboard -----
     DashboardResumo:

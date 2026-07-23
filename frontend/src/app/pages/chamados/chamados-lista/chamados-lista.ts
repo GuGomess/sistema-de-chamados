@@ -2,7 +2,7 @@ import { DatePipe } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, inject, OnInit, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { forkJoin } from 'rxjs';
 
 import { ChamadoService } from '../../../core/services/chamado.service';
@@ -26,6 +26,7 @@ export class ChamadosLista implements OnInit {
   private readonly formBuilder = inject(FormBuilder);
   private readonly chamadoService = inject(ChamadoService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
 
   protected readonly status = signal<Status[]>([]);
   protected readonly categorias = signal<Categoria[]>([]);
@@ -48,9 +49,15 @@ export class ChamadosLista implements OnInit {
     idTecnico: [null as number | null],
     dataInicio: [''],
     dataFim: [''],
+    situacaoSla: [null as SituacaoSla | null],
   });
 
   ngOnInit(): void {
+    const situacaoSlaParam = this.route.snapshot.queryParamMap.get('situacaoSla');
+    if (situacaoSlaParam === 'EmRisco' || situacaoSlaParam === 'Vencido' || situacaoSlaParam === 'EmDia') {
+      this.form.controls.situacaoSla.setValue(situacaoSlaParam);
+    }
+
     forkJoin({
       status: this.chamadoService.listarStatus(),
       categorias: this.chamadoService.listarCategorias(),
@@ -111,7 +118,7 @@ export class ChamadosLista implements OnInit {
     this.carregando.set(true);
     this.erro.set(null);
 
-    const { q, idStatus, idCategoria, idPrioridade, idTecnico, dataInicio, dataFim } =
+    const { q, idStatus, idCategoria, idPrioridade, idTecnico, dataInicio, dataFim, situacaoSla } =
       this.form.getRawValue();
 
     this.chamadoService
@@ -125,6 +132,7 @@ export class ChamadosLista implements OnInit {
         idTecnico,
         dataInicio: dataInicio || null,
         dataFim: dataFim || null,
+        situacaoSla,
       })
       .subscribe({
         next: (pagina) => {

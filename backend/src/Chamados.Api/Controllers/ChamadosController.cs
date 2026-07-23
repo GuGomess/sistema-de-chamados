@@ -37,7 +37,8 @@ public class ChamadosController : ControllerBase
         [FromQuery] long? idTecnico = null,
         [FromQuery] string? q = null,
         [FromQuery] DateTimeOffset? dataInicio = null,
-        [FromQuery] DateTimeOffset? dataFim = null)
+        [FromQuery] DateTimeOffset? dataFim = null,
+        [FromQuery] SituacaoSla? situacaoSla = null)
     {
         var usuarioId = ObterUsuarioId();
         if (usuarioId is null)
@@ -63,6 +64,11 @@ public class ChamadosController : ControllerBase
         if (idCategoria.HasValue) query = query.Where(c => c.CategoriaId == idCategoria.Value);
         if (idPrioridade.HasValue) query = query.Where(c => c.PrioridadeId == idPrioridade.Value);
         if (idTecnico.HasValue) query = query.Where(c => c.TecnicoId == idTecnico.Value);
+
+        if (situacaoSla.HasValue)
+        {
+            query = query.Where(c => c.SituacaoSlaResposta == situacaoSla.Value || c.SituacaoSlaResolucao == situacaoSla.Value);
+        }
 
         if (!string.IsNullOrWhiteSpace(q))
         {
@@ -95,6 +101,32 @@ public class ChamadosController : ControllerBase
                 TotalPages = (int)Math.Ceiling(totalItems / (double)pageSize)
             }
         });
+    }
+
+    [HttpGet("resumo-sla")]
+    public async Task<ActionResult<ResumoSlaDto>> ResumoSla()
+    {
+        var usuarioId = ObterUsuarioId();
+        if (usuarioId is null)
+        {
+            return Unauthorized();
+        }
+
+        var query = _dbContext.Chamados.Where(c => !c.Status.Final);
+
+        if (User.IsInRole(Perfis.Cliente))
+        {
+            query = query.Where(c => c.SolicitanteId == usuarioId.Value);
+        }
+        else if (User.IsInRole(Perfis.Tecnico))
+        {
+            query = query.Where(c => c.TecnicoId == usuarioId.Value || c.TecnicoId == null);
+        }
+
+        var emRisco = await query.CountAsync(c => c.SituacaoSlaResposta == SituacaoSla.EmRisco || c.SituacaoSlaResolucao == SituacaoSla.EmRisco);
+        var vencidos = await query.CountAsync(c => c.SituacaoSlaResposta == SituacaoSla.Vencido || c.SituacaoSlaResolucao == SituacaoSla.Vencido);
+
+        return Ok(new ResumoSlaDto { EmRisco = emRisco, Vencidos = vencidos });
     }
 
     [HttpPost]

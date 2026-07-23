@@ -6,6 +6,45 @@
     <a routerLink="/chamados/novo" routerLinkActive="is-active">Novo chamado</a>
     <a routerLink="/login" routerLinkActive="is-active">Login</a>
   </nav>
+
+  @if (authService.isAutenticado()) {
+    <div class="app-header__notificacoes">
+      <button
+        type="button"
+        class="sino"
+        (click)="alternarNotificacoes()"
+        [attr.aria-expanded]="notificacoesAbertas()"
+        aria-label="Notificações"
+      >
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true">
+          <path
+            d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"
+          />
+        </svg>
+        @if (naoLidas() > 0) {
+          <span class="sino__badge">{{ naoLidas() }}</span>
+        }
+      </button>
+
+      @if (notificacoesAbertas()) {
+        <div class="sino__dropdown">
+          @if (carregandoNotificacoes()) {
+            <p>Carregando...</p>
+          } @else if (notificacoes().length === 0) {
+            <p>Nenhuma notificação.</p>
+          } @else {
+            <ul>
+              @for (notificacao of notificacoes(); track notificacao.id) {
+                <li [class.nao-lida]="!notificacao.lida" (click)="abrirNotificacao(notificacao)">
+                  {{ notificacao.mensagem }}
+                </li>
+              }
+            </ul>
+          }
+        </div>
+      }
+    </div>
+  }
 </header>
 
 <main class="app-main">

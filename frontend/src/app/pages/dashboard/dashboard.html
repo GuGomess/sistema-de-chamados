@@ -1,4 +1,21 @@
-<section>
+<section class="dashboard-wrap">
   <h1>Dashboard</h1>
-  <p>Indicadores e visão geral — placeholder.</p>
+
+  @if (erro()) {
+    <p class="erro" role="alert">{{ erro() }}</p>
+  } @else if (carregando()) {
+    <p>Carregando indicadores...</p>
+  } @else if (resumo(); as r) {
+    <div class="cards-sla">
+      <button type="button" class="card card--vencido" (click)="verVencidos()">
+        <span class="card__valor">{{ r.vencidos }}</span>
+        <span class="card__label">Chamados vencidos</span>
+      </button>
+
+      <button type="button" class="card card--risco" (click)="verEmRisco()">
+        <span class="card__valor">{{ r.emRisco }}</span>
+        <span class="card__label">Chamados em risco</span>
+      </button>
+    </div>
+  }
 </section>

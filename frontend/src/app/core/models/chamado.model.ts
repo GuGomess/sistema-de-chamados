@@ -97,4 +97,10 @@ export interface ChamadoFiltros {
   idTecnico?: number | null;
   dataInicio?: string | null;
   dataFim?: string | null;
+  situacaoSla?: SituacaoSla | null;
+}
+
+export interface ResumoSla {
+  emRisco: number;
+  vencidos: number;
 }

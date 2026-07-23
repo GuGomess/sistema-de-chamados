@@ -14,6 +14,7 @@ import {
   PrazoResolucaoUpdateRequest,
   PrazoRespostaUpdateRequest,
   Prioridade,
+  ResumoSla,
   Status,
   UsuarioResumo,
 } from '../models/chamado.model';
@@ -80,5 +81,9 @@ export class ChamadoService {
 
   listarTecnicos(): Observable<UsuarioResumo[]> {
     return this.http.get<UsuarioResumo[]>(`${environment.apiBaseUrl}/v1/usuarios/tecnicos`);
+  }
+
+  resumoSla(): Observable<ResumoSla> {
+    return this.http.get<ResumoSla>(`${environment.apiBaseUrl}/v1/chamados/resumo-sla`);
   }
 }

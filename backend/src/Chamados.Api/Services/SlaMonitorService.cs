@@ -12,6 +12,10 @@ namespace Chamados.Api.Services;
 // "em risco" fixado em 80% do tempo decorrido do prazo.
 public class SlaMonitorService : BackgroundService
 {
+    // Perfil "Administrador" (ver Migrations/…_CriaPerfilEUsuario) — administradores
+    // ativos recebem notificação de toda transição de SLA, além do técnico atribuído.
+    private const long PerfilAdministradorId = 1L;
+
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<SlaMonitorService> _logger;
     private readonly TimeSpan _interval;
@@ -73,6 +77,8 @@ public class SlaMonitorService : BackgroundService
 
         var agora = DateTimeOffset.UtcNow;
         var historicos = new List<Historico>();
+        var notificacoes = new List<Notificacao>();
+        List<long>? administradorIds = null;
 
         foreach (var chamado in chamados)
         {
@@ -81,6 +87,12 @@ public class SlaMonitorService : BackgroundService
                 var anterior = chamado.SituacaoSlaResposta;
                 chamado.SituacaoSlaResposta = novaSituacaoResposta;
                 historicos.Add(CriarHistorico(chamado.Id, autorSistemaId.Value, "resposta", anterior, novaSituacaoResposta));
+
+                if (novaSituacaoResposta != SituacaoSla.EmDia)
+                {
+                    administradorIds ??= await ObterAdministradoresAtivosAsync(dbContext, cancellationToken);
+                    notificacoes.AddRange(CriarNotificacoes(chamado, "resposta", novaSituacaoResposta, administradorIds));
+                }
             }
 
             if (TentarCalcularNovaSituacao(chamado.CriadoEm, chamado.PrazoResolucao, chamado.SituacaoSlaResolucao, agora, out var novaSituacaoResolucao))
@@ -88,15 +100,52 @@ public class SlaMonitorService : BackgroundService
                 var anterior = chamado.SituacaoSlaResolucao;
                 chamado.SituacaoSlaResolucao = novaSituacaoResolucao;
                 historicos.Add(CriarHistorico(chamado.Id, autorSistemaId.Value, "resolução", anterior, novaSituacaoResolucao));
+
+                if (novaSituacaoResolucao != SituacaoSla.EmDia)
+                {
+                    administradorIds ??= await ObterAdministradoresAtivosAsync(dbContext, cancellationToken);
+                    notificacoes.AddRange(CriarNotificacoes(chamado, "resolução", novaSituacaoResolucao, administradorIds));
+                }
             }
         }
 
         if (historicos.Count > 0)
         {
             dbContext.Historicos.AddRange(historicos);
+            dbContext.Notificacoes.AddRange(notificacoes);
             await dbContext.SaveChangesAsync(cancellationToken);
-            _logger.LogInformation("Monitoramento de SLA: {Quantidade} transição(ões) registrada(s).", historicos.Count);
+            _logger.LogInformation(
+                "Monitoramento de SLA: {Quantidade} transição(ões) registrada(s), {Notificacoes} notificação(ões) gerada(s).",
+                historicos.Count,
+                notificacoes.Count);
         }
+    }
+
+    private static async Task<List<long>> ObterAdministradoresAtivosAsync(ChamadosDbContext dbContext, CancellationToken cancellationToken) =>
+        await dbContext.Usuarios
+            .Where(u => u.PerfilId == PerfilAdministradorId && u.Ativo)
+            .Select(u => u.Id)
+            .ToListAsync(cancellationToken);
+
+    private static IEnumerable<Notificacao> CriarNotificacoes(Chamado chamado, string rotulo, SituacaoSla situacao, List<long> administradorIds)
+    {
+        var tipo = situacao == SituacaoSla.Vencido ? TipoNotificacao.SlaVencido : TipoNotificacao.SlaEmRisco;
+        var descricaoSituacao = situacao == SituacaoSla.Vencido ? "venceu" : "está em risco de vencer";
+        var mensagem = $"Chamado #{chamado.Id} — {chamado.Titulo}: SLA de {rotulo} {descricaoSituacao}.";
+
+        var destinatarios = new HashSet<long>(administradorIds);
+        if (chamado.TecnicoId.HasValue)
+        {
+            destinatarios.Add(chamado.TecnicoId.Value);
+        }
+
+        return destinatarios.Select(destinatarioId => new Notificacao
+        {
+            DestinatarioId = destinatarioId,
+            ChamadoId = chamado.Id,
+            Tipo = tipo,
+            Mensagem = mensagem
+        });
     }
 
     private static bool TentarCalcularNovaSituacao(
