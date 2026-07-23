@@ -15,6 +15,8 @@ namespace Chamados.Api.Controllers;
 public class ChamadosController : ControllerBase
 {
     private const long StatusAbertoId = 1;
+    private const long StatusResolvidoId = 4;
+    private const long StatusFechadoId = 5;
 
     private readonly ChamadosDbContext _dbContext;
 
@@ -129,6 +131,16 @@ public class ChamadosController : ControllerBase
         _dbContext.Chamados.Add(chamado);
         await _dbContext.SaveChangesAsync();
 
+        _dbContext.Historicos.Add(new Historico
+        {
+            ChamadoId = chamado.Id,
+            AutorId = usuarioId.Value,
+            StatusAnteriorId = null,
+            StatusNovoId = chamado.StatusId,
+            Acao = "Abertura"
+        });
+        await _dbContext.SaveChangesAsync();
+
         var chamadoCriado = await ChamadosComIncludes().FirstAsync(c => c.Id == chamado.Id);
         return CreatedAtAction(nameof(Detalhar), new { id = chamado.Id }, ChamadoDto.FromEntity(chamadoCriado));
     }
@@ -177,13 +189,32 @@ public class ChamadosController : ControllerBase
         }
 
         var erros = new Dictionary<string, string[]>();
+        long? statusAnteriorId = null;
 
         if (request.IdStatus.HasValue)
         {
             if (!await _dbContext.Status.AnyAsync(s => s.Id == request.IdStatus.Value))
                 erros["idStatus"] = new[] { "Status não encontrado." };
-            else
+            else if (request.IdStatus.Value != chamado.StatusId)
+            {
+                statusAnteriorId = chamado.StatusId;
                 chamado.StatusId = request.IdStatus.Value;
+
+                if (chamado.StatusId == StatusResolvidoId)
+                {
+                    chamado.ResolvidoEm = DateTimeOffset.UtcNow;
+                }
+                else if (chamado.StatusId == StatusFechadoId)
+                {
+                    chamado.FechadoEm = DateTimeOffset.UtcNow;
+                    chamado.ResolvidoEm ??= DateTimeOffset.UtcNow;
+                }
+                else
+                {
+                    chamado.ResolvidoEm = null;
+                    chamado.FechadoEm = null;
+                }
+            }
         }
 
         if (request.IdCategoria.HasValue)
@@ -209,6 +240,19 @@ public class ChamadosController : ControllerBase
 
         chamado.AtualizadoEm = DateTimeOffset.UtcNow;
         await _dbContext.SaveChangesAsync();
+
+        if (statusAnteriorId.HasValue)
+        {
+            _dbContext.Historicos.Add(new Historico
+            {
+                ChamadoId = chamado.Id,
+                AutorId = usuarioId.Value,
+                StatusAnteriorId = statusAnteriorId.Value,
+                StatusNovoId = chamado.StatusId,
+                Acao = "Mudança de status"
+            });
+            await _dbContext.SaveChangesAsync();
+        }
 
         var chamadoAtualizado = await ChamadosComIncludes().FirstAsync(c => c.Id == chamado.Id);
         return Ok(ChamadoDto.FromEntity(chamadoAtualizado));
@@ -259,6 +303,15 @@ public class ChamadosController : ControllerBase
         chamado.AtualizadoEm = DateTimeOffset.UtcNow;
         await _dbContext.SaveChangesAsync();
 
+        _dbContext.Historicos.Add(new Historico
+        {
+            ChamadoId = chamado.Id,
+            AutorId = usuarioId.Value,
+            Acao = "Atribuição",
+            Detalhe = $"Atribuído a {tecnico.Nome}."
+        });
+        await _dbContext.SaveChangesAsync();
+
         var chamadoAtualizado = await ChamadosComIncludes().FirstAsync(c => c.Id == chamado.Id);
         return Ok(ChamadoDto.FromEntity(chamadoAtualizado));
     }
@@ -302,6 +355,14 @@ public class ChamadosController : ControllerBase
         chamado.AtualizadoEm = DateTimeOffset.UtcNow;
         await _dbContext.SaveChangesAsync();
 
+        _dbContext.Historicos.Add(new Historico
+        {
+            ChamadoId = chamado.Id,
+            AutorId = usuarioId.Value,
+            Acao = "Chamado assumido"
+        });
+        await _dbContext.SaveChangesAsync();
+
         var chamadoAtualizado = await ChamadosComIncludes().FirstAsync(c => c.Id == chamado.Id);
         return Ok(ChamadoDto.FromEntity(chamadoAtualizado));
     }
@@ -339,12 +400,54 @@ public class ChamadosController : ControllerBase
             });
         }
 
+        var tecnicoLiberadoNome = chamado.Tecnico?.Nome;
+
         chamado.TecnicoId = null;
         chamado.AtualizadoEm = DateTimeOffset.UtcNow;
         await _dbContext.SaveChangesAsync();
 
+        _dbContext.Historicos.Add(new Historico
+        {
+            ChamadoId = chamado.Id,
+            AutorId = usuarioId.Value,
+            Acao = "Liberação",
+            Detalhe = tecnicoLiberadoNome is null ? null : $"Liberado por {tecnicoLiberadoNome}."
+        });
+        await _dbContext.SaveChangesAsync();
+
         var chamadoAtualizado = await ChamadosComIncludes().FirstAsync(c => c.Id == chamado.Id);
         return Ok(ChamadoDto.FromEntity(chamadoAtualizado));
+    }
+
+    [HttpGet("{id:long}/historico")]
+    public async Task<ActionResult<List<HistoricoDto>>> Historico(long id)
+    {
+        var usuarioId = ObterUsuarioId();
+        if (usuarioId is null)
+        {
+            return Unauthorized();
+        }
+
+        var chamado = await _dbContext.Chamados.FirstOrDefaultAsync(c => c.Id == id);
+        if (chamado is null)
+        {
+            return NotFound(ErrorResponse.Create(404, "Chamado não encontrado."));
+        }
+
+        if (!PodeAcessar(chamado, usuarioId.Value))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, ErrorResponse.Create(403, "Sem permissão para acessar este chamado."));
+        }
+
+        var historico = await _dbContext.Historicos
+            .Where(h => h.ChamadoId == id)
+            .Include(h => h.Autor).ThenInclude(u => u.Perfil)
+            .Include(h => h.StatusAnterior)
+            .Include(h => h.StatusNovo)
+            .OrderBy(h => h.CriadoEm)
+            .ToListAsync();
+
+        return Ok(historico.Select(HistoricoDto.FromEntity).ToList());
     }
 
     private IQueryable<Chamado> ChamadosComIncludes() =>

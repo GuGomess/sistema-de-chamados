@@ -21,6 +21,8 @@ public class ChamadosDbContext : DbContext
 
     public DbSet<Chamado> Chamados => Set<Chamado>();
 
+    public DbSet<Historico> Historicos => Set<Historico>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Perfil>(entity =>
@@ -152,6 +154,39 @@ public class ChamadosDbContext : DbContext
             entity.HasOne(c => c.Prioridade)
                 .WithMany(p => p.Chamados)
                 .HasForeignKey(c => c.PrioridadeId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<Historico>(entity =>
+        {
+            entity.ToTable("historico");
+            entity.Property(h => h.Id).HasColumnName("id");
+            entity.Property(h => h.ChamadoId).HasColumnName("id_chamado");
+            entity.Property(h => h.AutorId).HasColumnName("id_autor");
+            entity.Property(h => h.StatusAnteriorId).HasColumnName("id_status_anterior");
+            entity.Property(h => h.StatusNovoId).HasColumnName("id_status_novo");
+            entity.Property(h => h.Acao).HasColumnName("acao").HasMaxLength(80).IsRequired();
+            entity.Property(h => h.Detalhe).HasColumnName("detalhe");
+            entity.Property(h => h.CriadoEm).HasColumnName("criado_em").HasDefaultValueSql("now()");
+
+            entity.HasOne(h => h.Chamado)
+                .WithMany()
+                .HasForeignKey(h => h.ChamadoId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(h => h.Autor)
+                .WithMany()
+                .HasForeignKey(h => h.AutorId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(h => h.StatusAnterior)
+                .WithMany()
+                .HasForeignKey(h => h.StatusAnteriorId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(h => h.StatusNovo)
+                .WithMany()
+                .HasForeignKey(h => h.StatusNovoId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
     }

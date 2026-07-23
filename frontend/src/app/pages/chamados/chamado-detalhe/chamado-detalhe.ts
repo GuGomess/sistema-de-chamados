@@ -75,12 +75,17 @@ export class ChamadoDetalhe implements OnInit {
     return this.ehAdministrador() || (this.ehTecnico() && chamado.tecnico.id === this.usuarioId);
   }
 
-  protected podeEditar(): boolean {
+  protected podeAlterarStatus(): boolean {
     const chamado = this.chamado();
-    if (!chamado || chamado.status.final) {
+    if (!chamado) {
       return false;
     }
     return this.ehAdministrador() || (this.ehTecnico() && chamado.tecnico?.id === this.usuarioId);
+  }
+
+  protected podeAtribuirTecnico(): boolean {
+    const chamado = this.chamado();
+    return this.ehAdministrador() && !!chamado && !chamado.status.final;
   }
 
   protected assumir(): void {
@@ -104,7 +109,7 @@ export class ChamadoDetalhe implements OnInit {
       acoes.push(this.chamadoService.atualizar(chamado.id, { idStatus }));
     }
 
-    if (this.ehAdministrador() && idTecnico !== null && idTecnico !== (chamado.tecnico?.id ?? null)) {
+    if (this.podeAtribuirTecnico() && idTecnico !== null && idTecnico !== (chamado.tecnico?.id ?? null)) {
       acoes.push(this.chamadoService.atribuir(chamado.id, idTecnico));
     }
 
