@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, ElementRef, HostListener, inject, signal } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 
 import { Notificacao } from './core/models/notificacao.model';
@@ -15,6 +15,7 @@ export class App {
   protected readonly authService = inject(AuthService);
   protected readonly notificacaoService = inject(NotificacaoService);
   private readonly router = inject(Router);
+  private readonly elementRef = inject(ElementRef<HTMLElement>);
 
   protected readonly title = signal('Sistema de Chamados');
   protected readonly naoLidas = this.notificacaoService.naoLidas;
@@ -44,6 +45,20 @@ export class App {
       // Gesto do usuário (clique) — ponto certo para pedir a permissão do SO.
       this.notificacaoService.solicitarPermissaoNotificacao();
       this.carregarNotificacoes();
+    }
+  }
+
+  // Clicar fora do sino/dropdown também fecha — o próprio clique no sino
+  // (que já alterna o estado em alternarNotificacoes) fica dentro do elemento,
+  // então não é fechado e reaberto pelo mesmo clique.
+  @HostListener('document:click', ['$event'])
+  protected aoClicarFora(event: MouseEvent): void {
+    if (!this.notificacoesAbertas()) {
+      return;
+    }
+    const alvo = event.target as Node;
+    if (!this.elementRef.nativeElement.querySelector('.app-header__notificacoes')?.contains(alvo)) {
+      this.notificacoesAbertas.set(false);
     }
   }
 

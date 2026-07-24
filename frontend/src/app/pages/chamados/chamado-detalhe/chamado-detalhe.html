@@ -78,10 +78,10 @@
           }
 
           @if (podeAlterarStatus()) {
-            <form [formGroup]="form" (ngSubmit)="salvarAlteracoes()" novalidate>
+            <form [formGroup]="form" novalidate>
               <label>
                 Categoria
-                <select formControlName="idCategoria">
+                <select formControlName="idCategoria" [disabled]="salvando()" (change)="salvarAlteracoes()">
                   @for (categoria of categorias(); track categoria.id) {
                     <option [ngValue]="categoria.id">{{ categoria.nome }}</option>
                   }
@@ -90,7 +90,7 @@
 
               <label>
                 Prioridade
-                <select formControlName="idPrioridade">
+                <select formControlName="idPrioridade" [disabled]="salvando()" (change)="salvarAlteracoes()">
                   @for (prioridade of prioridades(); track prioridade.id) {
                     <option [ngValue]="prioridade.id">{{ prioridade.nome }}</option>
                   }
@@ -99,29 +99,26 @@
 
               <label>
                 Alterar status
-                <select formControlName="idStatus">
+                <select formControlName="idStatus" [disabled]="salvando()" (change)="salvarAlteracoes()">
                   @for (s of statusList(); track s.id) {
                     <option [ngValue]="s.id">{{ s.nome }}</option>
                   }
                 </select>
               </label>
-
-              <button type="submit" [disabled]="salvando()">Salvar alterações</button>
             </form>
           }
 
           @if (podeAtribuirTecnico()) {
-            <form [formGroup]="atribuirForm" (ngSubmit)="atribuirTecnico()" novalidate class="prazo-form">
+            <form [formGroup]="atribuirForm" novalidate class="prazo-form">
               <label>
                 Atribuir técnico
-                <select formControlName="idTecnico">
+                <select formControlName="idTecnico" [disabled]="salvando()" (change)="atribuirTecnico()">
                   <option [ngValue]="null">Não atribuído</option>
                   @for (tecnico of tecnicos(); track tecnico.id) {
                     <option [ngValue]="tecnico.id">{{ tecnico.nome }}</option>
                   }
                 </select>
               </label>
-              <button type="submit" [disabled]="salvando()">Atribuir</button>
             </form>
           }
 
@@ -136,18 +133,27 @@
           }
 
           @if (podeAjustarPrazo()) {
-            <form [formGroup]="prazoRespostaForm" (ngSubmit)="ajustarPrazoResposta()" novalidate class="prazo-form">
+            <form [formGroup]="prazoRespostaForm" novalidate class="prazo-form">
               <label>
                 Novo prazo de resposta
-                <input type="datetime-local" formControlName="prazoResposta" />
+                <input
+                  type="datetime-local"
+                  formControlName="prazoResposta"
+                  [disabled]="salvando()"
+                  (change)="ajustarPrazoResposta()"
+                />
               </label>
-              <button type="submit" [disabled]="salvando()">Ajustar prazo</button>
             </form>
 
-            <form [formGroup]="prazoForm" (ngSubmit)="ajustarPrazo()" novalidate class="prazo-form">
+            <form [formGroup]="prazoForm" novalidate class="prazo-form">
               <label>
                 Novo prazo de resolução
-                <input type="datetime-local" formControlName="prazoResolucao" />
+                <input
+                  type="datetime-local"
+                  formControlName="prazoResolucao"
+                  [disabled]="salvando()"
+                  (change)="ajustarPrazo()"
+                />
               </label>
               <label>
                 Justificativa
@@ -155,14 +161,40 @@
                   formControlName="justificativa"
                   rows="2"
                   placeholder="Motivo do ajuste (obrigatório)"
+                  [disabled]="salvando()"
+                  (change)="ajustarPrazo()"
                 ></textarea>
               </label>
-              <button type="submit" [disabled]="salvando()">Ajustar prazo</button>
             </form>
           }
         </aside>
       }
     </div>
+
+    <section class="historico">
+      <h2>Histórico</h2>
+
+      @if (carregandoHistorico()) {
+        <p>Carregando histórico...</p>
+      } @else if (historico().length === 0) {
+        <p class="vazio">Nenhum evento registrado ainda.</p>
+      } @else {
+        <ul class="lista-historico">
+          @for (evento of historico(); track evento.id) {
+            <li class="evento-historico">
+              <div class="evento-head">
+                <span class="acao">{{ evento.acao }}</span>
+                <span class="data">{{ evento.criadoEm | date: 'dd/MM/yyyy HH:mm' }}</span>
+              </div>
+              <p class="meta">{{ evento.autor.nome }}</p>
+              @if (evento.detalhe) {
+                <p class="detalhe">{{ evento.detalhe }}</p>
+              }
+            </li>
+          }
+        </ul>
+      }
+    </section>
 
     <section class="comentarios">
       <h2>Comentários</h2>
@@ -187,12 +219,20 @@
                 <ul class="lista-anexos">
                   @for (anexo of comentario.anexos; track anexo.id) {
                     <li class="anexo">
+                      @if (anexoThumbUrl(anexo.id); as thumb) {
+                        <img
+                          class="anexo-thumb"
+                          [src]="thumb"
+                          [alt]="anexo.nomeArquivo"
+                          (click)="visualizarAnexo(anexo)"
+                        />
+                      }
                       <div class="anexo-info">
                         <span class="nome">{{ anexo.nomeArquivo }}</span>
                         <span class="meta-anexo">{{ formatarTamanho(anexo.tamanhoBytes) }}</span>
                       </div>
                       <div class="anexo-acoes">
-                        @if (podeVisualizar(anexo)) {
+                        @if (anexo.tipoMime === 'application/pdf') {
                           <button type="button" (click)="visualizarAnexo(anexo)">Visualizar</button>
                         }
                         <button type="button" (click)="baixarAnexo(anexo)">Baixar</button>
@@ -244,62 +284,115 @@
       </form>
     </section>
 
-    <section class="avaliacao">
-      <h2>Avaliação do atendimento</h2>
+    @if (mostrarBlocoAvaliacao()) {
+      <section class="avaliacao">
+        <h2>Avaliação do atendimento</h2>
 
-      @if (carregandoAvaliacao()) {
-        <p>Carregando avaliação...</p>
-      } @else {
-        @if (avaliacaoErro()) {
-          <p class="erro" role="alert">{{ avaliacaoErro() }}</p>
-        }
+        @if (carregandoAvaliacao()) {
+          <p>Carregando avaliação...</p>
+        } @else {
+          @if (avaliacaoErro()) {
+            <p class="erro" role="alert">{{ avaliacaoErro() }}</p>
+          }
 
-        @if (ehCliente() && chamado.status.final && !avaliacao()) {
-          <form [formGroup]="avaliacaoForm" (ngSubmit)="enviarAvaliacao()" novalidate class="form-avaliacao">
-            <label>
-              Nota (0 a 5)
-              <select formControlName="nota">
-                <option [ngValue]="null">Selecione uma nota</option>
-                @for (nota of [0, 1, 2, 3, 4, 5]; track nota) {
-                  <option [ngValue]="nota">{{ nota }}</option>
+          @if (podeAvaliarAgora()) {
+            <form [formGroup]="avaliacaoForm" (ngSubmit)="enviarAvaliacao()" novalidate class="form-avaliacao">
+              <label>
+                Nota (0 a 5)
+                <select formControlName="nota">
+                  <option [ngValue]="null">Selecione uma nota</option>
+                  @for (nota of [0, 1, 2, 3, 4, 5]; track nota) {
+                    <option [ngValue]="nota">{{ nota }}</option>
+                  }
+                </select>
+              </label>
+
+              <label>
+                Comentário (opcional)
+                <textarea formControlName="comentario" rows="3" placeholder="Conte como foi o atendimento..."></textarea>
+              </label>
+
+              <label class="radio">
+                <input type="radio" formControlName="publica" [value]="true" />
+                Avaliar publicamente
+              </label>
+              <label class="radio">
+                <input type="radio" formControlName="publica" [value]="false" />
+                Avaliar somente para administradores
+              </label>
+
+              <button type="submit" [disabled]="enviandoAvaliacao()">Enviar avaliação</button>
+            </form>
+          }
+
+          @for (av of avaliacoes(); track av.id) {
+            @if (editandoAvaliacaoId() === av.id) {
+              <form [formGroup]="avaliacaoEdicaoForm" (ngSubmit)="salvarEdicaoAvaliacao(av)" novalidate class="form-avaliacao">
+                <label>
+                  Nota (0 a 5)
+                  <select formControlName="nota">
+                    <option [ngValue]="null">Selecione uma nota</option>
+                    @for (nota of [0, 1, 2, 3, 4, 5]; track nota) {
+                      <option [ngValue]="nota">{{ nota }}</option>
+                    }
+                  </select>
+                </label>
+
+                <label>
+                  Comentário (opcional)
+                  <textarea formControlName="comentario" rows="3"></textarea>
+                </label>
+
+                <label class="radio">
+                  <input type="radio" formControlName="publica" [value]="true" />
+                  Avaliar publicamente
+                </label>
+                <label class="radio">
+                  <input type="radio" formControlName="publica" [value]="false" />
+                  Avaliar somente para administradores
+                </label>
+
+                <div class="edicao-acoes">
+                  <button type="submit" [disabled]="enviandoAvaliacao()">Salvar</button>
+                  <button type="button" (click)="cancelarEdicaoAvaliacao()">Cancelar</button>
+                </div>
+              </form>
+            } @else if (ehAdministrador() || (ehCliente() && av.autor.id === usuarioId) || (ehTecnico() && av.publica && !av.oculta)) {
+              <div class="avaliacao-leitura" [class.oculta]="av.oculta">
+                <div class="avaliacao-head">
+                  <span class="nota">Nota: {{ av.nota }}/5</span>
+                  @if (!av.publica) {
+                    <span class="badge">Somente administradores</span>
+                  }
+                  @if (av.oculta) {
+                    <span class="badge oculta">Oculta pelo administrador</span>
+                  }
+                </div>
+                @if (av.comentario) {
+                  <p class="comentario">{{ av.comentario }}</p>
                 }
-              </select>
-            </label>
-
-            <label>
-              Comentário (opcional)
-              <textarea formControlName="comentario" rows="3" placeholder="Conte como foi o atendimento..."></textarea>
-            </label>
-
-            <label class="radio">
-              <input type="radio" formControlName="publica" [value]="true" />
-              Avaliar publicamente
-            </label>
-            <label class="radio">
-              <input type="radio" formControlName="publica" [value]="false" />
-              Avaliar somente para administradores
-            </label>
-
-            <button type="submit" [disabled]="enviandoAvaliacao()">Enviar avaliação</button>
-          </form>
-        } @else if (avaliacao(); as av) {
-          @if (ehAdministrador() || ehCliente() || (ehTecnico() && av.publica)) {
-            <div class="avaliacao-leitura">
-              <div class="avaliacao-head">
-                <span class="nota">Nota: {{ av.nota }}/5</span>
-                @if (!av.publica) {
-                  <span class="badge">Somente administradores</span>
+                <p class="meta">
+                  {{ av.autor.nome }} · {{ av.criadoEm | date: 'dd/MM/yyyy HH:mm' }}
+                  @if (av.editado) {
+                    · Editado
+                  }
+                </p>
+                @if ((ehCliente() && av.autor.id === usuarioId) || ehAdministrador()) {
+                  <div class="avaliacao-acoes">
+                    @if (ehCliente() && av.autor.id === usuarioId) {
+                      <button type="button" (click)="iniciarEdicaoAvaliacao(av)">Editar</button>
+                    }
+                    @if (ehAdministrador()) {
+                      <button type="button" (click)="ocultarAvaliacao(av)">{{ av.oculta ? 'Reexibir' : 'Ocultar' }}</button>
+                    }
+                  </div>
                 }
               </div>
-              @if (av.comentario) {
-                <p class="comentario">{{ av.comentario }}</p>
-              }
-              <p class="meta">{{ av.autor.nome }} · {{ av.criadoEm | date: 'dd/MM/yyyy HH:mm' }}</p>
-            </div>
+            }
           }
         }
-      }
-    </section>
+      </section>
+    }
 
     <section class="anexos">
       <h2>Anexos</h2>
@@ -312,6 +405,14 @@
         <ul class="lista-anexos">
           @for (anexo of anexos(); track anexo.id) {
             <li class="anexo">
+              @if (anexoThumbUrl(anexo.id); as thumb) {
+                <img
+                  class="anexo-thumb"
+                  [src]="thumb"
+                  [alt]="anexo.nomeArquivo"
+                  (click)="visualizarAnexo(anexo)"
+                />
+              }
               <div class="anexo-info">
                 <span class="nome">{{ anexo.nomeArquivo }}</span>
                 <span class="meta-anexo">
@@ -320,7 +421,7 @@
                 </span>
               </div>
               <div class="anexo-acoes">
-                @if (podeVisualizar(anexo)) {
+                @if (anexo.tipoMime === 'application/pdf') {
                   <button type="button" (click)="visualizarAnexo(anexo)">Visualizar</button>
                 }
                 <button type="button" (click)="baixarAnexo(anexo)">Baixar</button>

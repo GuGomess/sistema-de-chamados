@@ -12,11 +12,13 @@ import {
   Anexo,
   Avaliacao,
   AvaliacaoCreateRequest,
+  AvaliacaoUpdateRequest,
   Categoria,
   Chamado,
   ChamadoUpdateRequest,
   Comentario,
   ComentarioCreateRequest,
+  Historico,
   PrazoResolucaoUpdateRequest,
   PrazoRespostaUpdateRequest,
   Prioridade,
@@ -53,7 +55,7 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
 
   private readonly id = Number(this.route.snapshot.paramMap.get('id'));
   private readonly perfil = this.authService.getPerfil();
-  private readonly usuarioId = this.authService.getUsuario()?.id ?? null;
+  protected readonly usuarioId = this.authService.getUsuario()?.id ?? null;
 
   protected readonly chamado = signal<Chamado | null>(null);
   protected readonly statusList = signal<Status[]>([]);
@@ -84,10 +86,19 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
   protected readonly anexoErro = signal<string | null>(null);
   protected readonly anexoPreview = signal<AnexoPreview | null>(null);
 
-  protected readonly avaliacao = signal<Avaliacao | null>(null);
+  // Miniaturas de anexos de imagem carregadas sob demanda (o download exige
+  // Authorization, então um <img src> direto não funciona — ver carregarThumbsImagens).
+  protected readonly anexoThumbs = signal<Map<number, SafeUrl>>(new Map());
+  private readonly anexoThumbObjectUrls: string[] = [];
+
+  protected readonly avaliacoes = signal<Avaliacao[]>([]);
   protected readonly carregandoAvaliacao = signal(true);
   protected readonly enviandoAvaliacao = signal(false);
   protected readonly avaliacaoErro = signal<string | null>(null);
+  protected readonly editandoAvaliacaoId = signal<number | null>(null);
+
+  protected readonly historico = signal<Historico[]>([]);
+  protected readonly carregandoHistorico = signal(true);
 
   protected readonly form = this.formBuilder.nonNullable.group({
     idStatus: [null as number | null],
@@ -104,6 +115,12 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
   });
 
   protected readonly avaliacaoForm = this.formBuilder.nonNullable.group({
+    nota: [null as number | null],
+    comentario: [''],
+    publica: [true],
+  });
+
+  protected readonly avaliacaoEdicaoForm = this.formBuilder.nonNullable.group({
     nota: [null as number | null],
     comentario: [''],
     publica: [true],
@@ -127,7 +144,8 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
     this.carregarChamado();
     this.carregarComentarios();
     this.carregarAnexos();
-    this.carregarAvaliacao();
+    this.carregarAvaliacoes();
+    this.carregarHistorico();
 
     if (this.ehAdministrador() || this.ehTecnico()) {
       this.chamadoService.listarStatus().subscribe({ next: (status) => this.statusList.set(status) });
@@ -145,6 +163,9 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
     const preview = this.anexoPreview();
     if (preview) {
       URL.revokeObjectURL(preview.objectUrl);
+    }
+    for (const objectUrl of this.anexoThumbObjectUrls) {
+      URL.revokeObjectURL(objectUrl);
     }
   }
 
@@ -246,6 +267,7 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
         this.comentarioForm.reset({ mensagem: '', interno: false });
         this.comentarioArquivos.set([]);
         this.enviandoComentario.set(false);
+        this.carregarThumbsImagens(comentario.anexos);
       },
       error: (error: HttpErrorResponse) => {
         this.enviandoComentario.set(false);
@@ -306,6 +328,7 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
       next: (comentarios) => {
         this.comentarios.set(comentarios);
         this.carregandoComentarios.set(false);
+        this.carregarThumbsImagens(comentarios.flatMap((c) => c.anexos));
       },
       error: () => {
         this.carregandoComentarios.set(false);
@@ -320,6 +343,7 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
       next: (anexos) => {
         this.anexos.set(anexos);
         this.carregandoAnexos.set(false);
+        this.carregarThumbsImagens(anexos);
       },
       error: () => {
         this.carregandoAnexos.set(false);
@@ -327,20 +351,62 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
     });
   }
 
-  private carregarAvaliacao(): void {
+  private carregarAvaliacoes(): void {
     this.carregandoAvaliacao.set(true);
 
-    // O service já trata "sem avaliação visível" (404/403) como null, então
-    // funciona sem checagem extra de perfil aqui.
-    this.chamadoService.obterAvaliacao(this.id).subscribe({
-      next: (avaliacao) => {
-        this.avaliacao.set(avaliacao);
+    this.chamadoService.listarAvaliacoes(this.id).subscribe({
+      next: (avaliacoes) => {
+        this.avaliacoes.set(avaliacoes);
         this.carregandoAvaliacao.set(false);
       },
       error: () => {
         this.carregandoAvaliacao.set(false);
       },
     });
+  }
+
+  private carregarHistorico(): void {
+    this.carregandoHistorico.set(true);
+
+    this.chamadoService.listarHistorico(this.id).subscribe({
+      next: (historico) => {
+        this.historico.set(historico);
+        this.carregandoHistorico.set(false);
+      },
+      error: () => {
+        this.carregandoHistorico.set(false);
+      },
+    });
+  }
+
+  // Só chamados "Resolvido" (não "Fechado") podem receber avaliação — reabrir e
+  // resolver de novo libera um novo ciclo, empilhando sobre avaliações anteriores.
+  protected podeAvaliarAgora(): boolean {
+    const chamado = this.chamado();
+    if (!chamado || !this.ehCliente() || chamado.status.nome !== 'Resolvido') {
+      return false;
+    }
+    return !this.cicloAtualJaAvaliado();
+  }
+
+  private cicloAtualJaAvaliado(): boolean {
+    const chamado = this.chamado();
+    if (!chamado?.resolvidoEm) {
+      return false;
+    }
+    const resolvidoEm = new Date(chamado.resolvidoEm).getTime();
+    return this.avaliacoes().some((av) => new Date(av.criadoEm).getTime() >= resolvidoEm);
+  }
+
+  protected mostrarBlocoAvaliacao(): boolean {
+    const chamado = this.chamado();
+    if (!chamado || !chamado.status.final) {
+      return false;
+    }
+    if (this.carregandoAvaliacao()) {
+      return true;
+    }
+    return this.avaliacoes().length > 0 || this.podeAvaliarAgora();
   }
 
   protected enviarAvaliacao(): void {
@@ -365,7 +431,8 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
 
     this.chamadoService.enviarAvaliacao(this.id, request).subscribe({
       next: (avaliacao) => {
-        this.avaliacao.set(avaliacao);
+        this.avaliacoes.update((atual) => [avaliacao, ...atual]);
+        this.avaliacaoForm.reset({ nota: null, comentario: '', publica: true });
         this.enviandoAvaliacao.set(false);
       },
       error: (error: HttpErrorResponse) => {
@@ -373,6 +440,93 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
         this.avaliacaoErro.set(this.mensagemErroAcao(error));
       },
     });
+  }
+
+  protected iniciarEdicaoAvaliacao(av: Avaliacao): void {
+    this.avaliacaoErro.set(null);
+    this.editandoAvaliacaoId.set(av.id);
+    this.avaliacaoEdicaoForm.reset({
+      nota: av.nota,
+      comentario: av.comentario ?? '',
+      publica: av.publica,
+    });
+  }
+
+  protected cancelarEdicaoAvaliacao(): void {
+    this.editandoAvaliacaoId.set(null);
+  }
+
+  protected salvarEdicaoAvaliacao(av: Avaliacao): void {
+    if (this.enviandoAvaliacao()) {
+      return;
+    }
+
+    const { nota, comentario, publica } = this.avaliacaoEdicaoForm.getRawValue();
+    if (nota === null || nota < 0 || nota > 5) {
+      this.avaliacaoErro.set('Selecione uma nota entre 0 e 5.');
+      return;
+    }
+
+    const request: AvaliacaoUpdateRequest = {
+      nota,
+      comentario: comentario.trim() ? comentario.trim() : undefined,
+      publica,
+    };
+
+    this.enviandoAvaliacao.set(true);
+    this.avaliacaoErro.set(null);
+
+    this.chamadoService.atualizarAvaliacao(this.id, av.id, request).subscribe({
+      next: (atualizada) => {
+        this.avaliacoes.update((atual) => atual.map((item) => (item.id === atualizada.id ? atualizada : item)));
+        this.editandoAvaliacaoId.set(null);
+        this.enviandoAvaliacao.set(false);
+      },
+      error: (error: HttpErrorResponse) => {
+        this.enviandoAvaliacao.set(false);
+        this.avaliacaoErro.set(this.mensagemErroAcao(error));
+      },
+    });
+  }
+
+  protected ocultarAvaliacao(av: Avaliacao): void {
+    this.chamadoService.ocultarAvaliacao(this.id, av.id, !av.oculta).subscribe({
+      next: (atualizada) => {
+        this.avaliacoes.update((atual) => atual.map((item) => (item.id === atualizada.id ? atualizada : item)));
+      },
+      error: (error: HttpErrorResponse) => {
+        this.avaliacaoErro.set(this.mensagemErroAcao(error));
+      },
+    });
+  }
+
+  // Busca e mantém em memória a miniatura (blob local) de cada anexo de imagem
+  // ainda não carregado — o download exige o header Authorization, então não dá
+  // para usar a URL do anexo direto num <img src>.
+  private carregarThumbsImagens(anexos: Anexo[]): void {
+    for (const anexo of anexos) {
+      if (!anexo.tipoMime.startsWith('image/') || this.anexoThumbs().has(anexo.id)) {
+        continue;
+      }
+
+      this.chamadoService.baixarAnexo(this.id, anexo.id).subscribe({
+        next: (blob) => {
+          const objectUrl = URL.createObjectURL(blob);
+          this.anexoThumbObjectUrls.push(objectUrl);
+          const safeUrl = this.sanitizer.bypassSecurityTrustUrl(objectUrl);
+          this.anexoThumbs.update((atual) => {
+            const novo = new Map(atual);
+            novo.set(anexo.id, safeUrl);
+            return novo;
+          });
+        },
+        error: () => undefined,
+      });
+    }
+  }
+
+  protected anexoThumbUrl(anexoId: number): SafeUrl | null {
+    return this.anexoThumbs().get(anexoId) ?? null;
   }
 
   protected enviarAnexo(event: Event): void {
@@ -390,6 +544,7 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
         this.anexos.update((atual) => [...atual, anexo]);
         this.enviandoAnexo.set(false);
         input.value = '';
+        this.carregarThumbsImagens([anexo]);
       },
       error: (error: HttpErrorResponse) => {
         this.enviandoAnexo.set(false);
@@ -411,10 +566,6 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
       },
       error: () => this.anexoErro.set('Não foi possível baixar o anexo.'),
     });
-  }
-
-  protected podeVisualizar(anexo: Anexo): boolean {
-    return anexo.tipoMime.startsWith('image/') || anexo.tipoMime === 'application/pdf';
   }
 
   protected visualizarAnexo(anexo: Anexo): void {
@@ -506,9 +657,21 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
       return;
     }
 
+    const chamado = this.chamado();
+    if (!chamado) {
+      return;
+    }
+
     const { prazoResolucao, justificativa } = this.prazoForm.getRawValue();
-    if (!prazoResolucao || !justificativa.trim()) {
-      this.acaoErro.set('Informe o novo prazo e uma justificativa.');
+    const prazoOriginal = chamado.prazoResolucao ? this.paraDatetimeLocal(chamado.prazoResolucao) : '';
+    const prazoAlterado = !!prazoResolucao && prazoResolucao !== prazoOriginal;
+
+    // Só aplica quando o prazo foi de fato alterado (não só a justificativa
+    // digitada, com o prazo pré-preenchido intocado — isso enviaria um ajuste
+    // "fantasma" para o mesmo valor) e a justificativa (obrigatória) já foi
+    // preenchida. Enquanto isso não acontece, fica em silêncio — sem mostrar
+    // erro prematuramente antes do usuário terminar de preencher os dois campos.
+    if (!prazoAlterado || !justificativa.trim()) {
       return;
     }
 
@@ -517,7 +680,9 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
       justificativa: justificativa.trim(),
     };
 
-    this.executarAcao(this.chamadoService.ajustarPrazoResolucao(this.id, request));
+    this.executarAcao(this.chamadoService.ajustarPrazoResolucao(this.id, request), (atualizado) =>
+      this.inicializarFormsDePrazo(atualizado),
+    );
   }
 
   protected ajustarPrazoResposta(): void {
@@ -525,9 +690,16 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
       return;
     }
 
+    const chamado = this.chamado();
+    if (!chamado) {
+      return;
+    }
+
     const { prazoResposta } = this.prazoRespostaForm.getRawValue();
-    if (!prazoResposta) {
-      this.acaoErro.set('Informe o novo prazo de resposta.');
+    const prazoOriginal = chamado.prazoResposta ? this.paraDatetimeLocal(chamado.prazoResposta) : '';
+    if (!prazoResposta || prazoResposta === prazoOriginal) {
+      // Nada mudou de fato (ex.: evento disparado sem alteração real) — sem
+      // valor novo, não há o que aplicar nem erro a mostrar.
       return;
     }
 
@@ -535,7 +707,9 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
       prazoResposta: new Date(prazoResposta).toISOString(),
     };
 
-    this.executarAcao(this.chamadoService.ajustarPrazoResposta(this.id, request));
+    this.executarAcao(this.chamadoService.ajustarPrazoResposta(this.id, request), (atualizado) =>
+      this.inicializarFormsDePrazo(atualizado),
+    );
   }
 
   protected salvarAlteracoes(): void {
@@ -564,7 +738,7 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
     this.executarAcao(this.chamadoService.atualizar(chamado.id, atualizacao));
   }
 
-  private executarAcao(acao: Observable<Chamado>): void {
+  private executarAcao(acao: Observable<Chamado>, aposSucesso?: (atualizado: Chamado) => void): void {
     if (this.salvando()) {
       return;
     }
@@ -575,6 +749,7 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
     acao.subscribe({
       next: (atualizado) => {
         this.aplicarChamado(atualizado);
+        aposSucesso?.(atualizado);
         this.salvando.set(false);
       },
       error: (error: HttpErrorResponse) => {
@@ -591,6 +766,7 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
     this.chamadoService.detalhar(this.id).subscribe({
       next: (chamado) => {
         this.aplicarChamado(chamado);
+        this.inicializarFormsDePrazo(chamado);
         this.carregando.set(false);
       },
       error: (error: HttpErrorResponse) => {
@@ -614,6 +790,14 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
       { idTecnico: chamado.tecnico?.id ?? null },
       { emitEvent: false },
     );
+  }
+
+  // Só chamado no carregamento inicial e logo após um ajuste de prazo bem-
+  // sucedido (nunca a cada ação genérica) — outras ações (mudar categoria,
+  // atribuir técnico, etc.) nunca alteram prazoResolucao/prazoResposta, então
+  // resincronizar esses forms a cada uma delas só apagaria, sem necessidade,
+  // uma justificativa que o usuário ainda estivesse digitando.
+  private inicializarFormsDePrazo(chamado: Chamado): void {
     this.prazoForm.patchValue(
       {
         prazoResolucao: chamado.prazoResolucao ? this.paraDatetimeLocal(chamado.prazoResolucao) : '',

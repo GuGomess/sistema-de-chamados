@@ -8,6 +8,7 @@ import {
   AtribuirTecnicoRequest,
   Avaliacao,
   AvaliacaoCreateRequest,
+  AvaliacaoUpdateRequest,
   Categoria,
   Chamado,
   ChamadoCreateRequest,
@@ -17,6 +18,7 @@ import {
   Comentario,
   ComentarioCreateRequest,
   FecharClienteRequest,
+  Historico,
   PrazoResolucaoUpdateRequest,
   PrazoRespostaUpdateRequest,
   Prioridade,
@@ -132,13 +134,25 @@ export class ChamadoService {
     });
   }
 
-  obterAvaliacao(id: number): Observable<Avaliacao | null> {
+  listarAvaliacoes(id: number): Observable<Avaliacao[]> {
     return this.http
-      .get<Avaliacao>(`${environment.apiBaseUrl}/v1/chamados/${id}/avaliacao`)
-      .pipe(catchError(() => of(null)));
+      .get<Avaliacao[]>(`${environment.apiBaseUrl}/v1/chamados/${id}/avaliacoes`)
+      .pipe(catchError(() => of([])));
   }
 
   enviarAvaliacao(id: number, request: AvaliacaoCreateRequest): Observable<Avaliacao> {
     return this.http.post<Avaliacao>(`${environment.apiBaseUrl}/v1/chamados/${id}/avaliacao`, request);
+  }
+
+  atualizarAvaliacao(id: number, avaliacaoId: number, request: AvaliacaoUpdateRequest): Observable<Avaliacao> {
+    return this.http.patch<Avaliacao>(`${environment.apiBaseUrl}/v1/chamados/${id}/avaliacoes/${avaliacaoId}`, request);
+  }
+
+  ocultarAvaliacao(id: number, avaliacaoId: number, oculta: boolean): Observable<Avaliacao> {
+    return this.http.patch<Avaliacao>(`${environment.apiBaseUrl}/v1/chamados/${id}/avaliacoes/${avaliacaoId}/ocultar`, { oculta });
+  }
+
+  listarHistorico(id: number): Observable<Historico[]> {
+    return this.http.get<Historico[]>(`${environment.apiBaseUrl}/v1/chamados/${id}/historico`);
   }
 }

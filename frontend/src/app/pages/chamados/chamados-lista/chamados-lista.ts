@@ -47,6 +47,11 @@ export class ChamadosLista implements OnInit {
   protected readonly carregando = signal(false);
   protected readonly erro = signal<string | null>(null);
 
+  // Mantém o padrão anterior (mais recentes primeiro) até o usuário clicar
+  // em alguma coluna da tabela para ordenar por ela.
+  protected readonly sortCampo = signal('criadoEm');
+  protected readonly sortDescendente = signal(true);
+
   private pagina = 1;
 
   protected readonly form = this.formBuilder.nonNullable.group({
@@ -117,6 +122,24 @@ export class ChamadosLista implements OnInit {
     this.buscar();
   }
 
+  protected ordenarPor(campo: string): void {
+    if (this.sortCampo() === campo) {
+      this.sortDescendente.update((atual) => !atual);
+    } else {
+      this.sortCampo.set(campo);
+      this.sortDescendente.set(false);
+    }
+    this.pagina = 1;
+    this.buscar();
+  }
+
+  protected indicadorOrdenacao(campo: string): string {
+    if (this.sortCampo() !== campo) {
+      return '';
+    }
+    return this.sortDescendente() ? ' ▼' : ' ▲';
+  }
+
   protected abrirChamado(chamado: Chamado): void {
     this.router.navigate(['/chamados', chamado.id]);
   }
@@ -153,6 +176,7 @@ export class ChamadosLista implements OnInit {
       .listar({
         page: this.pagina,
         pageSize: 20,
+        sort: (this.sortDescendente() ? '-' : '') + this.sortCampo(),
         q,
         idStatus,
         idCategoria,

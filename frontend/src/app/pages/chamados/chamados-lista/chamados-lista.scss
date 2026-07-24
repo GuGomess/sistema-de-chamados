@@ -113,6 +113,16 @@
       font-size: 0.9rem;
     }
 
+    th.ordenavel {
+      cursor: pointer;
+      user-select: none;
+      white-space: nowrap;
+
+      &:hover {
+        color: #1a56db;
+      }
+    }
+
     tbody tr {
       cursor: pointer;
 

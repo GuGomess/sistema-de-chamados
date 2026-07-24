@@ -90,17 +90,17 @@
         <table>
           <thead>
             <tr>
-              <th>#</th>
-              <th>Título</th>
-              <th>Status</th>
+              <th class="ordenavel" (click)="ordenarPor('id')">#{{ indicadorOrdenacao('id') }}</th>
+              <th class="ordenavel" (click)="ordenarPor('titulo')">Título{{ indicadorOrdenacao('titulo') }}</th>
+              <th class="ordenavel" (click)="ordenarPor('status')">Status{{ indicadorOrdenacao('status') }}</th>
               @if (ehStaff) {
-                <th>Aberto por</th>
-                <th>Prioridade</th>
-                <th>SLA</th>
+                <th class="ordenavel" (click)="ordenarPor('solicitante')">Aberto por{{ indicadorOrdenacao('solicitante') }}</th>
+                <th class="ordenavel" (click)="ordenarPor('prioridade')">Prioridade{{ indicadorOrdenacao('prioridade') }}</th>
+                <th class="ordenavel" (click)="ordenarPor('sla')">SLA{{ indicadorOrdenacao('sla') }}</th>
               }
-              <th>Técnico</th>
-              <th>Aberto em</th>
-              <th>Resolvido em</th>
+              <th class="ordenavel" (click)="ordenarPor('tecnico')">Técnico{{ indicadorOrdenacao('tecnico') }}</th>
+              <th class="ordenavel" (click)="ordenarPor('criadoEm')">Aberto em{{ indicadorOrdenacao('criadoEm') }}</th>
+              <th class="ordenavel" (click)="ordenarPor('resolvidoEm')">Resolvido em{{ indicadorOrdenacao('resolvidoEm') }}</th>
             </tr>
           </thead>
           <tbody>

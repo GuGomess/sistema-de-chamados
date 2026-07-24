@@ -117,10 +117,18 @@ export interface Avaliacao {
   nota: number;
   comentario: string | null;
   publica: boolean;
+  oculta: boolean;
+  editado: boolean;
   criadoEm: string;
 }
 
 export interface AvaliacaoCreateRequest {
+  nota: number;
+  comentario?: string;
+  publica: boolean;
+}
+
+export interface AvaliacaoUpdateRequest {
   nota: number;
   comentario?: string;
   publica: boolean;
@@ -145,6 +153,17 @@ export interface ComentarioCreateRequest {
   mensagem: string;
   interno: boolean;
   arquivos?: File[];
+}
+
+export interface Historico {
+  id: number;
+  idChamado: number;
+  autor: UsuarioResumo;
+  statusAnterior: Status | null;
+  statusNovo: Status | null;
+  acao: string;
+  detalhe: string | null;
+  criadoEm: string;
 }
 
 export interface Anexo {
