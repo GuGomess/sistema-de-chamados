@@ -153,7 +153,8 @@ Estado do chamado (tabela de domínio). Ex.: Aberto, Em Atendimento, Aguardando 
 | final | boolean | não | | Marca estados terminais (Resolvido/Fechado) |
 
 ### CATEGORIA
-Assunto/tipo do chamado (tabela de domínio). Ex.: Hardware, Software, Rede, Acesso.
+Assunto/tipo do chamado (tabela de domínio). Ex.: Hardware, Software, Rede, Acesso, A Triar
+(atribuída automaticamente a chamados abertos por Cliente, que não escolhe categoria).
 
 | Campo | Tipo | Nulo | Chave | Observação |
 |-------|------|------|-------|------------|
@@ -199,6 +200,7 @@ Entidade central — a solicitação de suporte e seu ciclo de vida.
 | atualizado_em | timestamptz | não | | Atualizado a cada mudança |
 | prazo_resposta | timestamptz | sim | | Calculado a partir do SLA |
 | prazo_resolucao | timestamptz | sim | | Calculado a partir do SLA |
+| primeira_resposta_em | timestamptz | sim | | Preenchido no 1º comentário de técnico/admin — satisfaz o SLA de resposta |
 | resolvido_em | timestamptz | sim | | Preenchido ao resolver |
 | fechado_em | timestamptz | sim | | Preenchido ao fechar |
 

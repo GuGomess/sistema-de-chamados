@@ -94,7 +94,9 @@ paths:
       description: >
         O escopo é aplicado pelo perfil: Cliente vê apenas os próprios chamados;
         Técnico vê os atribuídos a ele e os ainda sem técnico (pool disponível
-        para assumir); Administrador vê todos.
+        para assumir); Administrador vê todos. Com `meus=true`, Técnico ou
+        Administrador veem só os chamados assumidos por ele ou abertos por ele
+        mesmo (substitui o escopo padrão do perfil só nessa chamada).
       parameters:
         - { $ref: '#/components/parameters/Page' }
         - { $ref: '#/components/parameters/PageSize' }
@@ -127,6 +129,12 @@ paths:
           in: query
           description: Filtra por situação de SLA de resposta OU resolução
           schema: { $ref: '#/components/schemas/SituacaoSla' }
+        - name: meus
+          in: query
+          description: >
+            Só para Técnico/Administrador: restringe aos chamados assumidos
+            por ele ou abertos por ele mesmo. Ignorado para Cliente.
+          schema: { type: boolean, default: false }
       responses:
         '200':
           description: Página de chamados
@@ -974,13 +982,27 @@ components:
         atualizadoEm: { type: string, format: date-time }
         prazoResposta: { type: string, format: date-time, nullable: true }
         prazoResolucao: { type: string, format: date-time, nullable: true }
+        primeiraRespostaEm:
+          type: string
+          format: date-time
+          nullable: true
+          description: >
+            Timestamp do primeiro comentário de um Técnico/Administrador no
+            chamado. A partir daí o SLA de resposta é considerado satisfeito
+            e sua situação fica congelada (o monitoramento periódico para de
+            reavaliá-la).
         resolvidoEm: { type: string, format: date-time, nullable: true }
         fechadoEm: { type: string, format: date-time, nullable: true }
         situacaoSlaResposta: { $ref: '#/components/schemas/SituacaoSla' }
         situacaoSlaResolucao: { $ref: '#/components/schemas/SituacaoSla' }
     ChamadoCreate:
       type: object
-      required: [titulo, descricao, idCategoria, idPrioridade]
+      required: [titulo, descricao]
+      description: >
+        idCategoria/idPrioridade são obrigatórios para Técnico/Administrador,
+        mas ignorados para Cliente: o servidor sempre aplica os defaults de
+        triagem (categoria "A Triar", prioridade "Média") nesse caso, mesmo
+        que os campos sejam enviados no corpo.
       properties:
         titulo: { type: string, maxLength: 160 }
         descricao: { type: string }
@@ -1069,10 +1091,11 @@ components:
     TipoNotificacao:
       type: string
       description: >
-        Origem da notificação. Hoje gerada apenas pelo monitoramento de SLA:
-        "SlaEmRisco" quando o chamado atinge 80% do tempo decorrido até o
-        prazo, "SlaVencido" quando o prazo é ultrapassado.
-      enum: [SlaEmRisco, SlaVencido]
+        Origem da notificação: "SlaEmRisco"/"SlaVencido" vêm do monitoramento
+        periódico de SLA (80% do tempo decorrido / prazo ultrapassado);
+        "PrazoAjustado" é gerada para os administradores quando um Técnico
+        ajusta manualmente o prazo de resposta ou resolução de um chamado.
+      enum: [SlaEmRisco, SlaVencido, PrazoAjustado]
     Notificacao:
       type: object
       properties:
