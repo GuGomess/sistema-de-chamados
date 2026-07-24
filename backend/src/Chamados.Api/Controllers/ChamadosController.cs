@@ -608,6 +608,81 @@ public class ChamadosController : ControllerBase
         return Ok(historico.Select(HistoricoDto.FromEntity).ToList());
     }
 
+    [HttpGet("{id:long}/comentarios")]
+    public async Task<ActionResult<List<ComentarioDto>>> ListarComentarios(long id)
+    {
+        var usuarioId = ObterUsuarioId();
+        if (usuarioId is null)
+        {
+            return Unauthorized();
+        }
+
+        var chamado = await _dbContext.Chamados.FirstOrDefaultAsync(c => c.Id == id);
+        if (chamado is null)
+        {
+            return NotFound(ErrorResponse.Create(404, "Chamado não encontrado."));
+        }
+
+        if (!PodeAcessar(chamado, usuarioId.Value))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, ErrorResponse.Create(403, "Sem permissão para acessar este chamado."));
+        }
+
+        var query = _dbContext.Comentarios.Where(c => c.ChamadoId == id);
+
+        if (User.IsInRole(Perfis.Cliente))
+        {
+            query = query.Where(c => !c.Interno);
+        }
+
+        var comentarios = await query
+            .Include(c => c.Autor).ThenInclude(u => u.Perfil)
+            .OrderBy(c => c.CriadoEm)
+            .ToListAsync();
+
+        return Ok(comentarios.Select(ComentarioDto.FromEntity).ToList());
+    }
+
+    [HttpPost("{id:long}/comentarios")]
+    public async Task<ActionResult<ComentarioDto>> CriarComentario(long id, [FromBody] ComentarioCreateRequest request)
+    {
+        var usuarioId = ObterUsuarioId();
+        if (usuarioId is null)
+        {
+            return Unauthorized();
+        }
+
+        var chamado = await _dbContext.Chamados.FirstOrDefaultAsync(c => c.Id == id);
+        if (chamado is null)
+        {
+            return NotFound(ErrorResponse.Create(404, "Chamado não encontrado."));
+        }
+
+        if (!PodeAcessar(chamado, usuarioId.Value))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, ErrorResponse.Create(403, "Sem permissão para comentar neste chamado."));
+        }
+
+        var interno = request.Interno && !User.IsInRole(Perfis.Cliente);
+
+        var comentario = new Comentario
+        {
+            ChamadoId = id,
+            AutorId = usuarioId.Value,
+            Mensagem = request.Mensagem,
+            Interno = interno
+        };
+
+        _dbContext.Comentarios.Add(comentario);
+        await _dbContext.SaveChangesAsync();
+
+        var comentarioCriado = await _dbContext.Comentarios
+            .Include(c => c.Autor).ThenInclude(u => u.Perfil)
+            .FirstAsync(c => c.Id == comentario.Id);
+
+        return CreatedAtAction(nameof(ListarComentarios), new { id }, ComentarioDto.FromEntity(comentarioCriado));
+    }
+
     private IQueryable<Chamado> ChamadosComIncludes() =>
         _dbContext.Chamados
             .Include(c => c.Solicitante).ThenInclude(u => u.Perfil)

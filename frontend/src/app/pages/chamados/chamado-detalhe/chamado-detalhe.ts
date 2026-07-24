@@ -9,6 +9,8 @@ import { AuthService } from '../../../core/services/auth.service';
 import { ChamadoService } from '../../../core/services/chamado.service';
 import {
   Chamado,
+  Comentario,
+  ComentarioCreateRequest,
   PrazoResolucaoUpdateRequest,
   PrazoRespostaUpdateRequest,
   SituacaoSla,
@@ -44,9 +46,19 @@ export class ChamadoDetalhe implements OnInit {
   protected readonly salvando = signal(false);
   protected readonly acaoErro = signal<string | null>(null);
 
+  protected readonly comentarios = signal<Comentario[]>([]);
+  protected readonly carregandoComentarios = signal(true);
+  protected readonly enviandoComentario = signal(false);
+  protected readonly comentarioErro = signal<string | null>(null);
+
   protected readonly form = this.formBuilder.nonNullable.group({
     idStatus: [null as number | null],
     idTecnico: [null as number | null],
+  });
+
+  protected readonly comentarioForm = this.formBuilder.nonNullable.group({
+    mensagem: [''],
+    interno: [false],
   });
 
   protected readonly prazoForm = this.formBuilder.nonNullable.group({
@@ -60,6 +72,7 @@ export class ChamadoDetalhe implements OnInit {
 
   ngOnInit(): void {
     this.carregarChamado();
+    this.carregarComentarios();
 
     if (this.ehAdministrador() || this.ehTecnico()) {
       this.chamadoService.listarStatus().subscribe({ next: (status) => this.statusList.set(status) });
@@ -121,6 +134,56 @@ export class ChamadoDetalhe implements OnInit {
       return false;
     }
     return this.ehAdministrador() || (this.ehTecnico() && chamado.tecnico?.id === this.usuarioId);
+  }
+
+  protected podeMarcarComentarioInterno(): boolean {
+    return this.ehAdministrador() || this.ehTecnico();
+  }
+
+  protected enviarComentario(): void {
+    if (this.enviandoComentario()) {
+      return;
+    }
+
+    const { mensagem, interno } = this.comentarioForm.getRawValue();
+    if (!mensagem.trim()) {
+      this.comentarioErro.set('Escreva uma mensagem para comentar.');
+      return;
+    }
+
+    const request: ComentarioCreateRequest = {
+      mensagem: mensagem.trim(),
+      interno: this.podeMarcarComentarioInterno() && interno,
+    };
+
+    this.enviandoComentario.set(true);
+    this.comentarioErro.set(null);
+
+    this.chamadoService.criarComentario(this.id, request).subscribe({
+      next: (comentario) => {
+        this.comentarios.update((atual) => [...atual, comentario]);
+        this.comentarioForm.reset({ mensagem: '', interno: false });
+        this.enviandoComentario.set(false);
+      },
+      error: (error: HttpErrorResponse) => {
+        this.enviandoComentario.set(false);
+        this.comentarioErro.set(this.mensagemErroAcao(error));
+      },
+    });
+  }
+
+  private carregarComentarios(): void {
+    this.carregandoComentarios.set(true);
+
+    this.chamadoService.listarComentarios(this.id).subscribe({
+      next: (comentarios) => {
+        this.comentarios.set(comentarios);
+        this.carregandoComentarios.set(false);
+      },
+      error: () => {
+        this.carregandoComentarios.set(false);
+      },
+    });
   }
 
   protected assumir(): void {

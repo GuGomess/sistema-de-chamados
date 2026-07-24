@@ -11,6 +11,8 @@ import {
   ChamadoFiltros,
   ChamadoPage,
   ChamadoUpdateRequest,
+  Comentario,
+  ComentarioCreateRequest,
   PrazoResolucaoUpdateRequest,
   PrazoRespostaUpdateRequest,
   Prioridade,
@@ -85,5 +87,13 @@ export class ChamadoService {
 
   resumoSla(): Observable<ResumoSla> {
     return this.http.get<ResumoSla>(`${environment.apiBaseUrl}/v1/chamados/resumo-sla`);
+  }
+
+  listarComentarios(id: number): Observable<Comentario[]> {
+    return this.http.get<Comentario[]>(`${environment.apiBaseUrl}/v1/chamados/${id}/comentarios`);
+  }
+
+  criarComentario(id: number, request: ComentarioCreateRequest): Observable<Comentario> {
+    return this.http.post<Comentario>(`${environment.apiBaseUrl}/v1/chamados/${id}/comentarios`, request);
   }
 }

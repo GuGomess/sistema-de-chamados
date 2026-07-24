@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Text;
 
 namespace Chamados.Api.Constants;
@@ -13,16 +12,19 @@ public static class Perfis
     public const string Tecnico = "TECNICO";
     public const string Cliente = "CLIENTE";
 
+    // Mapeamento manual (sem depender de string.Normalize/ICU) porque o runtime
+    // roda em modo globalization-invariant (imagem Alpine sem icu-libs), onde
+    // Normalize/CharUnicodeInfo não removem acentos corretamente.
+    private const string ComAcento = "áàãâäÁÀÃÂÄéèêëÉÈÊËíìîïÍÌÎÏóòõôöÓÒÕÔÖúùûüÚÙÛÜçÇ";
+    private const string SemAcento = "aaaaaAAAAAeeeeEEEEiiiiIIIIooooooOOOOOOuuuuUUUUcC";
+
     public static string NormalizarCodigo(string perfilNome)
     {
-        var normalized = perfilNome.Normalize(NormalizationForm.FormD);
-        var builder = new StringBuilder();
-        foreach (var c in normalized)
+        var builder = new StringBuilder(perfilNome.Length);
+        foreach (var c in perfilNome)
         {
-            if (CharUnicodeInfo.GetUnicodeCategory(c) != UnicodeCategory.NonSpacingMark)
-            {
-                builder.Append(c);
-            }
+            var indice = ComAcento.IndexOf(c);
+            builder.Append(indice >= 0 ? SemAcento[indice] : c);
         }
 
         return builder.ToString().ToUpperInvariant();

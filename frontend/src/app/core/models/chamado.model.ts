@@ -104,3 +104,17 @@ export interface ResumoSla {
   emRisco: number;
   vencidos: number;
 }
+
+export interface Comentario {
+  id: number;
+  idChamado: number;
+  autor: UsuarioResumo;
+  mensagem: string;
+  interno: boolean;
+  criadoEm: string;
+}
+
+export interface ComentarioCreateRequest {
+  mensagem: string;
+  interno: boolean;
+}

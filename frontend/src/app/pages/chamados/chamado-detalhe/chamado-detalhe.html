@@ -128,5 +128,50 @@
         </aside>
       }
     </div>
+
+    <section class="comentarios">
+      <h2>Comentários</h2>
+
+      @if (carregandoComentarios()) {
+        <p>Carregando comentários...</p>
+      } @else if (comentarios().length === 0) {
+        <p class="vazio">Nenhum comentário ainda.</p>
+      } @else {
+        <ul class="lista-comentarios">
+          @for (comentario of comentarios(); track comentario.id) {
+            <li class="comentario" [class.interno]="comentario.interno">
+              <div class="comentario-head">
+                <span class="autor">{{ comentario.autor.nome }}</span>
+                @if (comentario.interno) {
+                  <span class="badge interno">Nota interna</span>
+                }
+                <span class="data">{{ comentario.criadoEm | date: 'dd/MM/yyyy HH:mm' }}</span>
+              </div>
+              <p class="mensagem">{{ comentario.mensagem }}</p>
+            </li>
+          }
+        </ul>
+      }
+
+      @if (comentarioErro()) {
+        <p class="erro" role="alert">{{ comentarioErro() }}</p>
+      }
+
+      <form [formGroup]="comentarioForm" (ngSubmit)="enviarComentario()" novalidate class="form-comentario">
+        <label>
+          Escrever comentário
+          <textarea formControlName="mensagem" rows="3" placeholder="Escreva um comentário..."></textarea>
+        </label>
+
+        @if (podeMarcarComentarioInterno()) {
+          <label class="checkbox">
+            <input type="checkbox" formControlName="interno" />
+            Nota interna (visível apenas a técnico/administrador)
+          </label>
+        }
+
+        <button type="submit" [disabled]="enviandoComentario()">Comentar</button>
+      </form>
+    </section>
   }
 </section>

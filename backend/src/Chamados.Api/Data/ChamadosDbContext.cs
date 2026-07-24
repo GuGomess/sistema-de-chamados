@@ -25,6 +25,8 @@ public class ChamadosDbContext : DbContext
 
     public DbSet<Historico> Historicos => Set<Historico>();
 
+    public DbSet<Comentario> Comentarios => Set<Comentario>();
+
     public DbSet<Notificacao> Notificacoes => Set<Notificacao>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -225,6 +227,27 @@ public class ChamadosDbContext : DbContext
             entity.HasOne(h => h.StatusNovo)
                 .WithMany()
                 .HasForeignKey(h => h.StatusNovoId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<Comentario>(entity =>
+        {
+            entity.ToTable("comentario");
+            entity.Property(c => c.Id).HasColumnName("id");
+            entity.Property(c => c.ChamadoId).HasColumnName("id_chamado");
+            entity.Property(c => c.AutorId).HasColumnName("id_autor");
+            entity.Property(c => c.Mensagem).HasColumnName("mensagem").IsRequired();
+            entity.Property(c => c.Interno).HasColumnName("interno").HasDefaultValue(false);
+            entity.Property(c => c.CriadoEm).HasColumnName("criado_em").HasDefaultValueSql("now()");
+
+            entity.HasOne(c => c.Chamado)
+                .WithMany()
+                .HasForeignKey(c => c.ChamadoId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(c => c.Autor)
+                .WithMany()
+                .HasForeignKey(c => c.AutorId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
