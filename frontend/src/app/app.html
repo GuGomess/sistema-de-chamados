@@ -2,8 +2,10 @@
   <header class="app-header">
     <a class="app-header__brand" routerLink="/">{{ title() }}</a>
     <nav class="app-header__nav">
-      <a routerLink="/dashboard" routerLinkActive="is-active">Dashboard</a>
-      <a routerLink="/chamados" routerLinkActive="is-active">Chamados</a>
+      @if (!ehCliente()) {
+        <a routerLink="/dashboard" routerLinkActive="is-active">Dashboard</a>
+      }
+      <a routerLink="/chamados" routerLinkActive="is-active" [routerLinkActiveOptions]="{ exact: true }">{{ labelChamados() }}</a>
       <a routerLink="/chamados/novo" routerLinkActive="is-active">Novo chamado</a>
     </nav>
 
@@ -33,6 +35,11 @@
             } @else if (notificacoes().length === 0) {
               <p>Nenhuma notificação.</p>
             } @else {
+              <div class="sino__acoes">
+                <button type="button" class="marcar-todas" (click)="marcarTodasComoLidas()">
+                  Marcar todas como lidas
+                </button>
+              </div>
               <ul>
                 @for (notificacao of notificacoes(); track notificacao.id) {
                   <li [class.nao-lida]="!notificacao.lida" (click)="abrirNotificacao(notificacao)">
@@ -44,6 +51,10 @@
           </div>
         }
       </div>
+
+      @if (nomeUsuario(); as nome) {
+        <span class="app-header__usuario">Logado como <strong>{{ nome }}</strong></span>
+      }
 
       <button type="button" class="botao-sair" (click)="sair()">Sair</button>
     </div>
