@@ -38,6 +38,12 @@ export class App {
     this.router.navigate(['/chamados', notificacao.idChamado]);
   }
 
+  protected sair(): void {
+    this.authService.logout();
+    this.notificacoesAbertas.set(false);
+    this.router.navigateByUrl('/login');
+  }
+
   private carregarNotificacoes(): void {
     this.carregandoNotificacoes.set(true);
     this.notificacaoService.listar().subscribe({
