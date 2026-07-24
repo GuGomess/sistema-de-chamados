@@ -18,5 +18,12 @@ public class Avaliacao
 
     public bool Publica { get; set; }
 
+    // Administrador pode ocultar uma avaliação (ex.: conteúdo impróprio) sem
+    // apagar o registro — some da visão do técnico, mas admin e o cliente
+    // autor continuam vendo normalmente.
+    public bool Oculta { get; set; }
+
+    public DateTimeOffset? EditadoEm { get; set; }
+
     public DateTimeOffset CriadoEm { get; set; }
 }

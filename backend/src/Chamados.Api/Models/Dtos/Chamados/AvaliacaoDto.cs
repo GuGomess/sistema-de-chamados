@@ -17,6 +17,10 @@ public class AvaliacaoDto
 
     public bool Publica { get; set; }
 
+    public bool Oculta { get; set; }
+
+    public bool Editado { get; set; }
+
     public DateTimeOffset CriadoEm { get; set; }
 
     public static AvaliacaoDto FromEntity(Avaliacao avaliacao) => new()
@@ -27,6 +31,8 @@ public class AvaliacaoDto
         Nota = avaliacao.Nota,
         Comentario = avaliacao.Comentario,
         Publica = avaliacao.Publica,
+        Oculta = avaliacao.Oculta,
+        Editado = avaliacao.EditadoEm.HasValue,
         CriadoEm = avaliacao.CriadoEm
     };
 }
@@ -38,4 +44,18 @@ public class AvaliacaoCreateRequest
     public string? Comentario { get; set; }
 
     public bool Publica { get; set; }
+}
+
+public class AvaliacaoUpdateRequest
+{
+    public short Nota { get; set; }
+
+    public string? Comentario { get; set; }
+
+    public bool Publica { get; set; }
+}
+
+public class AvaliacaoOcultarRequest
+{
+    public bool Oculta { get; set; }
 }

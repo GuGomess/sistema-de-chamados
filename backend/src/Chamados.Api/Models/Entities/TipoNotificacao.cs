@@ -7,5 +7,8 @@ public enum TipoNotificacao
     PrazoAjustado,
     ChamadoReaberto,
     FechadoPorCliente,
-    NovaAvaliacao
+    NovaAvaliacao,
+    NovoComentario,
+    MudancaStatus,
+    TecnicoAtribuido
 }

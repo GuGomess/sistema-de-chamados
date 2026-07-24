@@ -106,12 +106,38 @@ public class ChamadosController : ControllerBase
 
         var descending = sort is null || sort.StartsWith('-');
         var campo = sort?.TrimStart('-');
-        query = campo switch
+        IOrderedQueryable<Chamado> ordenado = campo switch
         {
+            "id" => descending ? query.OrderByDescending(c => c.Id) : query.OrderBy(c => c.Id),
             "titulo" => descending ? query.OrderByDescending(c => c.Titulo) : query.OrderBy(c => c.Titulo),
+            // Status e prioridade usam os campos numéricos "ordem"/"nivel" (feitos
+            // para representar a sequência de triagem) em vez do nome, para que
+            // "crescente/decrescente" siga a ordem de negócio, não a alfabética.
+            "status" => descending ? query.OrderByDescending(c => c.Status.Ordem) : query.OrderBy(c => c.Status.Ordem),
+            "solicitante" => descending ? query.OrderByDescending(c => c.Solicitante.Nome) : query.OrderBy(c => c.Solicitante.Nome),
+            "prioridade" => descending ? query.OrderByDescending(c => c.Prioridade.Nivel) : query.OrderBy(c => c.Prioridade.Nivel),
+            "sla" => descending
+                ? query.OrderByDescending(c =>
+                    (c.SituacaoSlaResposta == SituacaoSla.Vencido || c.SituacaoSlaResolucao == SituacaoSla.Vencido) ? 2 :
+                    (c.SituacaoSlaResposta == SituacaoSla.EmRisco || c.SituacaoSlaResolucao == SituacaoSla.EmRisco) ? 1 : 0)
+                : query.OrderBy(c =>
+                    (c.SituacaoSlaResposta == SituacaoSla.Vencido || c.SituacaoSlaResolucao == SituacaoSla.Vencido) ? 2 :
+                    (c.SituacaoSlaResposta == SituacaoSla.EmRisco || c.SituacaoSlaResolucao == SituacaoSla.EmRisco) ? 1 : 0),
+            "tecnico" => descending ? query.OrderByDescending(c => c.Tecnico!.Nome) : query.OrderBy(c => c.Tecnico!.Nome),
+            // Chamado nunca resolvido (ResolvidoEm nulo) é tratado como "o mais
+            // antigo possível": some pro fim tanto em ASC quanto em DESC, em vez de
+            // depender do default do Postgres (NULLS FIRST em DESC, que colocaria
+            // chamados ainda abertos acima dos resolvidos mais recentemente).
+            "resolvidoEm" => descending
+                ? query.OrderByDescending(c => c.ResolvidoEm ?? DateTimeOffset.MinValue)
+                : query.OrderBy(c => c.ResolvidoEm ?? DateTimeOffset.MinValue),
             "atualizadoEm" => descending ? query.OrderByDescending(c => c.AtualizadoEm) : query.OrderBy(c => c.AtualizadoEm),
             _ => descending ? query.OrderByDescending(c => c.CriadoEm) : query.OrderBy(c => c.CriadoEm)
         };
+        // Desempate estável por Id: sem isso, colunas de baixa cardinalidade
+        // (status, prioridade, sla, técnico) não garantem ordem consistente entre
+        // as requisições de páginas diferentes, podendo duplicar/pular um chamado.
+        query = ordenado.ThenBy(c => c.Id);
 
         var totalItems = await query.CountAsync();
         var chamados = await query.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
@@ -279,14 +305,17 @@ public class ChamadosController : ControllerBase
 
         var erros = new Dictionary<string, string[]>();
         long? statusAnteriorId = null;
+        string? statusNovoNome = null;
 
         if (request.IdStatus.HasValue)
         {
-            if (!await _dbContext.Status.AnyAsync(s => s.Id == request.IdStatus.Value))
+            var novoStatus = await _dbContext.Status.FirstOrDefaultAsync(s => s.Id == request.IdStatus.Value);
+            if (novoStatus is null)
                 erros["idStatus"] = new[] { "Status não encontrado." };
             else if (request.IdStatus.Value != chamado.StatusId)
             {
                 statusAnteriorId = chamado.StatusId;
+                statusNovoNome = novoStatus.Nome;
                 chamado.StatusId = request.IdStatus.Value;
 
                 if (chamado.StatusId == StatusResolvidoId)
@@ -340,6 +369,10 @@ public class ChamadosController : ControllerBase
                 StatusNovoId = chamado.StatusId,
                 Acao = "Mudança de status"
             });
+
+            var mensagemStatus = $"Chamado #{chamado.Id} — {chamado.Titulo}: status alterado para {statusNovoNome}.";
+            NotificarInteressados(chamado, usuarioId.Value, mensagemStatus, TipoNotificacao.MudancaStatus);
+
             await _dbContext.SaveChangesAsync();
         }
 
@@ -411,6 +444,13 @@ public class ChamadosController : ControllerBase
             Acao = "Atribuição",
             Detalhe = $"Atribuído a {tecnico.Nome}."
         });
+
+        // Notifica o técnico recém-atribuído (ele passa a estar "vinculado" ao
+        // chamado) e quem abriu o chamado — chamado.TecnicoId já é o novo
+        // técnico neste ponto, então um único NotificarInteressados cobre os dois.
+        var mensagemAtribuicao = $"Chamado #{chamado.Id} — {chamado.Titulo}: {tecnico.Nome} foi atribuído como técnico responsável.";
+        NotificarInteressados(chamado, usuarioId.Value, mensagemAtribuicao, TipoNotificacao.TecnicoAtribuido);
+
         await _dbContext.SaveChangesAsync();
 
         var chamadoAtualizado = await ChamadosComIncludes().FirstAsync(c => c.Id == chamado.Id);
@@ -462,6 +502,13 @@ public class ChamadosController : ControllerBase
             AutorId = usuarioId.Value,
             Acao = "Chamado assumido"
         });
+
+        // Mesmo evento de negócio que /atribuir (chamado passa a ter um técnico
+        // responsável) — quem abriu o chamado precisa ser notificado aqui também.
+        var usuarioAtual = await _dbContext.Usuarios.FirstOrDefaultAsync(u => u.Id == usuarioId.Value);
+        var mensagemAssumir = $"Chamado #{chamado.Id} — {chamado.Titulo}: {usuarioAtual?.Nome ?? "um técnico"} assumiu o chamado.";
+        NotificarInteressados(chamado, usuarioId.Value, mensagemAssumir, TipoNotificacao.TecnicoAtribuido, notificarTecnico: false);
+
         await _dbContext.SaveChangesAsync();
 
         var chamadoAtualizado = await ChamadosComIncludes().FirstAsync(c => c.Id == chamado.Id);
@@ -582,7 +629,12 @@ public class ChamadosController : ControllerBase
             Detalhe = $"Fechado pelo cliente {chamado.Solicitante.Nome}. Técnico: {tecnicoNome}. Motivo: {motivo}."
         });
 
-        var mensagem = $"Chamado #{chamado.Id} — {chamado.Titulo}: fechado pelo cliente {chamado.Solicitante.Nome}.";
+        // O motivo precisa aparecer na própria notificação — ele fica registrado
+        // no histórico, mas antes disso não havia nenhuma superfície visível
+        // para técnico/administrador verem o texto escrito pelo cliente.
+        var mensagem = string.IsNullOrWhiteSpace(request.Motivo)
+            ? $"Chamado #{chamado.Id} — {chamado.Titulo}: fechado pelo cliente {chamado.Solicitante.Nome}."
+            : $"Chamado #{chamado.Id} — {chamado.Titulo}: fechado pelo cliente {chamado.Solicitante.Nome}. Motivo: {request.Motivo}";
         await NotificarAdministradoresAsync(chamado.Id, mensagem, TipoNotificacao.FechadoPorCliente);
 
         if (chamado.TecnicoId.HasValue)
@@ -766,18 +818,19 @@ public class ChamadosController : ControllerBase
 
         if (User.IsInRole(Perfis.Tecnico))
         {
-            var avaliacao = await _dbContext.Avaliacoes.AsNoTracking().FirstOrDefaultAsync(a => a.ChamadoId == id);
-            if (avaliacao is not null && !avaliacao.Publica)
-            {
-                historico = historico.Where(h => h.Acao != "Avaliação registrada").ToList();
-            }
+            // O técnico já vê as avaliações às quais tem direito através de
+            // GET /avaliacoes (com a filtragem correta por avaliação). Aqui,
+            // como o histórico não referencia qual avaliação foi registrada,
+            // a entrada genérica "Avaliação registrada" é sempre omitida para
+            // evitar vazar a existência de uma avaliação privada/oculta.
+            historico = historico.Where(h => h.Acao != "Avaliação registrada").ToList();
         }
 
         return Ok(historico.Select(HistoricoDto.FromEntity).ToList());
     }
 
-    [HttpGet("{id:long}/avaliacao")]
-    public async Task<ActionResult<AvaliacaoDto>> ObterAvaliacao(long id)
+    [HttpGet("{id:long}/avaliacoes")]
+    public async Task<ActionResult<List<AvaliacaoDto>>> ListarAvaliacoes(long id)
     {
         var usuarioId = ObterUsuarioId();
         if (usuarioId is null)
@@ -791,31 +844,28 @@ public class ChamadosController : ControllerBase
             return NotFound(ErrorResponse.Create(404, "Chamado não encontrado."));
         }
 
-        var avaliacao = await _dbContext.Avaliacoes
+        if (!PodeAcessar(chamado, usuarioId.Value))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, ErrorResponse.Create(403, "Sem permissão para acessar este chamado."));
+        }
+
+        // Mais recente primeiro: um chamado reaberto e resolvido de novo pode
+        // acumular uma avaliação por ciclo, e a mais nova deve "empilhar acima".
+        var avaliacoes = await _dbContext.Avaliacoes
             .Include(a => a.Autor).ThenInclude(u => u.Perfil)
-            .FirstOrDefaultAsync(a => a.ChamadoId == id);
+            .Where(a => a.ChamadoId == id)
+            .OrderByDescending(a => a.CriadoEm)
+            .ToListAsync();
 
-        if (avaliacao is null)
+        bool PodeVer(Avaliacao a)
         {
-            return NotFound(ErrorResponse.Create(404, "Avaliação não encontrada."));
+            if (User.IsInRole(Perfis.Administrador)) return true;
+            if (User.IsInRole(Perfis.Cliente)) return a.AutorId == usuarioId.Value;
+            if (User.IsInRole(Perfis.Tecnico)) return a.Publica && !a.Oculta;
+            return false;
         }
 
-        bool podeVer;
-        if (User.IsInRole(Perfis.Administrador)) podeVer = true;
-        else if (User.IsInRole(Perfis.Cliente)) podeVer = avaliacao.AutorId == usuarioId.Value;
-        // Técnico só vê avaliação pública, e só de chamado ao qual tem acesso
-        // (mesma regra de PodeAcessar usada em Detalhar/Historico/comentários) —
-        // sem isso, um técnico sem nenhuma relação com o chamado conseguiria ler
-        // nota/comentário via este endpoint mesmo estando bloqueado nos demais.
-        else if (User.IsInRole(Perfis.Tecnico)) podeVer = avaliacao.Publica && PodeAcessar(chamado, usuarioId.Value);
-        else podeVer = false;
-
-        if (!podeVer)
-        {
-            return StatusCode(StatusCodes.Status403Forbidden, ErrorResponse.Create(403, "Sem permissão para acessar esta avaliação."));
-        }
-
-        return Ok(AvaliacaoDto.FromEntity(avaliacao));
+        return Ok(avaliacoes.Where(PodeVer).Select(AvaliacaoDto.FromEntity).ToList());
     }
 
     [HttpPost("{id:long}/avaliacao")]
@@ -838,20 +888,28 @@ public class ChamadosController : ControllerBase
             return StatusCode(StatusCodes.Status403Forbidden, ErrorResponse.Create(403, "Sem permissão para avaliar este chamado."));
         }
 
-        if (!chamado.Status.Final)
+        // Só se avalia um chamado "Resolvido" — se o cliente o fechou diretamente
+        // (ou um técnico/admin o fechou sem passar por "Resolvido"), não há o que
+        // avaliar. Isso também é o que reabre a possibilidade de avaliar de novo:
+        // reabertura tira o chamado de "Resolvido" e uma nova resolução volta a habilitar.
+        if (chamado.StatusId != StatusResolvidoId)
         {
             return UnprocessableEntity(new ErrorResponse
             {
                 Status = 422,
                 Title = "Falha de validação",
-                Errors = new Dictionary<string, string[]> { ["status"] = new[] { "Chamado ainda não foi concluído." } }
+                Errors = new Dictionary<string, string[]> { ["status"] = new[] { "Chamado ainda não foi resolvido." } }
             });
         }
 
-        var jaAvaliado = await _dbContext.Avaliacoes.AnyAsync(a => a.ChamadoId == id);
-        if (jaAvaliado)
+        // "Ciclo atual" = desde o último ResolvidoEm. Reabrir e resolver de novo
+        // gera um ResolvidoEm mais recente, liberando uma nova avaliação que se
+        // empilha sobre as anteriores (ver ChamadosDbContext: índice não é mais único).
+        var resolvidoEm = chamado.ResolvidoEm ?? DateTimeOffset.MinValue;
+        var cicloJaAvaliado = await _dbContext.Avaliacoes.AnyAsync(a => a.ChamadoId == id && a.CriadoEm >= resolvidoEm);
+        if (cicloJaAvaliado)
         {
-            return Conflict(ErrorResponse.Create(409, "Este chamado já foi avaliado."));
+            return Conflict(ErrorResponse.Create(409, "Este atendimento já foi avaliado."));
         }
 
         if (request.Nota < 0 || request.Nota > 5)
@@ -904,7 +962,79 @@ public class ChamadosController : ControllerBase
             .Include(a => a.Autor).ThenInclude(u => u.Perfil)
             .FirstAsync(a => a.Id == avaliacao.Id);
 
-        return CreatedAtAction(nameof(ObterAvaliacao), new { id }, AvaliacaoDto.FromEntity(avaliacaoCriada));
+        return CreatedAtAction(nameof(ListarAvaliacoes), new { id }, AvaliacaoDto.FromEntity(avaliacaoCriada));
+    }
+
+    [HttpPatch("{id:long}/avaliacoes/{avaliacaoId:long}")]
+    public async Task<ActionResult<AvaliacaoDto>> AtualizarAvaliacao(long id, long avaliacaoId, [FromBody] AvaliacaoUpdateRequest request)
+    {
+        var usuarioId = ObterUsuarioId();
+        if (usuarioId is null)
+        {
+            return Unauthorized();
+        }
+
+        var avaliacao = await _dbContext.Avaliacoes
+            .Include(a => a.Autor).ThenInclude(u => u.Perfil)
+            .FirstOrDefaultAsync(a => a.Id == avaliacaoId && a.ChamadoId == id);
+        if (avaliacao is null)
+        {
+            return NotFound(ErrorResponse.Create(404, "Avaliação não encontrada."));
+        }
+
+        // Só o próprio cliente autor pode editar a nota/comentário/visibilidade
+        // que ele escreveu — nem administrador edita conteúdo (só oculta).
+        if (!User.IsInRole(Perfis.Cliente) || avaliacao.AutorId != usuarioId.Value)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, ErrorResponse.Create(403, "Sem permissão para editar esta avaliação."));
+        }
+
+        if (request.Nota < 0 || request.Nota > 5)
+        {
+            return UnprocessableEntity(new ErrorResponse
+            {
+                Status = 422,
+                Title = "Falha de validação",
+                Errors = new Dictionary<string, string[]> { ["nota"] = new[] { "Nota deve estar entre 0 e 5." } }
+            });
+        }
+
+        avaliacao.Nota = request.Nota;
+        avaliacao.Comentario = request.Comentario;
+        avaliacao.Publica = request.Publica;
+        avaliacao.EditadoEm = DateTimeOffset.UtcNow;
+
+        await _dbContext.SaveChangesAsync();
+
+        return Ok(AvaliacaoDto.FromEntity(avaliacao));
+    }
+
+    [HttpPatch("{id:long}/avaliacoes/{avaliacaoId:long}/ocultar")]
+    public async Task<ActionResult<AvaliacaoDto>> OcultarAvaliacao(long id, long avaliacaoId, [FromBody] AvaliacaoOcultarRequest request)
+    {
+        var usuarioId = ObterUsuarioId();
+        if (usuarioId is null)
+        {
+            return Unauthorized();
+        }
+
+        if (!User.IsInRole(Perfis.Administrador))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, ErrorResponse.Create(403, "Apenas administradores podem ocultar avaliações."));
+        }
+
+        var avaliacao = await _dbContext.Avaliacoes
+            .Include(a => a.Autor).ThenInclude(u => u.Perfil)
+            .FirstOrDefaultAsync(a => a.Id == avaliacaoId && a.ChamadoId == id);
+        if (avaliacao is null)
+        {
+            return NotFound(ErrorResponse.Create(404, "Avaliação não encontrada."));
+        }
+
+        avaliacao.Oculta = request.Oculta;
+        await _dbContext.SaveChangesAsync();
+
+        return Ok(AvaliacaoDto.FromEntity(avaliacao));
     }
 
     [HttpGet("{id:long}/comentarios")]
@@ -1006,6 +1136,12 @@ public class ChamadosController : ControllerBase
             anexo.Comentario = comentario;
             _dbContext.Anexos.Add(anexo);
         }
+
+        // Nota interna não é visível ao cliente, então ele não é notificado
+        // sobre ela (evitaria expor que existe um comentário que ele não pode ver).
+        var autorNome = await _dbContext.Usuarios.Where(u => u.Id == usuarioId.Value).Select(u => u.Nome).FirstOrDefaultAsync() ?? "Alguém";
+        var mensagemComentario = $"Chamado #{chamado.Id} — {chamado.Titulo}: novo comentário de {autorNome}.";
+        NotificarInteressados(chamado, usuarioId.Value, mensagemComentario, TipoNotificacao.NovoComentario, notificarSolicitante: !interno);
 
         await _dbContext.SaveChangesAsync();
 
@@ -1185,6 +1321,43 @@ public class ChamadosController : ControllerBase
     {
         var claim = User.FindFirst(JwtRegisteredClaimNames.Sub) ?? User.FindFirst(ClaimTypes.NameIdentifier);
         return claim is not null && long.TryParse(claim.Value, out var id) ? id : null;
+    }
+
+    // Notifica quem abriu o chamado e o técnico vinculado sobre uma atualização
+    // (comentário, mudança de status, atribuição de técnico) — nunca o próprio
+    // autor da ação, e nunca duplicado se solicitante e técnico forem a mesma pessoa.
+    private void NotificarInteressados(
+        Chamado chamado,
+        long autorId,
+        string mensagem,
+        TipoNotificacao tipo,
+        bool notificarSolicitante = true,
+        bool notificarTecnico = true)
+    {
+        if (notificarSolicitante && chamado.SolicitanteId != autorId)
+        {
+            _dbContext.Notificacoes.Add(new Notificacao
+            {
+                DestinatarioId = chamado.SolicitanteId,
+                ChamadoId = chamado.Id,
+                Tipo = tipo,
+                Mensagem = mensagem
+            });
+        }
+
+        if (notificarTecnico
+            && chamado.TecnicoId.HasValue
+            && chamado.TecnicoId.Value != autorId
+            && chamado.TecnicoId.Value != chamado.SolicitanteId)
+        {
+            _dbContext.Notificacoes.Add(new Notificacao
+            {
+                DestinatarioId = chamado.TecnicoId.Value,
+                ChamadoId = chamado.Id,
+                Tipo = tipo,
+                Mensagem = mensagem
+            });
+        }
     }
 
     private async Task NotificarAdministradoresAsync(long chamadoId, string mensagem, TipoNotificacao tipo = TipoNotificacao.PrazoAjustado)

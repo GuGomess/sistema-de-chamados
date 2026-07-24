@@ -324,9 +324,14 @@ public class ChamadosDbContext : DbContext
             entity.Property(a => a.Nota).HasColumnName("nota");
             entity.Property(a => a.Comentario).HasColumnName("comentario");
             entity.Property(a => a.Publica).HasColumnName("publica").HasDefaultValue(false);
+            entity.Property(a => a.Oculta).HasColumnName("oculta").HasDefaultValue(false);
+            entity.Property(a => a.EditadoEm).HasColumnName("editado_em");
             entity.Property(a => a.CriadoEm).HasColumnName("criado_em").HasDefaultValueSql("now()");
 
-            entity.HasIndex(a => a.ChamadoId).IsUnique();
+            // Não é mais única: um chamado pode ser reaberto e resolvido de novo
+            // várias vezes, e cada ciclo de resolução pode receber sua própria
+            // avaliação (empilhadas). Ver ChamadosController.CriarAvaliacao.
+            entity.HasIndex(a => a.ChamadoId);
 
             entity.HasOne(a => a.Chamado)
                 .WithMany()
