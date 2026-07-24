@@ -10,11 +10,14 @@ import { AuthService } from '../../../core/services/auth.service';
 import { ChamadoService } from '../../../core/services/chamado.service';
 import {
   Anexo,
+  Categoria,
   Chamado,
+  ChamadoUpdateRequest,
   Comentario,
   ComentarioCreateRequest,
   PrazoResolucaoUpdateRequest,
   PrazoRespostaUpdateRequest,
+  Prioridade,
   SituacaoSla,
   Status,
   UsuarioResumo,
@@ -53,6 +56,8 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
   protected readonly chamado = signal<Chamado | null>(null);
   protected readonly statusList = signal<Status[]>([]);
   protected readonly tecnicos = signal<UsuarioResumo[]>([]);
+  protected readonly categorias = signal<Categoria[]>([]);
+  protected readonly prioridades = signal<Prioridade[]>([]);
   protected readonly carregando = signal(true);
   protected readonly erro = signal<string | null>(null);
   protected readonly salvando = signal(false);
@@ -80,6 +85,8 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
   protected readonly form = this.formBuilder.nonNullable.group({
     idStatus: [null as number | null],
     idTecnico: [null as number | null],
+    idCategoria: [null as number | null],
+    idPrioridade: [null as number | null],
   });
 
   protected readonly comentarioForm = this.formBuilder.nonNullable.group({
@@ -103,6 +110,10 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
 
     if (this.ehAdministrador() || this.ehTecnico()) {
       this.chamadoService.listarStatus().subscribe({ next: (status) => this.statusList.set(status) });
+      // Cliente não escolhe categoria/prioridade ao abrir o chamado (fica "A
+      // Triar"/"Média" por padrão) — precisa que técnico/admin reclassifiquem.
+      this.chamadoService.listarCategorias().subscribe({ next: (categorias) => this.categorias.set(categorias) });
+      this.chamadoService.listarPrioridades().subscribe({ next: (prioridades) => this.prioridades.set(prioridades) });
     }
 
     if (this.ehAdministrador()) {
@@ -427,11 +438,21 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
       return;
     }
 
-    const { idStatus, idTecnico } = this.form.getRawValue();
+    const { idStatus, idTecnico, idCategoria, idPrioridade } = this.form.getRawValue();
     const acoes: Observable<Chamado>[] = [];
 
+    const atualizacao: ChamadoUpdateRequest = {};
     if (idStatus !== null && idStatus !== chamado.status.id) {
-      acoes.push(this.chamadoService.atualizar(chamado.id, { idStatus }));
+      atualizacao.idStatus = idStatus;
+    }
+    if (idCategoria !== null && idCategoria !== chamado.categoria.id) {
+      atualizacao.idCategoria = idCategoria;
+    }
+    if (idPrioridade !== null && idPrioridade !== chamado.prioridade.id) {
+      atualizacao.idPrioridade = idPrioridade;
+    }
+    if (Object.keys(atualizacao).length > 0) {
+      acoes.push(this.chamadoService.atualizar(chamado.id, atualizacao));
     }
 
     if (this.podeAtribuirTecnico() && idTecnico !== null && idTecnico !== (chamado.tecnico?.id ?? null)) {
@@ -496,7 +517,12 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
   private aplicarChamado(chamado: Chamado): void {
     this.chamado.set(chamado);
     this.form.patchValue(
-      { idStatus: chamado.status.id, idTecnico: chamado.tecnico?.id ?? null },
+      {
+        idStatus: chamado.status.id,
+        idTecnico: chamado.tecnico?.id ?? null,
+        idCategoria: chamado.categoria.id,
+        idPrioridade: chamado.prioridade.id,
+      },
       { emitEvent: false },
     );
     this.prazoForm.patchValue(

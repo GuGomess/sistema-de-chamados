@@ -76,6 +76,24 @@
           @if (podeAlterarStatus()) {
             <form [formGroup]="form" (ngSubmit)="salvarAlteracoes()" novalidate>
               <label>
+                Categoria
+                <select formControlName="idCategoria">
+                  @for (categoria of categorias(); track categoria.id) {
+                    <option [ngValue]="categoria.id">{{ categoria.nome }}</option>
+                  }
+                </select>
+              </label>
+
+              <label>
+                Prioridade
+                <select formControlName="idPrioridade">
+                  @for (prioridade of prioridades(); track prioridade.id) {
+                    <option [ngValue]="prioridade.id">{{ prioridade.nome }}</option>
+                  }
+                </select>
+              </label>
+
+              <label>
                 Alterar status
                 <select formControlName="idStatus">
                   @for (s of statusList(); track s.id) {

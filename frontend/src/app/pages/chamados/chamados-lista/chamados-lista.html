@@ -108,11 +108,7 @@
                   <td>{{ chamado.prioridade.nome }}</td>
                   <td>
                     @if (situacaoSlaGeral(chamado); as situacao) {
-                      @if (situacao !== 'EmDia') {
-                        <span class="badge {{ 'sla-' + situacao.toLowerCase() }}">{{ situacaoSlaLabel(situacao) }}</span>
-                      } @else {
-                        —
-                      }
+                      <span class="badge {{ 'sla-' + situacao.toLowerCase() }}">{{ situacaoSlaLabel(situacao) }}</span>
                     }
                   </td>
                 }
