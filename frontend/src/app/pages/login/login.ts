@@ -3,14 +3,8 @@ import { Component, inject, signal } from '@angular/core';
 import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 
+import { ROTA_POR_PERFIL } from '../../core/constants/rota-inicial';
 import { AuthService } from '../../core/services/auth.service';
-import { PerfilCodigo } from '../../core/models/auth.model';
-
-const ROTA_POR_PERFIL: Record<PerfilCodigo, string> = {
-  CLIENTE: '/chamados',
-  TECNICO: '/dashboard',
-  ADMINISTRADOR: '/dashboard',
-};
 
 @Component({
   selector: 'app-login',

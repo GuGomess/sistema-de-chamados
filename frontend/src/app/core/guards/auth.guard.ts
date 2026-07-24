@@ -20,7 +20,9 @@ export const authGuard: CanActivateFn = (route, state): boolean | UrlTree => {
   const perfil = authService.getPerfil();
 
   if (rolesPermitidos && (!perfil || !rolesPermitidos.includes(perfil))) {
-    return router.createUrlTree(['/dashboard']);
+    // /chamados é acessível a todos os perfis autenticados — evita loop de
+    // redirecionamento quando a própria rota negada é /dashboard.
+    return router.createUrlTree(['/chamados']);
   }
 
   return true;
