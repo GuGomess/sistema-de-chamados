@@ -17,4 +17,6 @@ public class Comentario
     public bool Interno { get; set; }
 
     public DateTimeOffset CriadoEm { get; set; }
+
+    public ICollection<Anexo> Anexos { get; set; } = new List<Anexo>();
 }

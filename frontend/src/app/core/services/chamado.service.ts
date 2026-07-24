@@ -95,7 +95,13 @@ export class ChamadoService {
   }
 
   criarComentario(id: number, request: ComentarioCreateRequest): Observable<Comentario> {
-    return this.http.post<Comentario>(`${environment.apiBaseUrl}/v1/chamados/${id}/comentarios`, request);
+    const formData = new FormData();
+    formData.append('mensagem', request.mensagem);
+    formData.append('interno', String(request.interno));
+    for (const arquivo of request.arquivos ?? []) {
+      formData.append('arquivos', arquivo);
+    }
+    return this.http.post<Comentario>(`${environment.apiBaseUrl}/v1/chamados/${id}/comentarios`, formData);
   }
 
   listarAnexos(id: number): Observable<Anexo[]> {

@@ -62,6 +62,14 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
   protected readonly carregandoComentarios = signal(true);
   protected readonly enviandoComentario = signal(false);
   protected readonly comentarioErro = signal<string | null>(null);
+  protected readonly comentarioArquivos = signal<File[]>([]);
+
+  private readonly extensoesPermitidas = [
+    '.jpg', '.jpeg', '.png', '.gif', '.webp',
+    '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.txt', '.csv',
+    '.mp4', '.mov', '.avi', '.webm', '.mkv',
+  ];
+  private readonly tamanhoMaximoArquivoBytes = 100 * 1024 * 1024;
 
   protected readonly anexos = signal<Anexo[]>([]);
   protected readonly carregandoAnexos = signal(true);
@@ -180,6 +188,7 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
     const request: ComentarioCreateRequest = {
       mensagem: mensagem.trim(),
       interno: this.podeMarcarComentarioInterno() && interno,
+      arquivos: this.comentarioArquivos(),
     };
 
     this.enviandoComentario.set(true);
@@ -189,13 +198,59 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
       next: (comentario) => {
         this.comentarios.update((atual) => [...atual, comentario]);
         this.comentarioForm.reset({ mensagem: '', interno: false });
+        this.comentarioArquivos.set([]);
         this.enviandoComentario.set(false);
       },
       error: (error: HttpErrorResponse) => {
         this.enviandoComentario.set(false);
-        this.comentarioErro.set(this.mensagemErroAcao(error));
+        this.comentarioErro.set(this.mensagemErroComentario(error));
       },
     });
+  }
+
+  protected selecionarArquivosComentario(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const arquivos = Array.from(input.files ?? []);
+    input.value = '';
+
+    for (const arquivo of arquivos) {
+      const erro = this.validarArquivoComentario(arquivo);
+      if (erro) {
+        this.comentarioErro.set(erro);
+        return;
+      }
+    }
+
+    this.comentarioErro.set(null);
+    this.comentarioArquivos.update((atual) => [...atual, ...arquivos]);
+  }
+
+  protected removerArquivoComentario(index: number): void {
+    this.comentarioArquivos.update((atual) => atual.filter((_, i) => i !== index));
+  }
+
+  private validarArquivoComentario(arquivo: File): string | null {
+    const extensao = `.${arquivo.name.split('.').pop()?.toLowerCase() ?? ''}`;
+    if (!this.extensoesPermitidas.includes(extensao)) {
+      return `Tipo de arquivo não permitido: ${arquivo.name}.`;
+    }
+    if (arquivo.size > this.tamanhoMaximoArquivoBytes) {
+      return `Arquivo muito grande: ${arquivo.name}.`;
+    }
+    return null;
+  }
+
+  private mensagemErroComentario(error: HttpErrorResponse): string {
+    if (error.status === 422) {
+      const body = error.error as ErrorResponse;
+      if (body?.detail) {
+        return body.detail;
+      }
+    }
+    if (error.status === 403) {
+      return 'Você não tem permissão para comentar neste chamado.';
+    }
+    return 'Não foi possível enviar o comentário. Tente novamente.';
   }
 
   private carregarComentarios(): void {

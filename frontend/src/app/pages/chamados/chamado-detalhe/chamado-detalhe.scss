@@ -165,6 +165,68 @@
     }
   }
 
+  .lista-anexos,
+  .lista-arquivos-selecionados {
+    list-style: none;
+    margin: 0.4rem 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+
+    li {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      padding: 0.5rem 0.75rem;
+      background: #f5f7fa;
+      border-radius: 6px;
+      flex-wrap: wrap;
+    }
+
+    .anexo-info,
+    .nome {
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
+      min-width: 0;
+      font-weight: 600;
+      font-size: 0.85rem;
+      word-break: break-all;
+    }
+
+    .meta-anexo {
+      color: #666;
+      font-size: 0.75rem;
+    }
+
+    .anexo-acoes {
+      display: flex;
+      gap: 0.4rem;
+      flex-shrink: 0;
+    }
+
+    button {
+      padding: 0.35rem 0.7rem;
+      font-size: 0.8rem;
+      cursor: pointer;
+    }
+  }
+
+  .upload-anexo {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    font-size: 0.8rem;
+    color: #555;
+    padding-top: 0.5rem;
+
+    input[type='file'] {
+      font-size: 0.85rem;
+    }
+  }
+
   .comentarios {
     display: flex;
     flex-direction: column;
@@ -276,6 +338,7 @@
         }
       }
     }
+
   }
 
   .anexos {
@@ -296,70 +359,6 @@
       color: #666;
       font-size: 0.85rem;
       margin: 0;
-    }
-
-    .lista-anexos {
-      list-style: none;
-      margin: 0;
-      padding: 0;
-      display: flex;
-      flex-direction: column;
-      gap: 0.5rem;
-
-      .anexo {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 0.75rem;
-        padding: 0.6rem 0.75rem;
-        background: #f5f7fa;
-        border-radius: 6px;
-        flex-wrap: wrap;
-
-        .anexo-info {
-          display: flex;
-          flex-direction: column;
-          gap: 0.15rem;
-          min-width: 0;
-
-          .nome {
-            font-weight: 600;
-            font-size: 0.9rem;
-            word-break: break-all;
-          }
-
-          .meta-anexo {
-            color: #666;
-            font-size: 0.75rem;
-          }
-        }
-
-        .anexo-acoes {
-          display: flex;
-          gap: 0.4rem;
-          flex-shrink: 0;
-
-          button {
-            padding: 0.35rem 0.7rem;
-            font-size: 0.8rem;
-            cursor: pointer;
-          }
-        }
-      }
-    }
-
-    .upload-anexo {
-      display: flex;
-      flex-direction: column;
-      gap: 0.3rem;
-      font-size: 0.8rem;
-      color: #555;
-      padding-top: 0.75rem;
-      border-top: 1px solid #e5e5e5;
-
-      input[type='file'] {
-        font-size: 0.85rem;
-      }
     }
 
     .enviando {

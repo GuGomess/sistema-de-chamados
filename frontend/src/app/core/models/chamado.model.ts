@@ -112,16 +112,19 @@ export interface Comentario {
   mensagem: string;
   interno: boolean;
   criadoEm: string;
+  anexos: Anexo[];
 }
 
 export interface ComentarioCreateRequest {
   mensagem: string;
   interno: boolean;
+  arquivos?: File[];
 }
 
 export interface Anexo {
   id: number;
   idChamado: number;
+  idComentario: number | null;
   autor: UsuarioResumo;
   nomeArquivo: string;
   tipoMime: string;

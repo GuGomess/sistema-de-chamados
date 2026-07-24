@@ -9,6 +9,8 @@ public class AnexoDto
 
     public long IdChamado { get; set; }
 
+    public long? IdComentario { get; set; }
+
     public UsuarioDto Autor { get; set; } = null!;
 
     public string NomeArquivo { get; set; } = string.Empty;
@@ -25,6 +27,7 @@ public class AnexoDto
     {
         Id = anexo.Id,
         IdChamado = anexo.ChamadoId,
+        IdComentario = anexo.ComentarioId,
         Autor = UsuarioDto.FromEntity(anexo.Autor),
         NomeArquivo = anexo.NomeArquivo,
         TipoMime = anexo.TipoMime,

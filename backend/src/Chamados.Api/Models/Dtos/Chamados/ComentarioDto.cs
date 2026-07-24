@@ -17,6 +17,8 @@ public class ComentarioDto
 
     public DateTimeOffset CriadoEm { get; set; }
 
+    public List<AnexoDto> Anexos { get; set; } = [];
+
     public static ComentarioDto FromEntity(Comentario comentario) => new()
     {
         Id = comentario.Id,
@@ -24,6 +26,10 @@ public class ComentarioDto
         Autor = UsuarioDto.FromEntity(comentario.Autor),
         Mensagem = comentario.Mensagem,
         Interno = comentario.Interno,
-        CriadoEm = comentario.CriadoEm
+        CriadoEm = comentario.CriadoEm,
+        Anexos = comentario.Anexos
+            .OrderBy(a => a.CriadoEm)
+            .Select(AnexoDto.FromEntity)
+            .ToList()
     };
 }

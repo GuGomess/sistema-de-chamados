@@ -641,6 +641,7 @@ public class ChamadosController : ControllerBase
 
         var comentarios = await query
             .Include(c => c.Autor).ThenInclude(u => u.Perfil)
+            .Include(c => c.Anexos).ThenInclude(a => a.Autor).ThenInclude(u => u.Perfil)
             .OrderBy(c => c.CriadoEm)
             .ToListAsync();
 
@@ -648,7 +649,8 @@ public class ChamadosController : ControllerBase
     }
 
     [HttpPost("{id:long}/comentarios")]
-    public async Task<ActionResult<ComentarioDto>> CriarComentario(long id, [FromBody] ComentarioCreateRequest request)
+    [Consumes("multipart/form-data")]
+    public async Task<ActionResult<ComentarioDto>> CriarComentario(long id, [FromForm] ComentarioCreateRequest request)
     {
         var usuarioId = ObterUsuarioId();
         if (usuarioId is null)
@@ -667,6 +669,16 @@ public class ChamadosController : ControllerBase
             return StatusCode(StatusCodes.Status403Forbidden, ErrorResponse.Create(403, "Sem permissão para comentar neste chamado."));
         }
 
+        var arquivos = request.Arquivos ?? [];
+        foreach (var arquivo in arquivos)
+        {
+            var (valido, titulo, detalhe) = ValidarArquivo(arquivo);
+            if (!valido)
+            {
+                return UnprocessableEntity(ErrorResponse.Create(422, titulo!, detalhe));
+            }
+        }
+
         var interno = request.Interno && !User.IsInRole(Perfis.Cliente);
 
         var comentario = new Comentario
@@ -678,10 +690,19 @@ public class ChamadosController : ControllerBase
         };
 
         _dbContext.Comentarios.Add(comentario);
+
+        foreach (var arquivo in arquivos)
+        {
+            var anexo = await CriarAnexoAsync(id, usuarioId.Value, arquivo);
+            anexo.Comentario = comentario;
+            _dbContext.Anexos.Add(anexo);
+        }
+
         await _dbContext.SaveChangesAsync();
 
         var comentarioCriado = await _dbContext.Comentarios
             .Include(c => c.Autor).ThenInclude(u => u.Perfil)
+            .Include(c => c.Anexos).ThenInclude(a => a.Autor).ThenInclude(u => u.Perfil)
             .FirstAsync(c => c.Id == comentario.Id);
 
         return CreatedAtAction(nameof(ListarComentarios), new { id }, ComentarioDto.FromEntity(comentarioCriado));
@@ -708,7 +729,7 @@ public class ChamadosController : ControllerBase
         }
 
         var anexos = await _dbContext.Anexos
-            .Where(a => a.ChamadoId == id)
+            .Where(a => a.ChamadoId == id && a.ComentarioId == null)
             .Include(a => a.Autor).ThenInclude(u => u.Perfil)
             .OrderBy(a => a.CriadoEm)
             .ToListAsync();
@@ -741,37 +762,13 @@ public class ChamadosController : ControllerBase
             return BadRequest(ErrorResponse.Create(400, "Nenhum arquivo enviado."));
         }
 
-        var extensao = Path.GetExtension(arquivo.FileName).ToLowerInvariant();
-        if (!_uploadOptions.AllowedExtensions.Contains(extensao))
+        var (valido, titulo, detalhe) = ValidarArquivo(arquivo);
+        if (!valido)
         {
-            return UnprocessableEntity(ErrorResponse.Create(422, "Tipo de arquivo não permitido.", $"Extensões aceitas: {string.Join(", ", _uploadOptions.AllowedExtensions)}"));
+            return UnprocessableEntity(ErrorResponse.Create(422, titulo!, detalhe));
         }
 
-        if (arquivo.Length > _uploadOptions.MaxFileSizeBytes)
-        {
-            return UnprocessableEntity(ErrorResponse.Create(422, "Arquivo excede o tamanho máximo permitido.", $"Tamanho máximo: {_uploadOptions.MaxFileSizeBytes} bytes."));
-        }
-
-        var nomeArmazenado = $"{Guid.NewGuid()}{extensao}";
-        var caminhoRelativo = Path.Combine(id.ToString(), nomeArmazenado);
-        var caminhoCompleto = Path.Combine(_uploadOptions.StoragePath, caminhoRelativo);
-
-        Directory.CreateDirectory(Path.GetDirectoryName(caminhoCompleto)!);
-
-        await using (var destino = System.IO.File.Create(caminhoCompleto))
-        {
-            await arquivo.CopyToAsync(destino);
-        }
-
-        var anexo = new Anexo
-        {
-            ChamadoId = id,
-            AutorId = usuarioId.Value,
-            NomeArquivo = Path.GetFileName(arquivo.FileName),
-            Caminho = caminhoRelativo,
-            TipoMime = string.IsNullOrWhiteSpace(arquivo.ContentType) ? "application/octet-stream" : arquivo.ContentType,
-            TamanhoBytes = arquivo.Length
-        };
+        var anexo = await CriarAnexoAsync(id, usuarioId.Value, arquivo);
 
         _dbContext.Anexos.Add(anexo);
         await _dbContext.SaveChangesAsync();
@@ -816,6 +813,47 @@ public class ChamadosController : ControllerBase
         }
 
         return PhysicalFile(Path.GetFullPath(caminhoCompleto), anexo.TipoMime, anexo.NomeArquivo);
+    }
+
+    private (bool Valido, string? Titulo, string? Detalhe) ValidarArquivo(IFormFile arquivo)
+    {
+        var extensao = Path.GetExtension(arquivo.FileName).ToLowerInvariant();
+        if (!_uploadOptions.AllowedExtensions.Contains(extensao))
+        {
+            return (false, "Tipo de arquivo não permitido.", $"Extensões aceitas: {string.Join(", ", _uploadOptions.AllowedExtensions)}");
+        }
+
+        if (arquivo.Length > _uploadOptions.MaxFileSizeBytes)
+        {
+            return (false, "Arquivo excede o tamanho máximo permitido.", $"Tamanho máximo: {_uploadOptions.MaxFileSizeBytes} bytes.");
+        }
+
+        return (true, null, null);
+    }
+
+    private async Task<Anexo> CriarAnexoAsync(long chamadoId, long autorId, IFormFile arquivo)
+    {
+        var extensao = Path.GetExtension(arquivo.FileName).ToLowerInvariant();
+        var nomeArmazenado = $"{Guid.NewGuid()}{extensao}";
+        var caminhoRelativo = Path.Combine(chamadoId.ToString(), nomeArmazenado);
+        var caminhoCompleto = Path.Combine(_uploadOptions.StoragePath, caminhoRelativo);
+
+        Directory.CreateDirectory(Path.GetDirectoryName(caminhoCompleto)!);
+
+        await using (var destino = System.IO.File.Create(caminhoCompleto))
+        {
+            await arquivo.CopyToAsync(destino);
+        }
+
+        return new Anexo
+        {
+            ChamadoId = chamadoId,
+            AutorId = autorId,
+            NomeArquivo = Path.GetFileName(arquivo.FileName),
+            Caminho = caminhoRelativo,
+            TipoMime = string.IsNullOrWhiteSpace(arquivo.ContentType) ? "application/octet-stream" : arquivo.ContentType,
+            TamanhoBytes = arquivo.Length
+        };
     }
 
     private IQueryable<Chamado> ChamadosComIncludes() =>

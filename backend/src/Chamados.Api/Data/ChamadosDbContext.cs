@@ -263,6 +263,7 @@ public class ChamadosDbContext : DbContext
             entity.Property(a => a.Caminho).HasColumnName("caminho").HasMaxLength(500).IsRequired();
             entity.Property(a => a.TipoMime).HasColumnName("tipo_mime").HasMaxLength(120).IsRequired();
             entity.Property(a => a.TamanhoBytes).HasColumnName("tamanho_bytes");
+            entity.Property(a => a.ComentarioId).HasColumnName("id_comentario");
             entity.Property(a => a.CriadoEm).HasColumnName("criado_em").HasDefaultValueSql("now()");
 
             entity.HasOne(a => a.Chamado)
@@ -273,6 +274,11 @@ public class ChamadosDbContext : DbContext
             entity.HasOne(a => a.Autor)
                 .WithMany()
                 .HasForeignKey(a => a.AutorId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(a => a.Comentario)
+                .WithMany(c => c.Anexos)
+                .HasForeignKey(a => a.ComentarioId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 

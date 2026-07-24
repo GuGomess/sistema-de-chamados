@@ -12,6 +12,10 @@ public class Anexo
 
     public Usuario Autor { get; set; } = null!;
 
+    public long? ComentarioId { get; set; }
+
+    public Comentario? Comentario { get; set; }
+
     public string NomeArquivo { get; set; } = string.Empty;
 
     public string Caminho { get; set; } = string.Empty;

@@ -148,6 +148,24 @@
                 <span class="data">{{ comentario.criadoEm | date: 'dd/MM/yyyy HH:mm' }}</span>
               </div>
               <p class="mensagem">{{ comentario.mensagem }}</p>
+              @if (comentario.anexos.length > 0) {
+                <ul class="lista-anexos">
+                  @for (anexo of comentario.anexos; track anexo.id) {
+                    <li class="anexo">
+                      <div class="anexo-info">
+                        <span class="nome">{{ anexo.nomeArquivo }}</span>
+                        <span class="meta-anexo">{{ formatarTamanho(anexo.tamanhoBytes) }}</span>
+                      </div>
+                      <div class="anexo-acoes">
+                        @if (podeVisualizar(anexo)) {
+                          <button type="button" (click)="visualizarAnexo(anexo)">Visualizar</button>
+                        }
+                        <button type="button" (click)="baixarAnexo(anexo)">Baixar</button>
+                      </div>
+                    </li>
+                  }
+                </ul>
+              }
             </li>
           }
         </ul>
@@ -168,6 +186,23 @@
             <input type="checkbox" formControlName="interno" />
             Nota interna (visível apenas a técnico/administrador)
           </label>
+        }
+
+        <label class="upload-anexo">
+          Anexar arquivo(s)
+          <input type="file" multiple (change)="selecionarArquivosComentario($event)" [disabled]="enviandoComentario()" />
+        </label>
+
+        @if (comentarioArquivos().length > 0) {
+          <ul class="lista-arquivos-selecionados">
+            @for (arquivo of comentarioArquivos(); track arquivo.name; let i = $index) {
+              <li>
+                <span class="nome">{{ arquivo.name }}</span>
+                <span class="meta-anexo">{{ formatarTamanho(arquivo.size) }}</span>
+                <button type="button" (click)="removerArquivoComentario(i)">Remover</button>
+              </li>
+            }
+          </ul>
         }
 
         <button type="submit" [disabled]="enviandoComentario()">Comentar</button>
