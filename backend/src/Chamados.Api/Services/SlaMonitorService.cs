@@ -82,7 +82,10 @@ public class SlaMonitorService : BackgroundService
 
         foreach (var chamado in chamados)
         {
-            if (TentarCalcularNovaSituacao(chamado.CriadoEm, chamado.PrazoResposta, chamado.SituacaoSlaResposta, agora, out var novaSituacaoResposta))
+            // Já teve primeira resposta de técnico/administrador: SLA de resposta
+            // fica congelado (ver ChamadosController.CriarComentario), não reavaliar.
+            if (chamado.PrimeiraRespostaEm is null &&
+                TentarCalcularNovaSituacao(chamado.CriadoEm, chamado.PrazoResposta, chamado.SituacaoSlaResposta, agora, out var novaSituacaoResposta))
             {
                 var anterior = chamado.SituacaoSlaResposta;
                 chamado.SituacaoSlaResposta = novaSituacaoResposta;

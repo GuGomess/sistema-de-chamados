@@ -3,5 +3,6 @@ namespace Chamados.Api.Models.Entities;
 public enum TipoNotificacao
 {
     SlaEmRisco,
-    SlaVencido
+    SlaVencido,
+    PrazoAjustado
 }

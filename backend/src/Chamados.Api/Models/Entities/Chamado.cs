@@ -36,6 +36,12 @@ public class Chamado
 
     public DateTimeOffset? PrazoResolucao { get; set; }
 
+    // Marcado no primeiro comentário de técnico/administrador: a partir daí o
+    // SLA de resposta é considerado cumprido (situação congelada) e o
+    // monitoramento periódico para de reavaliá-lo. Ver ChamadosController.CriarComentario
+    // e SlaMonitorService.
+    public DateTimeOffset? PrimeiraRespostaEm { get; set; }
+
     public DateTimeOffset? ResolvidoEm { get; set; }
 
     public DateTimeOffset? FechadoEm { get; set; }

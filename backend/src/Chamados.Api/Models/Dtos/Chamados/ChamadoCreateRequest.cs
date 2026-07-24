@@ -10,9 +10,11 @@ public class ChamadoCreateRequest
     [Required]
     public string Descricao { get; set; } = string.Empty;
 
-    [Required]
-    public long IdCategoria { get; set; }
+    // Opcionais: clientes não escolhem categoria/prioridade ao abrir um chamado
+    // (ver ChamadosController.Criar) — nesse caso o servidor atribui a categoria
+    // "A Triar" e prioridade "Média" por padrão, ignorando qualquer valor enviado.
+    // Para técnico/administrador seguem obrigatórios.
+    public long? IdCategoria { get; set; }
 
-    [Required]
-    public long IdPrioridade { get; set; }
+    public long? IdPrioridade { get; set; }
 }

@@ -29,6 +29,8 @@ public class ChamadoDto
 
     public DateTimeOffset? PrazoResolucao { get; set; }
 
+    public DateTimeOffset? PrimeiraRespostaEm { get; set; }
+
     public DateTimeOffset? ResolvidoEm { get; set; }
 
     public DateTimeOffset? FechadoEm { get; set; }
@@ -51,6 +53,7 @@ public class ChamadoDto
         AtualizadoEm = chamado.AtualizadoEm,
         PrazoResposta = chamado.PrazoResposta,
         PrazoResolucao = chamado.PrazoResolucao,
+        PrimeiraRespostaEm = chamado.PrimeiraRespostaEm,
         ResolvidoEm = chamado.ResolvidoEm,
         FechadoEm = chamado.FechadoEm,
         SituacaoSlaResposta = chamado.SituacaoSlaResposta,

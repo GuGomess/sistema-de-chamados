@@ -100,7 +100,10 @@ public class ChamadosDbContext : DbContext
                 new Categoria { Id = 1, Nome = "Hardware", Ativa = true },
                 new Categoria { Id = 2, Nome = "Software", Ativa = true },
                 new Categoria { Id = 3, Nome = "Rede", Ativa = true },
-                new Categoria { Id = 4, Nome = "Acesso", Ativa = true }
+                new Categoria { Id = 4, Nome = "Acesso", Ativa = true },
+                // Atribuída automaticamente a chamados abertos por clientes (que não
+                // escolhem categoria); técnico/administrador reclassificam na triagem.
+                new Categoria { Id = 5, Nome = "A Triar", Descricao = "Categoria inicial de chamados abertos por clientes, pendente de triagem.", Ativa = true }
             );
         });
 
@@ -160,6 +163,7 @@ public class ChamadosDbContext : DbContext
             entity.Property(c => c.AtualizadoEm).HasColumnName("atualizado_em").HasDefaultValueSql("now()");
             entity.Property(c => c.PrazoResposta).HasColumnName("prazo_resposta");
             entity.Property(c => c.PrazoResolucao).HasColumnName("prazo_resolucao");
+            entity.Property(c => c.PrimeiraRespostaEm).HasColumnName("primeira_resposta_em");
             entity.Property(c => c.ResolvidoEm).HasColumnName("resolvido_em");
             entity.Property(c => c.FechadoEm).HasColumnName("fechado_em");
             entity.Property(c => c.SituacaoSlaResposta)

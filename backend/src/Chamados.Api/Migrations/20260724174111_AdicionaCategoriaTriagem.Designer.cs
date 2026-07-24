@@ -3,6 +3,7 @@ using System;
 using Chamados.Api.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Chamados.Api.Migrations
 {
     [DbContext(typeof(ChamadosDbContext))]
-    partial class ChamadosDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260724174111_AdicionaCategoriaTriagem")]
+    partial class AdicionaCategoriaTriagem
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -190,10 +193,6 @@ namespace Chamados.Api.Migrations
                     b.Property<DateTimeOffset?>("PrazoResposta")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("prazo_resposta");
-
-                    b.Property<DateTimeOffset?>("PrimeiraRespostaEm")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("primeira_resposta_em");
 
                     b.Property<long>("PrioridadeId")
                         .HasColumnType("bigint")

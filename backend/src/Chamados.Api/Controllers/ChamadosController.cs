@@ -21,6 +21,15 @@ public class ChamadosController : ControllerBase
     private const long StatusResolvidoId = 4;
     private const long StatusFechadoId = 5;
 
+    // Perfil "Administrador" (ver Migrations/…_CriaPerfilEUsuario).
+    private const long PerfilAdministradorId = 1;
+
+    // Defaults aplicados quando um cliente abre um chamado sem escolher
+    // categoria/prioridade (ver Criar) — "A Triar" (Migrations/…_AdicionaCategoriaTriagem)
+    // e "Média" (seed em ChamadosDbContext).
+    private const long CategoriaTriagemId = 5;
+    private const long PrioridadeMediaId = 2;
+
     private readonly ChamadosDbContext _dbContext;
     private readonly UploadOptions _uploadOptions;
 
@@ -42,7 +51,8 @@ public class ChamadosController : ControllerBase
         [FromQuery] string? q = null,
         [FromQuery] DateTimeOffset? dataInicio = null,
         [FromQuery] DateTimeOffset? dataFim = null,
-        [FromQuery] SituacaoSla? situacaoSla = null)
+        [FromQuery] SituacaoSla? situacaoSla = null,
+        [FromQuery] bool meus = false)
     {
         var usuarioId = ObterUsuarioId();
         if (usuarioId is null)
@@ -58,6 +68,12 @@ public class ChamadosController : ControllerBase
         if (User.IsInRole(Perfis.Cliente))
         {
             query = query.Where(c => c.SolicitanteId == usuarioId.Value);
+        }
+        else if (meus && (User.IsInRole(Perfis.Tecnico) || User.IsInRole(Perfis.Administrador)))
+        {
+            // Aba "Meus chamados": assumidos pelo técnico/admin OU abertos por ele
+            // mesmo (ex.: administrador que abriu um chamado em nome próprio).
+            query = query.Where(c => c.TecnicoId == usuarioId.Value || c.SolicitanteId == usuarioId.Value);
         }
         else if (User.IsInRole(Perfis.Tecnico))
         {
@@ -144,10 +160,35 @@ public class ChamadosController : ControllerBase
 
         var erros = new Dictionary<string, string[]>();
 
-        var categoriaExiste = await _dbContext.Categorias.AnyAsync(c => c.Id == request.IdCategoria);
+        // Cliente não escolhe categoria/prioridade (não tem acesso a esses conceitos
+        // na sua visão) — o servidor ignora qualquer valor enviado e aplica os
+        // defaults de triagem, independentemente do que vier no corpo da requisição.
+        long idCategoria;
+        long idPrioridade;
+
+        if (User.IsInRole(Perfis.Cliente))
+        {
+            idCategoria = CategoriaTriagemId;
+            idPrioridade = PrioridadeMediaId;
+        }
+        else
+        {
+            if (request.IdCategoria is null) erros["idCategoria"] = new[] { "Selecione uma categoria." };
+            if (request.IdPrioridade is null) erros["idPrioridade"] = new[] { "Selecione uma prioridade." };
+
+            if (erros.Count > 0)
+            {
+                return UnprocessableEntity(new ErrorResponse { Status = 422, Title = "Falha de validação", Errors = erros });
+            }
+
+            idCategoria = request.IdCategoria!.Value;
+            idPrioridade = request.IdPrioridade!.Value;
+        }
+
+        var categoriaExiste = await _dbContext.Categorias.AnyAsync(c => c.Id == idCategoria);
         if (!categoriaExiste) erros["idCategoria"] = new[] { "Categoria não encontrada." };
 
-        var prioridadeExiste = await _dbContext.Prioridades.AnyAsync(p => p.Id == request.IdPrioridade);
+        var prioridadeExiste = await _dbContext.Prioridades.AnyAsync(p => p.Id == idPrioridade);
         if (!prioridadeExiste) erros["idPrioridade"] = new[] { "Prioridade não encontrada." };
 
         if (erros.Count > 0)
@@ -155,7 +196,7 @@ public class ChamadosController : ControllerBase
             return UnprocessableEntity(new ErrorResponse { Status = 422, Title = "Falha de validação", Errors = erros });
         }
 
-        var sla = await _dbContext.Slas.FirstOrDefaultAsync(s => s.PrioridadeId == request.IdPrioridade && s.Ativo);
+        var sla = await _dbContext.Slas.FirstOrDefaultAsync(s => s.PrioridadeId == idPrioridade && s.Ativo);
 
         var criadoEm = DateTimeOffset.UtcNow;
         var chamado = new Chamado
@@ -164,8 +205,8 @@ public class ChamadosController : ControllerBase
             Descricao = request.Descricao,
             SolicitanteId = usuarioId.Value,
             StatusId = StatusAbertoId,
-            CategoriaId = request.IdCategoria,
-            PrioridadeId = request.IdPrioridade,
+            CategoriaId = idCategoria,
+            PrioridadeId = idPrioridade,
             PrazoResposta = sla is null ? null : criadoEm.AddMinutes(sla.TempoRespostaMin),
             PrazoResolucao = sla is null ? null : criadoEm.AddMinutes(sla.TempoResolucaoMin)
         };
@@ -520,6 +561,13 @@ public class ChamadosController : ControllerBase
             Acao = "Ajuste de prazo de resolução",
             Detalhe = $"Prazo alterado de {prazoAnteriorTexto} para {prazoNovoTexto}. Justificativa: {request.Justificativa}"
         });
+
+        if (!User.IsInRole(Perfis.Administrador))
+        {
+            var mensagem = $"Chamado #{chamado.Id} — {chamado.Titulo}: prazo de resolução ajustado manualmente para {prazoNovoTexto}. Justificativa: {request.Justificativa}";
+            await NotificarAdministradoresAsync(chamado.Id, mensagem);
+        }
+
         await _dbContext.SaveChangesAsync();
 
         var chamadoAtualizado = await ChamadosComIncludes().FirstAsync(c => c.Id == chamado.Id);
@@ -575,6 +623,13 @@ public class ChamadosController : ControllerBase
             Acao = "Ajuste de prazo de resposta",
             Detalhe = $"Prazo alterado de {prazoAnteriorTexto} para {prazoNovoTexto}."
         });
+
+        if (!User.IsInRole(Perfis.Administrador))
+        {
+            var mensagem = $"Chamado #{chamado.Id} — {chamado.Titulo}: prazo de resposta ajustado manualmente para {prazoNovoTexto}.";
+            await NotificarAdministradoresAsync(chamado.Id, mensagem);
+        }
+
         await _dbContext.SaveChangesAsync();
 
         var chamadoAtualizado = await ChamadosComIncludes().FirstAsync(c => c.Id == chamado.Id);
@@ -690,6 +745,20 @@ public class ChamadosController : ControllerBase
         };
 
         _dbContext.Comentarios.Add(comentario);
+
+        // Primeiro comentário de técnico/administrador satisfaz o SLA de resposta:
+        // a situação fica congelada a partir daqui e o monitoramento periódico
+        // (SlaMonitorService) para de reavaliar/notificar sobre ela.
+        if (!User.IsInRole(Perfis.Cliente) && chamado.PrimeiraRespostaEm is null)
+        {
+            var agora = DateTimeOffset.UtcNow;
+            chamado.PrimeiraRespostaEm = agora;
+            if (chamado.PrazoResposta.HasValue)
+            {
+                chamado.SituacaoSlaResposta = SlaSituacaoCalculator.Calcular(chamado.CriadoEm, chamado.PrazoResposta.Value, agora);
+            }
+            chamado.AtualizadoEm = agora;
+        }
 
         foreach (var arquivo in arquivos)
         {
@@ -876,5 +945,24 @@ public class ChamadosController : ControllerBase
     {
         var claim = User.FindFirst(JwtRegisteredClaimNames.Sub) ?? User.FindFirst(ClaimTypes.NameIdentifier);
         return claim is not null && long.TryParse(claim.Value, out var id) ? id : null;
+    }
+
+    private async Task NotificarAdministradoresAsync(long chamadoId, string mensagem)
+    {
+        var administradorIds = await _dbContext.Usuarios
+            .Where(u => u.PerfilId == PerfilAdministradorId && u.Ativo)
+            .Select(u => u.Id)
+            .ToListAsync();
+
+        foreach (var administradorId in administradorIds)
+        {
+            _dbContext.Notificacoes.Add(new Notificacao
+            {
+                DestinatarioId = administradorId,
+                ChamadoId = chamadoId,
+                Tipo = TipoNotificacao.PrazoAjustado,
+                Mensagem = mensagem
+            });
+        }
     }
 }
