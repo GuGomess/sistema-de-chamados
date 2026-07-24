@@ -1,4 +1,10 @@
-export type TipoNotificacao = 'SlaEmRisco' | 'SlaVencido' | 'PrazoAjustado';
+export type TipoNotificacao =
+  | 'SlaEmRisco'
+  | 'SlaVencido'
+  | 'PrazoAjustado'
+  | 'ChamadoReaberto'
+  | 'FechadoPorCliente'
+  | 'NovaAvaliacao';
 
 export interface Notificacao {
   id: number;

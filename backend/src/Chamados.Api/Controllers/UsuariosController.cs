@@ -33,4 +33,22 @@ public class UsuariosController : ControllerBase
 
         return Ok(tecnicos);
     }
+
+    [HttpGet("atribuiveis")]
+    public async Task<ActionResult<List<UsuarioDto>>> ListarAtribuiveis()
+    {
+        var usuarios = await _dbContext.Usuarios
+            .Include(u => u.Perfil)
+            .Where(u => u.Ativo)
+            .OrderBy(u => u.Nome)
+            .ToListAsync();
+
+        var dtos = usuarios.Select(UsuarioDto.FromEntity);
+
+        var atribuiveis = User.IsInRole(Perfis.Administrador)
+            ? dtos.Where(u => u.Perfil == Perfis.Tecnico || u.Perfil == Perfis.Administrador)
+            : dtos.Where(u => u.Perfil == Perfis.Tecnico);
+
+        return Ok(atribuiveis.ToList());
+    }
 }

@@ -58,6 +58,7 @@ export class ChamadosLista implements OnInit {
     dataInicio: [''],
     dataFim: [''],
     situacaoSla: [null as SituacaoSla | null],
+    ocultarFinalizados: [false],
   });
 
   ngOnInit(): void {
@@ -145,7 +146,7 @@ export class ChamadosLista implements OnInit {
     this.carregando.set(true);
     this.erro.set(null);
 
-    const { q, idStatus, idCategoria, idPrioridade, idTecnico, dataInicio, dataFim, situacaoSla } =
+    const { q, idStatus, idCategoria, idPrioridade, idTecnico, dataInicio, dataFim, situacaoSla, ocultarFinalizados } =
       this.form.getRawValue();
 
     this.chamadoService
@@ -161,6 +162,7 @@ export class ChamadosLista implements OnInit {
         dataFim: dataFim || null,
         situacaoSla,
         meus: this.ehStaff && this.mostrarMeus() ? true : undefined,
+        ocultarFinalizados,
       })
       .subscribe({
         next: (pagina) => {

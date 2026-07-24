@@ -103,6 +103,27 @@ export interface ChamadoFiltros {
   situacaoSla?: SituacaoSla | null;
   // Aba "Meus chamados" (técnico/administrador): assumidos por mim ou abertos por mim.
   meus?: boolean;
+  ocultarFinalizados?: boolean;
+}
+
+export interface FecharClienteRequest {
+  motivo?: string;
+}
+
+export interface Avaliacao {
+  id: number;
+  idChamado: number;
+  autor: UsuarioResumo;
+  nota: number;
+  comentario: string | null;
+  publica: boolean;
+  criadoEm: string;
+}
+
+export interface AvaliacaoCreateRequest {
+  nota: number;
+  comentario?: string;
+  publica: boolean;
 }
 
 export interface ResumoSla {

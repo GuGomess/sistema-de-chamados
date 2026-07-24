@@ -52,7 +52,8 @@ public class ChamadosController : ControllerBase
         [FromQuery] DateTimeOffset? dataInicio = null,
         [FromQuery] DateTimeOffset? dataFim = null,
         [FromQuery] SituacaoSla? situacaoSla = null,
-        [FromQuery] bool meus = false)
+        [FromQuery] bool meus = false,
+        [FromQuery] bool ocultarFinalizados = false)
     {
         var usuarioId = ObterUsuarioId();
         if (usuarioId is null)
@@ -97,6 +98,11 @@ public class ChamadosController : ControllerBase
 
         if (dataInicio.HasValue) query = query.Where(c => c.CriadoEm >= dataInicio.Value);
         if (dataFim.HasValue) query = query.Where(c => c.CriadoEm <= dataFim.Value);
+
+        if (ocultarFinalizados)
+        {
+            query = query.Where(c => !c.Status.Final);
+        }
 
         var descending = sort is null || sort.StartsWith('-');
         var campo = sort?.TrimStart('-');
@@ -350,15 +356,18 @@ public class ChamadosController : ControllerBase
             return Unauthorized();
         }
 
-        if (!User.IsInRole(Perfis.Administrador))
-        {
-            return StatusCode(StatusCodes.Status403Forbidden, ErrorResponse.Create(403, "Apenas administradores podem atribuir um chamado a um técnico."));
-        }
-
         var chamado = await ChamadosComIncludes().FirstOrDefaultAsync(c => c.Id == id);
         if (chamado is null)
         {
             return NotFound(ErrorResponse.Create(404, "Chamado não encontrado."));
+        }
+
+        var podeAtribuir = User.IsInRole(Perfis.Administrador)
+            || (User.IsInRole(Perfis.Tecnico) && PodeAcessar(chamado, usuarioId.Value));
+
+        if (!podeAtribuir)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, ErrorResponse.Create(403, "Apenas administradores ou técnicos responsáveis podem atribuir um chamado a um técnico."));
         }
 
         if (chamado.Status.Final)
@@ -372,17 +381,26 @@ public class ChamadosController : ControllerBase
         }
 
         var tecnico = await _dbContext.Usuarios.Include(u => u.Perfil).FirstOrDefaultAsync(u => u.Id == request.IdTecnico);
-        if (tecnico is null || !tecnico.Ativo || Perfis.NormalizarCodigo(tecnico.Perfil.Nome) != Perfis.Tecnico)
+        var perfilAlvo = tecnico is null ? null : Perfis.NormalizarCodigo(tecnico.Perfil.Nome);
+        var chamadorEhAdministrador = User.IsInRole(Perfis.Administrador);
+
+        var alvoValido = tecnico is not null
+            && tecnico.Ativo
+            && (chamadorEhAdministrador
+                ? (perfilAlvo == Perfis.Tecnico || perfilAlvo == Perfis.Administrador)
+                : perfilAlvo == Perfis.Tecnico);
+
+        if (!alvoValido)
         {
             return UnprocessableEntity(new ErrorResponse
             {
                 Status = 422,
                 Title = "Falha de validação",
-                Errors = new Dictionary<string, string[]> { ["idTecnico"] = new[] { "Usuário técnico não encontrado." } }
+                Errors = new Dictionary<string, string[]> { ["idTecnico"] = new[] { "Usuário não pode receber a atribuição." } }
             });
         }
 
-        chamado.TecnicoId = tecnico.Id;
+        chamado.TecnicoId = tecnico!.Id;
         chamado.AtualizadoEm = DateTimeOffset.UtcNow;
         await _dbContext.SaveChangesAsync();
 
@@ -450,8 +468,8 @@ public class ChamadosController : ControllerBase
         return Ok(ChamadoDto.FromEntity(chamadoAtualizado));
     }
 
-    [HttpPost("{id:long}/liberar")]
-    public async Task<ActionResult<ChamadoDto>> Liberar(long id)
+    [HttpPost("{id:long}/reabrir")]
+    public async Task<ActionResult<ChamadoDto>> Reabrir(long id)
     {
         var usuarioId = ObterUsuarioId();
         if (usuarioId is null)
@@ -465,27 +483,27 @@ public class ChamadosController : ControllerBase
             return NotFound(ErrorResponse.Create(404, "Chamado não encontrado."));
         }
 
-        var podeLiberar = User.IsInRole(Perfis.Administrador)
-            || (User.IsInRole(Perfis.Tecnico) && chamado.TecnicoId == usuarioId.Value);
-
-        if (!podeLiberar)
+        if (!PodeAcessar(chamado, usuarioId.Value))
         {
-            return StatusCode(StatusCodes.Status403Forbidden, ErrorResponse.Create(403, "Sem permissão para liberar este chamado."));
+            return StatusCode(StatusCodes.Status403Forbidden, ErrorResponse.Create(403, "Sem permissão para reabrir este chamado."));
         }
 
-        if (chamado.TecnicoId is null)
+        if (!chamado.Status.Final)
         {
             return UnprocessableEntity(new ErrorResponse
             {
                 Status = 422,
                 Title = "Falha de validação",
-                Errors = new Dictionary<string, string[]> { ["idTecnico"] = new[] { "Chamado não possui técnico atribuído." } }
+                Errors = new Dictionary<string, string[]> { ["status"] = new[] { "Chamado não está finalizado e não pode ser reaberto." } }
             });
         }
 
-        var tecnicoLiberadoNome = chamado.Tecnico?.Nome;
+        var usuarioAtual = await _dbContext.Usuarios.FirstOrDefaultAsync(u => u.Id == usuarioId.Value);
+        var nomeReabertura = usuarioAtual?.Nome ?? "Usuário";
 
-        chamado.TecnicoId = null;
+        chamado.StatusId = StatusAbertoId;
+        chamado.ResolvidoEm = null;
+        chamado.FechadoEm = null;
         chamado.AtualizadoEm = DateTimeOffset.UtcNow;
         await _dbContext.SaveChangesAsync();
 
@@ -493,9 +511,91 @@ public class ChamadosController : ControllerBase
         {
             ChamadoId = chamado.Id,
             AutorId = usuarioId.Value,
-            Acao = "Liberação",
-            Detalhe = tecnicoLiberadoNome is null ? null : $"Liberado por {tecnicoLiberadoNome}."
+            Acao = "Reabertura",
+            Detalhe = $"Reaberto por {nomeReabertura}."
         });
+
+        var mensagem = $"Chamado #{chamado.Id} — {chamado.Titulo}: reaberto por {nomeReabertura}.";
+        await NotificarAdministradoresAsync(chamado.Id, mensagem, TipoNotificacao.ChamadoReaberto);
+
+        if (chamado.TecnicoId.HasValue && chamado.TecnicoId.Value != usuarioId.Value)
+        {
+            _dbContext.Notificacoes.Add(new Notificacao
+            {
+                DestinatarioId = chamado.TecnicoId.Value,
+                ChamadoId = chamado.Id,
+                Tipo = TipoNotificacao.ChamadoReaberto,
+                Mensagem = mensagem
+            });
+        }
+
+        await _dbContext.SaveChangesAsync();
+
+        var chamadoAtualizado = await ChamadosComIncludes().FirstAsync(c => c.Id == chamado.Id);
+        return Ok(ChamadoDto.FromEntity(chamadoAtualizado));
+    }
+
+    [HttpPost("{id:long}/fechar-cliente")]
+    public async Task<ActionResult<ChamadoDto>> FecharComoCliente(long id, [FromBody] FecharClienteRequest request)
+    {
+        var usuarioId = ObterUsuarioId();
+        if (usuarioId is null)
+        {
+            return Unauthorized();
+        }
+
+        var chamado = await ChamadosComIncludes().FirstOrDefaultAsync(c => c.Id == id);
+        if (chamado is null)
+        {
+            return NotFound(ErrorResponse.Create(404, "Chamado não encontrado."));
+        }
+
+        if (!User.IsInRole(Perfis.Cliente) || chamado.SolicitanteId != usuarioId.Value)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, ErrorResponse.Create(403, "Sem permissão para fechar este chamado."));
+        }
+
+        if (chamado.StatusId == StatusFechadoId)
+        {
+            return UnprocessableEntity(new ErrorResponse
+            {
+                Status = 422,
+                Title = "Falha de validação",
+                Errors = new Dictionary<string, string[]> { ["status"] = new[] { "Chamado já está fechado." } }
+            });
+        }
+
+        var tecnicoNome = chamado.Tecnico?.Nome ?? "Nenhum";
+        var motivo = string.IsNullOrWhiteSpace(request.Motivo) ? "Não informado" : request.Motivo;
+
+        chamado.StatusId = StatusFechadoId;
+        chamado.FechadoEm = DateTimeOffset.UtcNow;
+        chamado.ResolvidoEm ??= chamado.FechadoEm;
+        chamado.AtualizadoEm = DateTimeOffset.UtcNow;
+        await _dbContext.SaveChangesAsync();
+
+        _dbContext.Historicos.Add(new Historico
+        {
+            ChamadoId = chamado.Id,
+            AutorId = usuarioId.Value,
+            Acao = "Fechamento pelo cliente",
+            Detalhe = $"Fechado pelo cliente {chamado.Solicitante.Nome}. Técnico: {tecnicoNome}. Motivo: {motivo}."
+        });
+
+        var mensagem = $"Chamado #{chamado.Id} — {chamado.Titulo}: fechado pelo cliente {chamado.Solicitante.Nome}.";
+        await NotificarAdministradoresAsync(chamado.Id, mensagem, TipoNotificacao.FechadoPorCliente);
+
+        if (chamado.TecnicoId.HasValue)
+        {
+            _dbContext.Notificacoes.Add(new Notificacao
+            {
+                DestinatarioId = chamado.TecnicoId.Value,
+                ChamadoId = chamado.Id,
+                Tipo = TipoNotificacao.FechadoPorCliente,
+                Mensagem = mensagem
+            });
+        }
+
         await _dbContext.SaveChangesAsync();
 
         var chamadoAtualizado = await ChamadosComIncludes().FirstAsync(c => c.Id == chamado.Id);
@@ -664,7 +764,147 @@ public class ChamadosController : ControllerBase
             .OrderBy(h => h.CriadoEm)
             .ToListAsync();
 
+        if (User.IsInRole(Perfis.Tecnico))
+        {
+            var avaliacao = await _dbContext.Avaliacoes.AsNoTracking().FirstOrDefaultAsync(a => a.ChamadoId == id);
+            if (avaliacao is not null && !avaliacao.Publica)
+            {
+                historico = historico.Where(h => h.Acao != "Avaliação registrada").ToList();
+            }
+        }
+
         return Ok(historico.Select(HistoricoDto.FromEntity).ToList());
+    }
+
+    [HttpGet("{id:long}/avaliacao")]
+    public async Task<ActionResult<AvaliacaoDto>> ObterAvaliacao(long id)
+    {
+        var usuarioId = ObterUsuarioId();
+        if (usuarioId is null)
+        {
+            return Unauthorized();
+        }
+
+        var chamado = await _dbContext.Chamados.FirstOrDefaultAsync(c => c.Id == id);
+        if (chamado is null)
+        {
+            return NotFound(ErrorResponse.Create(404, "Chamado não encontrado."));
+        }
+
+        var avaliacao = await _dbContext.Avaliacoes
+            .Include(a => a.Autor).ThenInclude(u => u.Perfil)
+            .FirstOrDefaultAsync(a => a.ChamadoId == id);
+
+        if (avaliacao is null)
+        {
+            return NotFound(ErrorResponse.Create(404, "Avaliação não encontrada."));
+        }
+
+        bool podeVer;
+        if (User.IsInRole(Perfis.Administrador)) podeVer = true;
+        else if (User.IsInRole(Perfis.Cliente)) podeVer = avaliacao.AutorId == usuarioId.Value;
+        // Técnico só vê avaliação pública, e só de chamado ao qual tem acesso
+        // (mesma regra de PodeAcessar usada em Detalhar/Historico/comentários) —
+        // sem isso, um técnico sem nenhuma relação com o chamado conseguiria ler
+        // nota/comentário via este endpoint mesmo estando bloqueado nos demais.
+        else if (User.IsInRole(Perfis.Tecnico)) podeVer = avaliacao.Publica && PodeAcessar(chamado, usuarioId.Value);
+        else podeVer = false;
+
+        if (!podeVer)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, ErrorResponse.Create(403, "Sem permissão para acessar esta avaliação."));
+        }
+
+        return Ok(AvaliacaoDto.FromEntity(avaliacao));
+    }
+
+    [HttpPost("{id:long}/avaliacao")]
+    public async Task<ActionResult<AvaliacaoDto>> CriarAvaliacao(long id, [FromBody] AvaliacaoCreateRequest request)
+    {
+        var usuarioId = ObterUsuarioId();
+        if (usuarioId is null)
+        {
+            return Unauthorized();
+        }
+
+        var chamado = await ChamadosComIncludes().FirstOrDefaultAsync(c => c.Id == id);
+        if (chamado is null)
+        {
+            return NotFound(ErrorResponse.Create(404, "Chamado não encontrado."));
+        }
+
+        if (!User.IsInRole(Perfis.Cliente) || chamado.SolicitanteId != usuarioId.Value)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, ErrorResponse.Create(403, "Sem permissão para avaliar este chamado."));
+        }
+
+        if (!chamado.Status.Final)
+        {
+            return UnprocessableEntity(new ErrorResponse
+            {
+                Status = 422,
+                Title = "Falha de validação",
+                Errors = new Dictionary<string, string[]> { ["status"] = new[] { "Chamado ainda não foi concluído." } }
+            });
+        }
+
+        var jaAvaliado = await _dbContext.Avaliacoes.AnyAsync(a => a.ChamadoId == id);
+        if (jaAvaliado)
+        {
+            return Conflict(ErrorResponse.Create(409, "Este chamado já foi avaliado."));
+        }
+
+        if (request.Nota < 0 || request.Nota > 5)
+        {
+            return UnprocessableEntity(new ErrorResponse
+            {
+                Status = 422,
+                Title = "Falha de validação",
+                Errors = new Dictionary<string, string[]> { ["nota"] = new[] { "Nota deve estar entre 0 e 5." } }
+            });
+        }
+
+        var avaliacao = new Avaliacao
+        {
+            ChamadoId = id,
+            AutorId = usuarioId.Value,
+            Nota = request.Nota,
+            Comentario = request.Comentario,
+            Publica = request.Publica
+        };
+
+        _dbContext.Avaliacoes.Add(avaliacao);
+        await _dbContext.SaveChangesAsync();
+
+        _dbContext.Historicos.Add(new Historico
+        {
+            ChamadoId = chamado.Id,
+            AutorId = usuarioId.Value,
+            Acao = "Avaliação registrada",
+            Detalhe = $"Nota {avaliacao.Nota}/5."
+        });
+
+        var mensagem = $"Chamado #{chamado.Id} — {chamado.Titulo}: recebeu uma avaliação ({avaliacao.Nota}/5).";
+        await NotificarAdministradoresAsync(chamado.Id, mensagem, TipoNotificacao.NovaAvaliacao);
+
+        if (chamado.TecnicoId.HasValue && request.Publica)
+        {
+            _dbContext.Notificacoes.Add(new Notificacao
+            {
+                DestinatarioId = chamado.TecnicoId.Value,
+                ChamadoId = chamado.Id,
+                Tipo = TipoNotificacao.NovaAvaliacao,
+                Mensagem = mensagem
+            });
+        }
+
+        await _dbContext.SaveChangesAsync();
+
+        var avaliacaoCriada = await _dbContext.Avaliacoes
+            .Include(a => a.Autor).ThenInclude(u => u.Perfil)
+            .FirstAsync(a => a.Id == avaliacao.Id);
+
+        return CreatedAtAction(nameof(ObterAvaliacao), new { id }, AvaliacaoDto.FromEntity(avaliacaoCriada));
     }
 
     [HttpGet("{id:long}/comentarios")]
@@ -947,7 +1187,7 @@ public class ChamadosController : ControllerBase
         return claim is not null && long.TryParse(claim.Value, out var id) ? id : null;
     }
 
-    private async Task NotificarAdministradoresAsync(long chamadoId, string mensagem)
+    private async Task NotificarAdministradoresAsync(long chamadoId, string mensagem, TipoNotificacao tipo = TipoNotificacao.PrazoAjustado)
     {
         var administradorIds = await _dbContext.Usuarios
             .Where(u => u.PerfilId == PerfilAdministradorId && u.Ativo)
@@ -960,7 +1200,7 @@ public class ChamadosController : ControllerBase
             {
                 DestinatarioId = administradorId,
                 ChamadoId = chamadoId,
-                Tipo = TipoNotificacao.PrazoAjustado,
+                Tipo = tipo,
                 Mensagem = mensagem
             });
         }

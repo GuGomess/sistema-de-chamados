@@ -135,6 +135,10 @@ paths:
             Só para Técnico/Administrador: restringe aos chamados assumidos
             por ele ou abertos por ele mesmo. Ignorado para Cliente.
           schema: { type: boolean, default: false }
+        - name: ocultarFinalizados
+          in: query
+          description: Quando true, exclui da listagem os chamados em status final.
+          schema: { type: boolean, default: false }
       responses:
         '200':
           description: Página de chamados
@@ -196,6 +200,25 @@ paths:
                 type: array
                 items: { $ref: '#/components/schemas/Usuario' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+  /usuarios/atribuiveis:
+    get:
+      tags: [Usuários]
+      summary: Lista usuários que podem receber atribuição de chamado
+      description: >
+        Endpoint enxuto (sem paginação), usado para popular o seletor de
+        `/chamados/{id}/atribuir`. Sempre inclui os técnicos ativos; se o
+        usuário autenticado for Administrador, também inclui os
+        administradores ativos. Distinto do CRUD administrativo em
+        `/usuarios`.
+      responses:
+        '200':
+          description: Lista de usuários atribuíveis
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Usuario' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
   /chamados/{id}:
     parameters:
       - { $ref: '#/components/parameters/IdPath' }
@@ -217,7 +240,7 @@ paths:
       description: >
         Usado para mudança de status e ajustes de categoria/prioridade.
         A atribuição de técnico é feita pelos endpoints dedicados
-        `/atribuir`, `/assumir` e `/liberar`.
+        `/atribuir` e `/assumir`.
       requestBody:
         required: true
         content:
@@ -240,11 +263,15 @@ paths:
       - { $ref: '#/components/parameters/IdPath' }
     post:
       tags: [Chamados]
-      summary: Atribui o chamado a um técnico (Administrador)
+      summary: Atribui o chamado a um técnico ou administrador
       description: >
-        Só o Administrador pode atribuir um chamado a um técnico específico.
-        O técnico informado precisa estar ativo e ter perfil TECNICO; o
-        chamado não pode estar em status final.
+        Administrador pode atribuir a qualquer momento; Técnico só pode
+        atribuir um chamado ao qual já tem acesso (atribuído a ele mesmo ou
+        ainda sem técnico — mesma regra de `GET /chamados/{id}`). O usuário
+        alvo (`idTecnico`) precisa estar ativo; se quem atribui é
+        Administrador, o alvo pode ter perfil Técnico ou Administrador; se é
+        Técnico, o alvo só pode ter perfil Técnico. O chamado não pode estar
+        em status final.
       requestBody:
         required: true
         content:
@@ -280,18 +307,51 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
-  /chamados/{id}/liberar:
+  /chamados/{id}/reabrir:
     parameters:
       - { $ref: '#/components/parameters/IdPath' }
     post:
       tags: [Chamados]
-      summary: Remove o técnico atribuído ao chamado (libera para o pool)
+      summary: Reabre um chamado finalizado
       description: >
-        Administrador pode liberar qualquer chamado; Técnico só pode liberar
-        um chamado que esteja atribuído a ele mesmo.
+        Reverte o chamado para o status inicial (Aberto), limpando
+        `resolvidoEm`/`fechadoEm` e preservando o técnico atribuído. Pode
+        reabrir quem tem acesso ao chamado (mesma regra de
+        `GET /chamados/{id}`): o Cliente solicitante, o Técnico atribuído (ou
+        qualquer técnico, se o chamado estiver sem técnico) ou um
+        Administrador. Falha com 422 se o chamado não estiver em status
+        final. Notifica os administradores e, se houver, o técnico atribuído
+        (quando diferente de quem reabriu).
       responses:
         '200':
-          description: Chamado liberado
+          description: Chamado reaberto
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Chamado' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  /chamados/{id}/fechar-cliente:
+    parameters:
+      - { $ref: '#/components/parameters/IdPath' }
+    post:
+      tags: [Chamados]
+      summary: Cliente fecha o próprio chamado
+      description: >
+        Só o Cliente solicitante pode fechar o próprio chamado diretamente,
+        sem depender de um Técnico/Administrador mudar o status. Preenche
+        `fechadoEm` e, se ainda não preenchido, `resolvidoEm`. Falha com 422
+        se o chamado já estiver fechado. Notifica os administradores e o
+        técnico atribuído (se houver).
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FecharClienteRequest' }
+      responses:
+        '200':
+          description: Chamado fechado
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Chamado' }
@@ -350,6 +410,54 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  /chamados/{id}/avaliacao:
+    parameters:
+      - { $ref: '#/components/parameters/IdPath' }
+    get:
+      tags: [Chamados]
+      summary: Obtém a avaliação do chamado
+      description: >
+        Visibilidade por perfil: Administrador sempre vê; Cliente só vê se
+        for o autor da avaliação; Técnico só vê se a avaliação for pública
+        (`publica=true`) e ele tiver acesso ao chamado (mesma regra de
+        `GET /chamados/{id}`: atribuído a ele ou chamado sem técnico).
+      responses:
+        '200':
+          description: Avaliação do chamado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Avaliacao' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: Chamado não encontrado, ou chamado ainda sem avaliação
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+    post:
+      tags: [Chamados]
+      summary: Registra a avaliação do chamado
+      description: >
+        Só o Cliente solicitante pode avaliar, e apenas um chamado já em
+        status final. Um chamado só pode ser avaliado uma vez (409 se já
+        existir avaliação). Se `publica=true`, o técnico atribuído também é
+        notificado; os administradores são sempre notificados.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AvaliacaoCreateRequest' }
+      responses:
+        '201':
+          description: Avaliação registrada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Avaliacao' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
 
   # ---------------------------------------------------------------- Comentários
@@ -1031,6 +1139,10 @@ components:
       required: [prazoResposta]
       properties:
         prazoResposta: { type: string, format: date-time }
+    FecharClienteRequest:
+      type: object
+      properties:
+        motivo: { type: string }
     ChamadoPage:
       type: object
       properties:
@@ -1087,6 +1199,30 @@ components:
         detalhe: { type: string }
         criadoEm: { type: string, format: date-time }
 
+    # ----- Avaliação -----
+    Avaliacao:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        idChamado: { type: integer, format: int64 }
+        autor: { $ref: '#/components/schemas/Usuario' }
+        nota: { type: integer, minimum: 0, maximum: 5 }
+        comentario: { type: string }
+        publica:
+          type: boolean
+          description: Quando true, a avaliação também é visível ao técnico atribuído
+        criadoEm: { type: string, format: date-time }
+    AvaliacaoCreateRequest:
+      type: object
+      required: [nota]
+      properties:
+        nota: { type: integer, minimum: 0, maximum: 5 }
+        comentario: { type: string }
+        publica:
+          type: boolean
+          default: false
+          description: Quando true, o técnico atribuído também é notificado da avaliação
+
     # ----- Notificações -----
     TipoNotificacao:
       type: string
@@ -1094,8 +1230,14 @@ components:
         Origem da notificação: "SlaEmRisco"/"SlaVencido" vêm do monitoramento
         periódico de SLA (80% do tempo decorrido / prazo ultrapassado);
         "PrazoAjustado" é gerada para os administradores quando um Técnico
-        ajusta manualmente o prazo de resposta ou resolução de um chamado.
-      enum: [SlaEmRisco, SlaVencido, PrazoAjustado]
+        ajusta manualmente o prazo de resposta ou resolução de um chamado;
+        "ChamadoReaberto" é gerada para os administradores e o técnico
+        atribuído quando um chamado finalizado é reaberto; "FechadoPorCliente"
+        é gerada para os administradores e o técnico atribuído quando o
+        Cliente fecha o próprio chamado; "NovaAvaliacao" é gerada para os
+        administradores (sempre) e para o técnico atribuído (só se a
+        avaliação for pública) quando um chamado é avaliado.
+      enum: [SlaEmRisco, SlaVencido, PrazoAjustado, ChamadoReaberto, FechadoPorCliente, NovaAvaliacao]
     Notificacao:
       type: object
       properties:

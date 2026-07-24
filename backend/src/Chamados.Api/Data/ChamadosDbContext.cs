@@ -31,6 +31,8 @@ public class ChamadosDbContext : DbContext
 
     public DbSet<Notificacao> Notificacoes => Set<Notificacao>();
 
+    public DbSet<Avaliacao> Avaliacoes => Set<Avaliacao>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Perfil>(entity =>
@@ -310,6 +312,30 @@ public class ChamadosDbContext : DbContext
             entity.HasOne(n => n.Chamado)
                 .WithMany()
                 .HasForeignKey(n => n.ChamadoId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<Avaliacao>(entity =>
+        {
+            entity.ToTable("avaliacao");
+            entity.Property(a => a.Id).HasColumnName("id");
+            entity.Property(a => a.ChamadoId).HasColumnName("id_chamado");
+            entity.Property(a => a.AutorId).HasColumnName("id_autor");
+            entity.Property(a => a.Nota).HasColumnName("nota");
+            entity.Property(a => a.Comentario).HasColumnName("comentario");
+            entity.Property(a => a.Publica).HasColumnName("publica").HasDefaultValue(false);
+            entity.Property(a => a.CriadoEm).HasColumnName("criado_em").HasDefaultValueSql("now()");
+
+            entity.HasIndex(a => a.ChamadoId).IsUnique();
+
+            entity.HasOne(a => a.Chamado)
+                .WithMany()
+                .HasForeignKey(a => a.ChamadoId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(a => a.Autor)
+                .WithMany()
+                .HasForeignKey(a => a.AutorId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
     }

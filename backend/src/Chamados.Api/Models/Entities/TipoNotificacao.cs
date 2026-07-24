@@ -4,5 +4,8 @@ public enum TipoNotificacao
 {
     SlaEmRisco,
     SlaVencido,
-    PrazoAjustado
+    PrazoAjustado,
+    ChamadoReaberto,
+    FechadoPorCliente,
+    NovaAvaliacao
 }

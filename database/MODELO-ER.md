@@ -26,9 +26,11 @@ erDiagram
     CHAMADO ||--o{ COMENTARIO : "recebe"
     CHAMADO ||--o{ ANEXO : "possui"
     CHAMADO ||--o{ HISTORICO : "registra"
+    CHAMADO ||--o| AVALIACAO : "recebe"
     USUARIO ||--o{ COMENTARIO : "escreve"
     USUARIO ||--o{ ANEXO : "envia"
     USUARIO ||--o{ HISTORICO : "gera"
+    USUARIO ||--o{ AVALIACAO : "avalia"
     STATUS ||--o{ HISTORICO : "status_anterior"
     STATUS ||--o{ HISTORICO : "status_novo"
 
@@ -112,6 +114,15 @@ erDiagram
         bigint id_status_novo FK
         varchar acao
         text detalhe
+        timestamptz criado_em
+    }
+    AVALIACAO {
+        bigint id PK
+        bigint id_chamado FK, UK
+        bigint id_autor FK
+        smallint nota
+        text comentario
+        boolean publica
         timestamptz criado_em
     }
 ```
@@ -244,6 +255,19 @@ Trilha de auditoria: cada mudança de status/ação relevante no chamado.
 | detalhe | text | sim | | Descrição livre da alteração |
 | criado_em | timestamptz | não | | Default `now()` |
 
+### AVALIACAO
+Avaliação do atendimento, feita pelo Cliente solicitante após o chamado ser finalizado. Um chamado só pode ter uma avaliação.
+
+| Campo | Tipo | Nulo | Chave | Observação |
+|-------|------|------|-------|------------|
+| id | bigint | não | PK | |
+| id_chamado | bigint | não | FK → CHAMADO, UK | Um chamado tem no máximo uma avaliação |
+| id_autor | bigint | não | FK → USUARIO | Sempre o Cliente solicitante |
+| nota | smallint | não | | Nota de 0 a 5 |
+| comentario | text | sim | | |
+| publica | boolean | não | | Default `false`. `true` = também visível ao técnico atribuído |
+| criado_em | timestamptz | não | | Default `now()` |
+
 ---
 
 ## Notas de Modelagem
@@ -253,4 +277,5 @@ Trilha de auditoria: cada mudança de status/ação relevante no chamado.
 - **SLA por prioridade:** os prazos (`prazo_resposta`/`prazo_resolucao`) são derivados do SLA vigente da prioridade no momento da abertura e persistidos no chamado, preservando a meta histórica mesmo que o SLA mude depois.
 - **Anexos:** apenas metadados no banco; o conteúdo é armazenado fora (pasta `/uploads` já ignorada no `.gitignore`).
 - **Histórico:** append-only (nunca atualizado/removido), garantindo trilha de auditoria completa das mudanças de status e ações.
+- **Avaliação:** vínculo 1:1 opcional com `Chamado` (`id_chamado` com índice único), só pode ser criada pelo Cliente solicitante depois que o chamado é finalizado; `publica` controla se o técnico atribuído também enxerga a avaliação (administradores sempre veem).
 - **Exclusões:** preferir *soft delete* (`ativo`/`ativa`) em `Usuario`/`Categoria` a exclusão física, preservando integridade referencial do histórico.

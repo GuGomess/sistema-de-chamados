@@ -61,7 +61,7 @@
         </p>
       </div>
 
-      @if (podeAssumir() || podeLiberar() || podeAlterarStatus() || podeAjustarPrazo()) {
+      @if (podeAssumir() || podeReabrir() || podeAlterarStatus() || podeAjustarPrazo() || podeFecharComoCliente()) {
         <aside class="acoes">
           <h2>Ações</h2>
 
@@ -71,6 +71,10 @@
 
           @if (podeAssumir()) {
             <button type="button" [disabled]="salvando()" (click)="assumir()">Assumir chamado</button>
+          }
+
+          @if (podeReabrir()) {
+            <button type="button" [disabled]="salvando()" (click)="reabrir()">Reabrir chamado</button>
           }
 
           @if (podeAlterarStatus()) {
@@ -102,24 +106,33 @@
                 </select>
               </label>
 
-              @if (podeAtribuirTecnico()) {
-                <label>
-                  Atribuir técnico
-                  <select formControlName="idTecnico">
-                    <option [ngValue]="null">Não atribuído</option>
-                    @for (tecnico of tecnicos(); track tecnico.id) {
-                      <option [ngValue]="tecnico.id">{{ tecnico.nome }}</option>
-                    }
-                  </select>
-                </label>
-              }
-
               <button type="submit" [disabled]="salvando()">Salvar alterações</button>
             </form>
           }
 
-          @if (podeLiberar()) {
-            <button type="button" [disabled]="salvando()" (click)="liberar()">Liberar chamado</button>
+          @if (podeAtribuirTecnico()) {
+            <form [formGroup]="atribuirForm" (ngSubmit)="atribuirTecnico()" novalidate class="prazo-form">
+              <label>
+                Atribuir técnico
+                <select formControlName="idTecnico">
+                  <option [ngValue]="null">Não atribuído</option>
+                  @for (tecnico of tecnicos(); track tecnico.id) {
+                    <option [ngValue]="tecnico.id">{{ tecnico.nome }}</option>
+                  }
+                </select>
+              </label>
+              <button type="submit" [disabled]="salvando()">Atribuir</button>
+            </form>
+          }
+
+          @if (podeFecharComoCliente()) {
+            <form [formGroup]="fecharClienteForm" (ngSubmit)="fecharComoCliente()" novalidate class="prazo-form">
+              <label>
+                Motivo (opcional)
+                <textarea formControlName="motivo" rows="2" placeholder="Motivo do fechamento"></textarea>
+              </label>
+              <button type="submit" [disabled]="salvando()">Fechar chamado</button>
+            </form>
           }
 
           @if (podeAjustarPrazo()) {
@@ -229,6 +242,63 @@
 
         <button type="submit" [disabled]="enviandoComentario()">Comentar</button>
       </form>
+    </section>
+
+    <section class="avaliacao">
+      <h2>Avaliação do atendimento</h2>
+
+      @if (carregandoAvaliacao()) {
+        <p>Carregando avaliação...</p>
+      } @else {
+        @if (avaliacaoErro()) {
+          <p class="erro" role="alert">{{ avaliacaoErro() }}</p>
+        }
+
+        @if (ehCliente() && chamado.status.final && !avaliacao()) {
+          <form [formGroup]="avaliacaoForm" (ngSubmit)="enviarAvaliacao()" novalidate class="form-avaliacao">
+            <label>
+              Nota (0 a 5)
+              <select formControlName="nota">
+                <option [ngValue]="null">Selecione uma nota</option>
+                @for (nota of [0, 1, 2, 3, 4, 5]; track nota) {
+                  <option [ngValue]="nota">{{ nota }}</option>
+                }
+              </select>
+            </label>
+
+            <label>
+              Comentário (opcional)
+              <textarea formControlName="comentario" rows="3" placeholder="Conte como foi o atendimento..."></textarea>
+            </label>
+
+            <label class="radio">
+              <input type="radio" formControlName="publica" [value]="true" />
+              Avaliar publicamente
+            </label>
+            <label class="radio">
+              <input type="radio" formControlName="publica" [value]="false" />
+              Avaliar somente para administradores
+            </label>
+
+            <button type="submit" [disabled]="enviandoAvaliacao()">Enviar avaliação</button>
+          </form>
+        } @else if (avaliacao(); as av) {
+          @if (ehAdministrador() || ehCliente() || (ehTecnico() && av.publica)) {
+            <div class="avaliacao-leitura">
+              <div class="avaliacao-head">
+                <span class="nota">Nota: {{ av.nota }}/5</span>
+                @if (!av.publica) {
+                  <span class="badge">Somente administradores</span>
+                }
+              </div>
+              @if (av.comentario) {
+                <p class="comentario">{{ av.comentario }}</p>
+              }
+              <p class="meta">{{ av.autor.nome }} · {{ av.criadoEm | date: 'dd/MM/yyyy HH:mm' }}</p>
+            </div>
+          }
+        }
+      }
     </section>
 
     <section class="anexos">

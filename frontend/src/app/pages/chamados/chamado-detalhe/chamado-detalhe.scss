@@ -13,6 +13,56 @@
     font-size: 0.9rem;
   }
 
+  // Estilos compartilhados por todos os formulários da página (ações, comentário,
+  // avaliação) — evita repetir o mesmo bloco em cada seção.
+  form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+
+  label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    font-size: 0.8rem;
+    color: #555;
+
+    &.checkbox,
+    &.radio {
+      flex-direction: row;
+      align-items: center;
+      gap: 0.4rem;
+    }
+  }
+
+  select,
+  input,
+  textarea {
+    padding: 0.4rem;
+    font-size: 0.9rem;
+    font-family: inherit;
+    resize: vertical;
+  }
+
+  button {
+    padding: 0.45rem 0.9rem;
+    font-size: 0.9rem;
+    cursor: pointer;
+
+    &:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+  }
+
+  .badge {
+    padding: 0.1rem 0.5rem;
+    border-radius: 999px;
+    font-size: 0.7rem;
+    font-weight: 600;
+  }
+
   .content-head {
     display: flex;
     align-items: center;
@@ -65,10 +115,6 @@
       .badge {
         display: inline-block;
         margin-left: 0.35rem;
-        padding: 0.1rem 0.5rem;
-        border-radius: 999px;
-        font-size: 0.7rem;
-        font-weight: 600;
         vertical-align: middle;
 
         &.sla-emrisco {
@@ -124,43 +170,9 @@
         font-size: 1rem;
       }
 
-      form {
-        display: flex;
-        flex-direction: column;
-        gap: 0.6rem;
-      }
-
-      label {
-        display: flex;
-        flex-direction: column;
-        gap: 0.2rem;
-        font-size: 0.8rem;
-        color: #555;
-      }
-
-      select,
-      input,
-      textarea {
-        padding: 0.4rem;
-        font-size: 0.9rem;
-        font-family: inherit;
-        resize: vertical;
-      }
-
       .prazo-form {
         padding-top: 0.75rem;
         border-top: 1px solid #e5e5e5;
-      }
-
-      button {
-        padding: 0.45rem 0.9rem;
-        font-size: 0.9rem;
-        cursor: pointer;
-
-        &:disabled {
-          opacity: 0.6;
-          cursor: not-allowed;
-        }
       }
     }
   }
@@ -281,10 +293,6 @@
           }
 
           .badge.interno {
-            padding: 0.1rem 0.5rem;
-            border-radius: 999px;
-            font-size: 0.7rem;
-            font-weight: 600;
             background: #92400e;
             color: #fff;
           }
@@ -299,46 +307,71 @@
     }
 
     .form-comentario {
-      display: flex;
-      flex-direction: column;
-      gap: 0.6rem;
       padding-top: 0.75rem;
       border-top: 1px solid #e5e5e5;
 
-      label {
-        display: flex;
-        flex-direction: column;
-        gap: 0.2rem;
-        font-size: 0.8rem;
-        color: #555;
-
-        &.checkbox {
-          flex-direction: row;
-          align-items: center;
-          gap: 0.4rem;
-        }
-      }
-
-      textarea {
-        padding: 0.4rem;
-        font-size: 0.9rem;
-        font-family: inherit;
-        resize: vertical;
-      }
-
       button {
         align-self: flex-start;
-        padding: 0.45rem 0.9rem;
-        font-size: 0.9rem;
-        cursor: pointer;
+      }
+    }
+  }
 
-        &:disabled {
-          opacity: 0.6;
-          cursor: not-allowed;
-        }
+  .avaliacao {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 1rem;
+    background: #fff;
+    border: 1px solid #e5e5e5;
+    border-radius: 6px;
+
+    h2 {
+      margin: 0;
+      font-size: 1rem;
+    }
+
+    .form-avaliacao {
+      button {
+        align-self: flex-start;
       }
     }
 
+    .avaliacao-leitura {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      padding: 0.6rem 0.75rem;
+      background: #f5f7fa;
+      border-radius: 6px;
+
+      .avaliacao-head {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+
+        .nota {
+          font-weight: 600;
+          font-size: 0.9rem;
+        }
+
+        .badge {
+          background: #eef1f6;
+          color: #555;
+        }
+      }
+
+      .comentario {
+        margin: 0;
+        white-space: pre-wrap;
+        font-size: 0.9rem;
+      }
+
+      .meta {
+        margin: 0;
+        color: #666;
+        font-size: 0.8rem;
+      }
+    }
   }
 
   .anexos {

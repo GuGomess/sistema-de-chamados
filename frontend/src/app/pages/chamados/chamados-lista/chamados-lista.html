@@ -73,6 +73,11 @@
         <input type="date" formControlName="dataFim" />
       </label>
 
+      <label class="checkbox">
+        <input type="checkbox" formControlName="ocultarFinalizados" (change)="onFiltrar()" />
+        Esconder resolvidos
+      </label>
+
       <button type="submit" [disabled]="carregando()">Filtrar</button>
     </form>
 
@@ -95,6 +100,7 @@
               }
               <th>Técnico</th>
               <th>Aberto em</th>
+              <th>Resolvido em</th>
             </tr>
           </thead>
           <tbody>
@@ -107,13 +113,16 @@
                   <td>{{ chamado.solicitante.nome }}</td>
                   <td>{{ chamado.prioridade.nome }}</td>
                   <td>
-                    @if (situacaoSlaGeral(chamado); as situacao) {
+                    @if (chamado.status.final) {
+                      <span class="badge">{{ chamado.status.nome }}</span>
+                    } @else if (situacaoSlaGeral(chamado); as situacao) {
                       <span class="badge {{ 'sla-' + situacao.toLowerCase() }}">{{ situacaoSlaLabel(situacao) }}</span>
                     }
                   </td>
                 }
                 <td>{{ chamado.tecnico?.nome ?? '—' }}</td>
                 <td>{{ chamado.criadoEm | date: 'dd/MM/yyyy HH:mm' }}</td>
+                <td>{{ chamado.resolvidoEm ? (chamado.resolvidoEm | date: 'dd/MM/yyyy HH:mm') : '—' }}</td>
               </tr>
             }
           </tbody>

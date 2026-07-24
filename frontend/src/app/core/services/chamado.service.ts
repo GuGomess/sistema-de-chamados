@@ -1,11 +1,13 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable } from '@angular/core';
-import { Observable } from 'rxjs';
+import { catchError, Observable, of } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
 import {
   Anexo,
   AtribuirTecnicoRequest,
+  Avaliacao,
+  AvaliacaoCreateRequest,
   Categoria,
   Chamado,
   ChamadoCreateRequest,
@@ -14,6 +16,7 @@ import {
   ChamadoUpdateRequest,
   Comentario,
   ComentarioCreateRequest,
+  FecharClienteRequest,
   PrazoResolucaoUpdateRequest,
   PrazoRespostaUpdateRequest,
   Prioridade,
@@ -47,8 +50,13 @@ export class ChamadoService {
     return this.http.post<Chamado>(`${environment.apiBaseUrl}/v1/chamados/${id}/assumir`, {});
   }
 
-  liberar(id: number): Observable<Chamado> {
-    return this.http.post<Chamado>(`${environment.apiBaseUrl}/v1/chamados/${id}/liberar`, {});
+  reabrir(id: number): Observable<Chamado> {
+    return this.http.post<Chamado>(`${environment.apiBaseUrl}/v1/chamados/${id}/reabrir`, {});
+  }
+
+  fecharComoCliente(id: number, motivo?: string): Observable<Chamado> {
+    const request: FecharClienteRequest = { motivo };
+    return this.http.post<Chamado>(`${environment.apiBaseUrl}/v1/chamados/${id}/fechar-cliente`, request);
   }
 
   ajustarPrazoResolucao(id: number, request: PrazoResolucaoUpdateRequest): Observable<Chamado> {
@@ -86,6 +94,10 @@ export class ChamadoService {
     return this.http.get<UsuarioResumo[]>(`${environment.apiBaseUrl}/v1/usuarios/tecnicos`);
   }
 
+  listarAtribuiveis(): Observable<UsuarioResumo[]> {
+    return this.http.get<UsuarioResumo[]>(`${environment.apiBaseUrl}/v1/usuarios/atribuiveis`);
+  }
+
   resumoSla(): Observable<ResumoSla> {
     return this.http.get<ResumoSla>(`${environment.apiBaseUrl}/v1/chamados/resumo-sla`);
   }
@@ -118,5 +130,15 @@ export class ChamadoService {
     return this.http.get(`${environment.apiBaseUrl}/v1/chamados/${id}/anexos/${anexoId}/download`, {
       responseType: 'blob',
     });
+  }
+
+  obterAvaliacao(id: number): Observable<Avaliacao | null> {
+    return this.http
+      .get<Avaliacao>(`${environment.apiBaseUrl}/v1/chamados/${id}/avaliacao`)
+      .pipe(catchError(() => of(null)));
+  }
+
+  enviarAvaliacao(id: number, request: AvaliacaoCreateRequest): Observable<Avaliacao> {
+    return this.http.post<Avaliacao>(`${environment.apiBaseUrl}/v1/chamados/${id}/avaliacao`, request);
   }
 }

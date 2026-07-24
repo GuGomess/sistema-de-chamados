@@ -4,12 +4,14 @@ import { Component, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { DomSanitizer, SafeResourceUrl, SafeUrl } from '@angular/platform-browser';
 import { ActivatedRoute } from '@angular/router';
-import { concatMap, from, Observable } from 'rxjs';
+import { Observable } from 'rxjs';
 
 import { AuthService } from '../../../core/services/auth.service';
 import { ChamadoService } from '../../../core/services/chamado.service';
 import {
   Anexo,
+  Avaliacao,
+  AvaliacaoCreateRequest,
   Categoria,
   Chamado,
   ChamadoUpdateRequest,
@@ -82,11 +84,29 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
   protected readonly anexoErro = signal<string | null>(null);
   protected readonly anexoPreview = signal<AnexoPreview | null>(null);
 
+  protected readonly avaliacao = signal<Avaliacao | null>(null);
+  protected readonly carregandoAvaliacao = signal(true);
+  protected readonly enviandoAvaliacao = signal(false);
+  protected readonly avaliacaoErro = signal<string | null>(null);
+
   protected readonly form = this.formBuilder.nonNullable.group({
     idStatus: [null as number | null],
-    idTecnico: [null as number | null],
     idCategoria: [null as number | null],
     idPrioridade: [null as number | null],
+  });
+
+  protected readonly atribuirForm = this.formBuilder.nonNullable.group({
+    idTecnico: [null as number | null],
+  });
+
+  protected readonly fecharClienteForm = this.formBuilder.nonNullable.group({
+    motivo: [''],
+  });
+
+  protected readonly avaliacaoForm = this.formBuilder.nonNullable.group({
+    nota: [null as number | null],
+    comentario: [''],
+    publica: [true],
   });
 
   protected readonly comentarioForm = this.formBuilder.nonNullable.group({
@@ -107,6 +127,7 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
     this.carregarChamado();
     this.carregarComentarios();
     this.carregarAnexos();
+    this.carregarAvaliacao();
 
     if (this.ehAdministrador() || this.ehTecnico()) {
       this.chamadoService.listarStatus().subscribe({ next: (status) => this.statusList.set(status) });
@@ -114,10 +135,9 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
       // Triar"/"Média" por padrão) — precisa que técnico/admin reclassifiquem.
       this.chamadoService.listarCategorias().subscribe({ next: (categorias) => this.categorias.set(categorias) });
       this.chamadoService.listarPrioridades().subscribe({ next: (prioridades) => this.prioridades.set(prioridades) });
-    }
 
-    if (this.ehAdministrador()) {
-      this.chamadoService.listarTecnicos().subscribe({ next: (tecnicos) => this.tecnicos.set(tecnicos) });
+      // Reatribuição: administrador vê técnicos e administradores; técnico só vê técnicos.
+      this.chamadoService.listarAtribuiveis().subscribe({ next: (atribuiveis) => this.tecnicos.set(atribuiveis) });
     }
   }
 
@@ -157,12 +177,9 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
     return this.ehTecnico() && !!chamado && !chamado.tecnico && !chamado.status.final;
   }
 
-  protected podeLiberar(): boolean {
+  protected podeReabrir(): boolean {
     const chamado = this.chamado();
-    if (!chamado || !chamado.tecnico) {
-      return false;
-    }
-    return this.ehAdministrador() || (this.ehTecnico() && chamado.tecnico.id === this.usuarioId);
+    return !!chamado && chamado.status.final;
   }
 
   protected podeAlterarStatus(): boolean {
@@ -175,7 +192,20 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
 
   protected podeAtribuirTecnico(): boolean {
     const chamado = this.chamado();
-    return this.ehAdministrador() && !!chamado && !chamado.status.final;
+    if (!chamado || chamado.status.final) {
+      return false;
+    }
+    if (this.ehAdministrador()) {
+      return true;
+    }
+    return this.ehTecnico() && (!chamado.tecnico || chamado.tecnico.id === this.usuarioId);
+  }
+
+  // Cliente pode fechar o próprio chamado enquanto ele não estiver "Fechado"
+  // (mesmo já "Resolvido" ele pode reabrir ou fechar formalmente).
+  protected podeFecharComoCliente(): boolean {
+    const chamado = this.chamado();
+    return this.ehCliente() && !!chamado && chamado.status.nome !== 'Fechado';
   }
 
   protected podeAjustarPrazo(): boolean {
@@ -297,6 +327,54 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
     });
   }
 
+  private carregarAvaliacao(): void {
+    this.carregandoAvaliacao.set(true);
+
+    // O service já trata "sem avaliação visível" (404/403) como null, então
+    // funciona sem checagem extra de perfil aqui.
+    this.chamadoService.obterAvaliacao(this.id).subscribe({
+      next: (avaliacao) => {
+        this.avaliacao.set(avaliacao);
+        this.carregandoAvaliacao.set(false);
+      },
+      error: () => {
+        this.carregandoAvaliacao.set(false);
+      },
+    });
+  }
+
+  protected enviarAvaliacao(): void {
+    if (this.enviandoAvaliacao()) {
+      return;
+    }
+
+    const { nota, comentario, publica } = this.avaliacaoForm.getRawValue();
+    if (nota === null || nota < 0 || nota > 5) {
+      this.avaliacaoErro.set('Selecione uma nota entre 0 e 5.');
+      return;
+    }
+
+    const request: AvaliacaoCreateRequest = {
+      nota,
+      comentario: comentario.trim() ? comentario.trim() : undefined,
+      publica,
+    };
+
+    this.enviandoAvaliacao.set(true);
+    this.avaliacaoErro.set(null);
+
+    this.chamadoService.enviarAvaliacao(this.id, request).subscribe({
+      next: (avaliacao) => {
+        this.avaliacao.set(avaliacao);
+        this.enviandoAvaliacao.set(false);
+      },
+      error: (error: HttpErrorResponse) => {
+        this.enviandoAvaliacao.set(false);
+        this.avaliacaoErro.set(this.mensagemErroAcao(error));
+      },
+    });
+  }
+
   protected enviarAnexo(event: Event): void {
     const input = event.target as HTMLInputElement;
     const arquivo = input.files?.[0];
@@ -391,8 +469,36 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
     this.executarAcao(this.chamadoService.assumir(this.id));
   }
 
-  protected liberar(): void {
-    this.executarAcao(this.chamadoService.liberar(this.id));
+  protected reabrir(): void {
+    this.executarAcao(this.chamadoService.reabrir(this.id));
+  }
+
+  protected atribuirTecnico(): void {
+    const chamado = this.chamado();
+    if (!chamado || this.salvando()) {
+      return;
+    }
+
+    const { idTecnico } = this.atribuirForm.getRawValue();
+    if (idTecnico === null || idTecnico === (chamado.tecnico?.id ?? null)) {
+      return;
+    }
+
+    this.executarAcao(this.chamadoService.atribuir(chamado.id, idTecnico));
+  }
+
+  protected fecharComoCliente(): void {
+    if (this.salvando()) {
+      return;
+    }
+    if (!window.confirm('Tem certeza que deseja fechar este chamado?')) {
+      return;
+    }
+
+    const { motivo } = this.fecharClienteForm.getRawValue();
+    const motivoTratado = motivo.trim() || undefined;
+
+    this.executarAcao(this.chamadoService.fecharComoCliente(this.id, motivoTratado));
   }
 
   protected ajustarPrazo(): void {
@@ -438,8 +544,7 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
       return;
     }
 
-    const { idStatus, idTecnico, idCategoria, idPrioridade } = this.form.getRawValue();
-    const acoes: Observable<Chamado>[] = [];
+    const { idStatus, idCategoria, idPrioridade } = this.form.getRawValue();
 
     const atualizacao: ChamadoUpdateRequest = {};
     if (idStatus !== null && idStatus !== chamado.status.id) {
@@ -451,31 +556,12 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
     if (idPrioridade !== null && idPrioridade !== chamado.prioridade.id) {
       atualizacao.idPrioridade = idPrioridade;
     }
-    if (Object.keys(atualizacao).length > 0) {
-      acoes.push(this.chamadoService.atualizar(chamado.id, atualizacao));
-    }
 
-    if (this.podeAtribuirTecnico() && idTecnico !== null && idTecnico !== (chamado.tecnico?.id ?? null)) {
-      acoes.push(this.chamadoService.atribuir(chamado.id, idTecnico));
-    }
-
-    if (acoes.length === 0) {
+    if (Object.keys(atualizacao).length === 0) {
       return;
     }
 
-    this.salvando.set(true);
-    this.acaoErro.set(null);
-
-    from(acoes)
-      .pipe(concatMap((acao) => acao))
-      .subscribe({
-        next: (atualizado) => this.aplicarChamado(atualizado),
-        error: (error: HttpErrorResponse) => {
-          this.salvando.set(false);
-          this.acaoErro.set(this.mensagemErroAcao(error));
-        },
-        complete: () => this.salvando.set(false),
-      });
+    this.executarAcao(this.chamadoService.atualizar(chamado.id, atualizacao));
   }
 
   private executarAcao(acao: Observable<Chamado>): void {
@@ -519,10 +605,13 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
     this.form.patchValue(
       {
         idStatus: chamado.status.id,
-        idTecnico: chamado.tecnico?.id ?? null,
         idCategoria: chamado.categoria.id,
         idPrioridade: chamado.prioridade.id,
       },
+      { emitEvent: false },
+    );
+    this.atribuirForm.patchValue(
+      { idTecnico: chamado.tecnico?.id ?? null },
       { emitEvent: false },
     );
     this.prazoForm.patchValue(
