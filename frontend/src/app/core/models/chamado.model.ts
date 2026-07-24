@@ -32,8 +32,10 @@ export interface UsuarioResumo {
 export interface ChamadoCreateRequest {
   titulo: string;
   descricao: string;
-  idCategoria: number;
-  idPrioridade: number;
+  // Opcionais: cliente não escolhe categoria/prioridade ao abrir um chamado
+  // (o servidor aplica os defaults de triagem); técnico/administrador informam.
+  idCategoria?: number;
+  idPrioridade?: number;
 }
 
 export interface ChamadoUpdateRequest {
@@ -68,6 +70,7 @@ export interface Chamado {
   atualizadoEm: string;
   prazoResposta: string | null;
   prazoResolucao: string | null;
+  primeiraRespostaEm: string | null;
   resolvidoEm: string | null;
   fechadoEm: string | null;
   situacaoSlaResposta: SituacaoSla;
@@ -98,6 +101,8 @@ export interface ChamadoFiltros {
   dataInicio?: string | null;
   dataFim?: string | null;
   situacaoSla?: SituacaoSla | null;
+  // Aba "Meus chamados" (técnico/administrador): assumidos por mim ou abertos por mim.
+  meus?: boolean;
 }
 
 export interface ResumoSla {

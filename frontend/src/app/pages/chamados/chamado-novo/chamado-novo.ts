@@ -4,6 +4,7 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import { catchError, forkJoin, of } from 'rxjs';
 
+import { AuthService } from '../../../core/services/auth.service';
 import { ChamadoService } from '../../../core/services/chamado.service';
 import { Categoria, Prioridade } from '../../../core/models/chamado.model';
 
@@ -20,23 +21,32 @@ interface ErrorResponse {
 export class ChamadoNovo implements OnInit {
   private readonly formBuilder = inject(FormBuilder);
   private readonly chamadoService = inject(ChamadoService);
+  private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
+
+  // Cliente não classifica o próprio chamado: categoria/prioridade ficam a
+  // cargo do técnico/administrador na triagem (servidor aplica defaults).
+  protected readonly ehCliente = this.authService.getPerfil() === 'CLIENTE';
 
   protected readonly categorias = signal<Categoria[]>([]);
   protected readonly prioridades = signal<Prioridade[]>([]);
-  protected readonly carregandoOpcoes = signal(true);
+  protected readonly carregandoOpcoes = signal(!this.ehCliente);
   protected readonly enviando = signal(false);
   protected readonly erro = signal<string | null>(null);
   protected readonly arquivos = signal<File[]>([]);
 
   protected readonly form = this.formBuilder.nonNullable.group({
     titulo: ['', [Validators.required, Validators.maxLength(160)]],
-    idCategoria: [null as number | null, [Validators.required]],
-    idPrioridade: [null as number | null, [Validators.required]],
+    idCategoria: [null as number | null, this.ehCliente ? [] : [Validators.required]],
+    idPrioridade: [null as number | null, this.ehCliente ? [] : [Validators.required]],
     descricao: ['', [Validators.required]],
   });
 
   ngOnInit(): void {
+    if (this.ehCliente) {
+      return;
+    }
+
     forkJoin({
       categorias: this.chamadoService.listarCategorias(),
       prioridades: this.chamadoService.listarPrioridades(),
@@ -68,8 +78,8 @@ export class ChamadoNovo implements OnInit {
       .criar({
         titulo,
         descricao,
-        idCategoria: idCategoria!,
-        idPrioridade: idPrioridade!,
+        idCategoria: idCategoria ?? undefined,
+        idPrioridade: idPrioridade ?? undefined,
       })
       .subscribe({
         next: (chamado) => this.enviarAnexosEIrParaDetalhe(chamado.id),

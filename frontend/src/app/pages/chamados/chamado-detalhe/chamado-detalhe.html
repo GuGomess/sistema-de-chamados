@@ -7,7 +7,9 @@
     <div class="content-head">
       <h1>#{{ chamado.id }} · {{ chamado.titulo }}</h1>
       <span class="chip status">{{ chamado.status.nome }}</span>
-      <span class="chip">{{ chamado.prioridade.nome }}</span>
+      @if (!ehCliente()) {
+        <span class="chip">{{ chamado.prioridade.nome }}</span>
+      }
     </div>
 
     <div class="sla-strip">
@@ -19,32 +21,34 @@
         <span class="l">Técnico</span>
         <span class="v">{{ chamado.tecnico?.nome ?? 'Não atribuído' }}</span>
       </div>
-      <div class="sla-i">
-        <span class="l">Categoria</span>
-        <span class="v">{{ chamado.categoria.nome }}</span>
-      </div>
-      <div class="sla-i">
-        <span class="l">Prazo resposta</span>
-        <span class="v">
-          {{ chamado.prazoResposta ? (chamado.prazoResposta | date: 'dd/MM/yyyy HH:mm') : '—' }}
-          @if (chamado.prazoResposta && chamado.situacaoSlaResposta !== 'EmDia') {
-            <span class="badge {{ 'sla-' + chamado.situacaoSlaResposta.toLowerCase() }}">{{
-              situacaoSlaLabel(chamado.situacaoSlaResposta)
-            }}</span>
-          }
-        </span>
-      </div>
-      <div class="sla-i">
-        <span class="l">Prazo resolução</span>
-        <span class="v">
-          {{ chamado.prazoResolucao ? (chamado.prazoResolucao | date: 'dd/MM/yyyy HH:mm') : '—' }}
-          @if (chamado.prazoResolucao && chamado.situacaoSlaResolucao !== 'EmDia') {
-            <span class="badge {{ 'sla-' + chamado.situacaoSlaResolucao.toLowerCase() }}">{{
-              situacaoSlaLabel(chamado.situacaoSlaResolucao)
-            }}</span>
-          }
-        </span>
-      </div>
+      @if (!ehCliente()) {
+        <div class="sla-i">
+          <span class="l">Categoria</span>
+          <span class="v">{{ chamado.categoria.nome }}</span>
+        </div>
+        <div class="sla-i">
+          <span class="l">Prazo resposta</span>
+          <span class="v">
+            {{ chamado.prazoResposta ? (chamado.prazoResposta | date: 'dd/MM/yyyy HH:mm') : '—' }}
+            @if (chamado.prazoResposta && chamado.situacaoSlaResposta !== 'EmDia') {
+              <span class="badge {{ 'sla-' + chamado.situacaoSlaResposta.toLowerCase() }}">{{
+                situacaoSlaLabel(chamado.situacaoSlaResposta)
+              }}</span>
+            }
+          </span>
+        </div>
+        <div class="sla-i">
+          <span class="l">Prazo resolução</span>
+          <span class="v">
+            {{ chamado.prazoResolucao ? (chamado.prazoResolucao | date: 'dd/MM/yyyy HH:mm') : '—' }}
+            @if (chamado.prazoResolucao && chamado.situacaoSlaResolucao !== 'EmDia') {
+              <span class="badge {{ 'sla-' + chamado.situacaoSlaResolucao.toLowerCase() }}">{{
+                situacaoSlaLabel(chamado.situacaoSlaResolucao)
+              }}</span>
+            }
+          </span>
+        </div>
+      }
     </div>
 
     <div class="corpo">

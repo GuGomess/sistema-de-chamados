@@ -1,8 +1,19 @@
 <section class="chamados-lista-wrap">
   <div class="content-head">
-    <h1>Chamados</h1>
+    <h1>{{ ehCliente ? 'Meus chamados' : (mostrarMeus() ? 'Meus chamados' : 'Chamados') }}</h1>
     <a class="btn" routerLink="/chamados/novo">+ Novo</a>
   </div>
+
+  @if (ehStaff) {
+    <div class="abas" role="tablist">
+      <button type="button" role="tab" [attr.aria-selected]="!mostrarMeus()" [class.ativa]="!mostrarMeus()" (click)="selecionarAba(false)">
+        Chamados
+      </button>
+      <button type="button" role="tab" [attr.aria-selected]="mostrarMeus()" [class.ativa]="mostrarMeus()" (click)="selecionarAba(true)">
+        Meus chamados
+      </button>
+    </div>
+  }
 
   @if (erro()) {
     <p class="erro" role="alert">{{ erro() }}</p>
@@ -21,19 +32,21 @@
         }
       </select>
 
-      <select formControlName="idCategoria">
-        <option [ngValue]="null">Categoria</option>
-        @for (categoria of categorias(); track categoria.id) {
-          <option [ngValue]="categoria.id">{{ categoria.nome }}</option>
-        }
-      </select>
+      @if (ehStaff) {
+        <select formControlName="idCategoria">
+          <option [ngValue]="null">Categoria</option>
+          @for (categoria of categorias(); track categoria.id) {
+            <option [ngValue]="categoria.id">{{ categoria.nome }}</option>
+          }
+        </select>
 
-      <select formControlName="idPrioridade">
-        <option [ngValue]="null">Prioridade</option>
-        @for (prioridade of prioridades(); track prioridade.id) {
-          <option [ngValue]="prioridade.id">{{ prioridade.nome }}</option>
-        }
-      </select>
+        <select formControlName="idPrioridade">
+          <option [ngValue]="null">Prioridade</option>
+          @for (prioridade of prioridades(); track prioridade.id) {
+            <option [ngValue]="prioridade.id">{{ prioridade.nome }}</option>
+          }
+        </select>
+      }
 
       <select formControlName="idTecnico">
         <option [ngValue]="null">Técnico</option>
@@ -42,11 +55,13 @@
         }
       </select>
 
-      <select formControlName="situacaoSla">
-        <option [ngValue]="null">SLA</option>
-        <option [ngValue]="'EmRisco'">Em risco</option>
-        <option [ngValue]="'Vencido'">Vencido</option>
-      </select>
+      @if (ehStaff) {
+        <select formControlName="situacaoSla">
+          <option [ngValue]="null">SLA</option>
+          <option [ngValue]="'EmRisco'">Em risco</option>
+          <option [ngValue]="'Vencido'">Vencido</option>
+        </select>
+      }
 
       <label>
         De
@@ -73,8 +88,11 @@
               <th>#</th>
               <th>Título</th>
               <th>Status</th>
-              <th>Prioridade</th>
-              <th>SLA</th>
+              @if (ehStaff) {
+                <th>Aberto por</th>
+                <th>Prioridade</th>
+                <th>SLA</th>
+              }
               <th>Técnico</th>
               <th>Aberto em</th>
             </tr>
@@ -85,16 +103,19 @@
                 <td>#{{ chamado.id }}</td>
                 <td>{{ chamado.titulo }}</td>
                 <td>{{ chamado.status.nome }}</td>
-                <td>{{ chamado.prioridade.nome }}</td>
-                <td>
-                  @if (situacaoSlaGeral(chamado); as situacao) {
-                    @if (situacao !== 'EmDia') {
-                      <span class="badge {{ 'sla-' + situacao.toLowerCase() }}">{{ situacaoSlaLabel(situacao) }}</span>
-                    } @else {
-                      —
+                @if (ehStaff) {
+                  <td>{{ chamado.solicitante.nome }}</td>
+                  <td>{{ chamado.prioridade.nome }}</td>
+                  <td>
+                    @if (situacaoSlaGeral(chamado); as situacao) {
+                      @if (situacao !== 'EmDia') {
+                        <span class="badge {{ 'sla-' + situacao.toLowerCase() }}">{{ situacaoSlaLabel(situacao) }}</span>
+                      } @else {
+                        —
+                      }
                     }
-                  }
-                </td>
+                  </td>
+                }
                 <td>{{ chamado.tecnico?.nome ?? '—' }}</td>
                 <td>{{ chamado.criadoEm | date: 'dd/MM/yyyy HH:mm' }}</td>
               </tr>

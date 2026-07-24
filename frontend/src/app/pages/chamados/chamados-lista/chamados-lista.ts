@@ -5,6 +5,7 @@ import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { forkJoin } from 'rxjs';
 
+import { AuthService } from '../../../core/services/auth.service';
 import { ChamadoService } from '../../../core/services/chamado.service';
 import {
   Categoria,
@@ -25,8 +26,15 @@ import {
 export class ChamadosLista implements OnInit {
   private readonly formBuilder = inject(FormBuilder);
   private readonly chamadoService = inject(ChamadoService);
+  private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
+
+  // Cliente não vê categoria/prioridade/SLA (conceitos de triagem interna) nem
+  // a aba "Meus chamados" (exclusiva de técnico/administrador).
+  protected readonly ehCliente = this.authService.getPerfil() === 'CLIENTE';
+  protected readonly ehStaff = !this.ehCliente;
+  protected readonly mostrarMeus = signal(false);
 
   protected readonly status = signal<Status[]>([]);
   protected readonly categorias = signal<Categoria[]>([]);
@@ -58,6 +66,10 @@ export class ChamadosLista implements OnInit {
       this.form.controls.situacaoSla.setValue(situacaoSlaParam);
     }
 
+    if (this.ehStaff && this.route.snapshot.queryParamMap.get('meus') === 'true') {
+      this.mostrarMeus.set(true);
+    }
+
     forkJoin({
       status: this.chamadoService.listarStatus(),
       categorias: this.chamadoService.listarCategorias(),
@@ -81,6 +93,21 @@ export class ChamadosLista implements OnInit {
 
   protected onFiltrar(): void {
     this.pagina = 1;
+    this.buscar();
+  }
+
+  protected selecionarAba(meus: boolean): void {
+    if (!this.ehStaff || this.mostrarMeus() === meus) {
+      return;
+    }
+    this.mostrarMeus.set(meus);
+    this.pagina = 1;
+    this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { meus: meus ? true : null },
+      queryParamsHandling: 'merge',
+      replaceUrl: true,
+    });
     this.buscar();
   }
 
@@ -133,6 +160,7 @@ export class ChamadosLista implements OnInit {
         dataInicio: dataInicio || null,
         dataFim: dataFim || null,
         situacaoSla,
+        meus: this.ehStaff && this.mostrarMeus() ? true : undefined,
       })
       .subscribe({
         next: (pagina) => {

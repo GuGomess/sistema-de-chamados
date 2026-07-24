@@ -16,26 +16,28 @@
         <span class="campo-erro">Informe um título com até 160 caracteres.</span>
       }
 
-      <label for="idCategoria">Categoria</label>
-      <select id="idCategoria" formControlName="idCategoria">
-        <option [ngValue]="null" disabled>Selecione uma categoria</option>
-        @for (categoria of categorias(); track categoria.id) {
-          <option [ngValue]="categoria.id">{{ categoria.nome }}</option>
+      @if (!ehCliente) {
+        <label for="idCategoria">Categoria</label>
+        <select id="idCategoria" formControlName="idCategoria">
+          <option [ngValue]="null" disabled>Selecione uma categoria</option>
+          @for (categoria of categorias(); track categoria.id) {
+            <option [ngValue]="categoria.id">{{ categoria.nome }}</option>
+          }
+        </select>
+        @if (form.controls.idCategoria.invalid && form.controls.idCategoria.touched) {
+          <span class="campo-erro">Selecione uma categoria.</span>
         }
-      </select>
-      @if (form.controls.idCategoria.invalid && form.controls.idCategoria.touched) {
-        <span class="campo-erro">Selecione uma categoria.</span>
-      }
 
-      <label for="idPrioridade">Prioridade</label>
-      <select id="idPrioridade" formControlName="idPrioridade">
-        <option [ngValue]="null" disabled>Selecione uma prioridade</option>
-        @for (prioridade of prioridades(); track prioridade.id) {
-          <option [ngValue]="prioridade.id">{{ prioridade.nome }}</option>
+        <label for="idPrioridade">Prioridade</label>
+        <select id="idPrioridade" formControlName="idPrioridade">
+          <option [ngValue]="null" disabled>Selecione uma prioridade</option>
+          @for (prioridade of prioridades(); track prioridade.id) {
+            <option [ngValue]="prioridade.id">{{ prioridade.nome }}</option>
+          }
+        </select>
+        @if (form.controls.idPrioridade.invalid && form.controls.idPrioridade.touched) {
+          <span class="campo-erro">Selecione uma prioridade.</span>
         }
-      </select>
-      @if (form.controls.idPrioridade.invalid && form.controls.idPrioridade.touched) {
-        <span class="campo-erro">Selecione uma prioridade.</span>
       }
 
       <label for="descricao">Descrição</label>

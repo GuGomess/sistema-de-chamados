@@ -136,6 +136,11 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
     return this.perfil === 'TECNICO';
   }
 
+  // Cliente não vê categoria/prioridade/SLA (conceitos de triagem interna).
+  protected ehCliente(): boolean {
+    return this.perfil === 'CLIENTE';
+  }
+
   protected podeAssumir(): boolean {
     const chamado = this.chamado();
     return this.ehTecnico() && !!chamado && !chamado.tecnico && !chamado.status.final;
