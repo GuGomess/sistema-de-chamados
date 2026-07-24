@@ -1,13 +1,15 @@
 import { DatePipe } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
+import { DomSanitizer, SafeResourceUrl, SafeUrl } from '@angular/platform-browser';
 import { ActivatedRoute } from '@angular/router';
 import { concatMap, from, Observable } from 'rxjs';
 
 import { AuthService } from '../../../core/services/auth.service';
 import { ChamadoService } from '../../../core/services/chamado.service';
 import {
+  Anexo,
   Chamado,
   Comentario,
   ComentarioCreateRequest,
@@ -20,6 +22,15 @@ import {
 
 interface ErrorResponse {
   errors?: Record<string, string[]>;
+  detail?: string;
+}
+
+interface AnexoPreview {
+  nomeArquivo: string;
+  tipoMime: string;
+  objectUrl: string;
+  imagemUrl: SafeUrl;
+  documentoUrl: SafeResourceUrl;
 }
 
 @Component({
@@ -28,11 +39,12 @@ interface ErrorResponse {
   templateUrl: './chamado-detalhe.html',
   styleUrl: './chamado-detalhe.scss',
 })
-export class ChamadoDetalhe implements OnInit {
+export class ChamadoDetalhe implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly chamadoService = inject(ChamadoService);
   private readonly authService = inject(AuthService);
   private readonly formBuilder = inject(FormBuilder);
+  private readonly sanitizer = inject(DomSanitizer);
 
   private readonly id = Number(this.route.snapshot.paramMap.get('id'));
   private readonly perfil = this.authService.getPerfil();
@@ -50,6 +62,12 @@ export class ChamadoDetalhe implements OnInit {
   protected readonly carregandoComentarios = signal(true);
   protected readonly enviandoComentario = signal(false);
   protected readonly comentarioErro = signal<string | null>(null);
+
+  protected readonly anexos = signal<Anexo[]>([]);
+  protected readonly carregandoAnexos = signal(true);
+  protected readonly enviandoAnexo = signal(false);
+  protected readonly anexoErro = signal<string | null>(null);
+  protected readonly anexoPreview = signal<AnexoPreview | null>(null);
 
   protected readonly form = this.formBuilder.nonNullable.group({
     idStatus: [null as number | null],
@@ -73,6 +91,7 @@ export class ChamadoDetalhe implements OnInit {
   ngOnInit(): void {
     this.carregarChamado();
     this.carregarComentarios();
+    this.carregarAnexos();
 
     if (this.ehAdministrador() || this.ehTecnico()) {
       this.chamadoService.listarStatus().subscribe({ next: (status) => this.statusList.set(status) });
@@ -80,6 +99,13 @@ export class ChamadoDetalhe implements OnInit {
 
     if (this.ehAdministrador()) {
       this.chamadoService.listarTecnicos().subscribe({ next: (tecnicos) => this.tecnicos.set(tecnicos) });
+    }
+  }
+
+  ngOnDestroy(): void {
+    const preview = this.anexoPreview();
+    if (preview) {
+      URL.revokeObjectURL(preview.objectUrl);
     }
   }
 
@@ -184,6 +210,110 @@ export class ChamadoDetalhe implements OnInit {
         this.carregandoComentarios.set(false);
       },
     });
+  }
+
+  private carregarAnexos(): void {
+    this.carregandoAnexos.set(true);
+
+    this.chamadoService.listarAnexos(this.id).subscribe({
+      next: (anexos) => {
+        this.anexos.set(anexos);
+        this.carregandoAnexos.set(false);
+      },
+      error: () => {
+        this.carregandoAnexos.set(false);
+      },
+    });
+  }
+
+  protected enviarAnexo(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const arquivo = input.files?.[0];
+    if (!arquivo) {
+      return;
+    }
+
+    this.enviandoAnexo.set(true);
+    this.anexoErro.set(null);
+
+    this.chamadoService.enviarAnexo(this.id, arquivo).subscribe({
+      next: (anexo) => {
+        this.anexos.update((atual) => [...atual, anexo]);
+        this.enviandoAnexo.set(false);
+        input.value = '';
+      },
+      error: (error: HttpErrorResponse) => {
+        this.enviandoAnexo.set(false);
+        this.anexoErro.set(this.mensagemErroAnexo(error));
+        input.value = '';
+      },
+    });
+  }
+
+  protected baixarAnexo(anexo: Anexo): void {
+    this.chamadoService.baixarAnexo(this.id, anexo.id).subscribe({
+      next: (blob) => {
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = anexo.nomeArquivo;
+        link.click();
+        URL.revokeObjectURL(url);
+      },
+      error: () => this.anexoErro.set('Não foi possível baixar o anexo.'),
+    });
+  }
+
+  protected podeVisualizar(anexo: Anexo): boolean {
+    return anexo.tipoMime.startsWith('image/') || anexo.tipoMime === 'application/pdf';
+  }
+
+  protected visualizarAnexo(anexo: Anexo): void {
+    this.chamadoService.baixarAnexo(this.id, anexo.id).subscribe({
+      next: (blob) => {
+        const objectUrl = URL.createObjectURL(blob);
+        this.anexoPreview.set({
+          nomeArquivo: anexo.nomeArquivo,
+          tipoMime: anexo.tipoMime,
+          objectUrl,
+          imagemUrl: this.sanitizer.bypassSecurityTrustUrl(objectUrl),
+          documentoUrl: this.sanitizer.bypassSecurityTrustResourceUrl(objectUrl),
+        });
+      },
+      error: () => this.anexoErro.set('Não foi possível visualizar o anexo.'),
+    });
+  }
+
+  protected fecharPreview(): void {
+    const preview = this.anexoPreview();
+    if (preview) {
+      URL.revokeObjectURL(preview.objectUrl);
+    }
+    this.anexoPreview.set(null);
+  }
+
+  protected formatarTamanho(bytes: number): string {
+    if (bytes < 1024) {
+      return `${bytes} B`;
+    }
+    const kb = bytes / 1024;
+    if (kb < 1024) {
+      return `${kb.toFixed(1)} KB`;
+    }
+    return `${(kb / 1024).toFixed(1)} MB`;
+  }
+
+  private mensagemErroAnexo(error: HttpErrorResponse): string {
+    if (error.status === 422) {
+      const body = error.error as ErrorResponse;
+      if (body?.detail) {
+        return body.detail;
+      }
+    }
+    if (error.status === 403) {
+      return 'Você não tem permissão para enviar anexos neste chamado.';
+    }
+    return 'Não foi possível enviar o anexo. Tente novamente.';
   }
 
   protected assumir(): void {

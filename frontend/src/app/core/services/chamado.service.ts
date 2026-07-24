@@ -4,6 +4,7 @@ import { Observable } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
 import {
+  Anexo,
   AtribuirTecnicoRequest,
   Categoria,
   Chamado,
@@ -95,5 +96,21 @@ export class ChamadoService {
 
   criarComentario(id: number, request: ComentarioCreateRequest): Observable<Comentario> {
     return this.http.post<Comentario>(`${environment.apiBaseUrl}/v1/chamados/${id}/comentarios`, request);
+  }
+
+  listarAnexos(id: number): Observable<Anexo[]> {
+    return this.http.get<Anexo[]>(`${environment.apiBaseUrl}/v1/chamados/${id}/anexos`);
+  }
+
+  enviarAnexo(id: number, arquivo: File): Observable<Anexo> {
+    const formData = new FormData();
+    formData.append('arquivo', arquivo);
+    return this.http.post<Anexo>(`${environment.apiBaseUrl}/v1/chamados/${id}/anexos`, formData);
+  }
+
+  baixarAnexo(id: number, anexoId: number): Observable<Blob> {
+    return this.http.get(`${environment.apiBaseUrl}/v1/chamados/${id}/anexos/${anexoId}/download`, {
+      responseType: 'blob',
+    });
   }
 }

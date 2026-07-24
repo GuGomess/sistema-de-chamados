@@ -2,7 +2,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Component, inject, OnInit, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
-import { forkJoin } from 'rxjs';
+import { catchError, forkJoin, of } from 'rxjs';
 
 import { ChamadoService } from '../../../core/services/chamado.service';
 import { Categoria, Prioridade } from '../../../core/models/chamado.model';
@@ -27,6 +27,7 @@ export class ChamadoNovo implements OnInit {
   protected readonly carregandoOpcoes = signal(true);
   protected readonly enviando = signal(false);
   protected readonly erro = signal<string | null>(null);
+  protected readonly arquivos = signal<File[]>([]);
 
   protected readonly form = this.formBuilder.nonNullable.group({
     titulo: ['', [Validators.required, Validators.maxLength(160)]],
@@ -71,15 +72,52 @@ export class ChamadoNovo implements OnInit {
         idPrioridade: idPrioridade!,
       })
       .subscribe({
-        next: (chamado) => {
-          this.enviando.set(false);
-          this.router.navigate(['/chamados', chamado.id]);
-        },
+        next: (chamado) => this.enviarAnexosEIrParaDetalhe(chamado.id),
         error: (error: HttpErrorResponse) => {
           this.enviando.set(false);
           this.erro.set(this.mensagemErro(error));
         },
       });
+  }
+
+  protected selecionarArquivos(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const novos = Array.from(input.files ?? []);
+    this.arquivos.update((atual) => [...atual, ...novos]);
+    input.value = '';
+  }
+
+  protected removerArquivo(arquivo: File): void {
+    this.arquivos.update((atual) => atual.filter((item) => item !== arquivo));
+  }
+
+  protected formatarTamanho(bytes: number): string {
+    if (bytes < 1024) {
+      return `${bytes} B`;
+    }
+    const kb = bytes / 1024;
+    if (kb < 1024) {
+      return `${kb.toFixed(1)} KB`;
+    }
+    return `${(kb / 1024).toFixed(1)} MB`;
+  }
+
+  private enviarAnexosEIrParaDetalhe(idChamado: number): void {
+    const arquivos = this.arquivos();
+    if (arquivos.length === 0) {
+      this.enviando.set(false);
+      this.router.navigate(['/chamados', idChamado]);
+      return;
+    }
+
+    const uploads = arquivos.map((arquivo) =>
+      this.chamadoService.enviarAnexo(idChamado, arquivo).pipe(catchError(() => of(null))),
+    );
+
+    forkJoin(uploads).subscribe(() => {
+      this.enviando.set(false);
+      this.router.navigate(['/chamados', idChamado]);
+    });
   }
 
   private mensagemErro(error: HttpErrorResponse): string {

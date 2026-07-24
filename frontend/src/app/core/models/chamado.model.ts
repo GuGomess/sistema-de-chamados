@@ -118,3 +118,14 @@ export interface ComentarioCreateRequest {
   mensagem: string;
   interno: boolean;
 }
+
+export interface Anexo {
+  id: number;
+  idChamado: number;
+  autor: UsuarioResumo;
+  nomeArquivo: string;
+  tipoMime: string;
+  tamanhoBytes: number;
+  url: string;
+  criadoEm: string;
+}

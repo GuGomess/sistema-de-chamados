@@ -44,6 +44,20 @@
         <span class="campo-erro">Descreva o problema.</span>
       }
 
+      <label for="anexos">Anexos (opcional)</label>
+      <input id="anexos" type="file" multiple (change)="selecionarArquivos($event)" [disabled]="enviando()" />
+
+      @if (arquivos().length > 0) {
+        <ul class="lista-arquivos-staged">
+          @for (arquivo of arquivos(); track arquivo) {
+            <li>
+              <span>{{ arquivo.name }} ({{ formatarTamanho(arquivo.size) }})</span>
+              <button type="button" (click)="removerArquivo(arquivo)" [disabled]="enviando()">Remover</button>
+            </li>
+          }
+        </ul>
+      }
+
       <button type="submit" [disabled]="enviando()">
         {{ enviando() ? 'Enviando...' : 'Abrir chamado' }}
       </button>

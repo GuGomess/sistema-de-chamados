@@ -173,5 +173,65 @@
         <button type="submit" [disabled]="enviandoComentario()">Comentar</button>
       </form>
     </section>
+
+    <section class="anexos">
+      <h2>Anexos</h2>
+
+      @if (carregandoAnexos()) {
+        <p>Carregando anexos...</p>
+      } @else if (anexos().length === 0) {
+        <p class="vazio">Nenhum anexo ainda.</p>
+      } @else {
+        <ul class="lista-anexos">
+          @for (anexo of anexos(); track anexo.id) {
+            <li class="anexo">
+              <div class="anexo-info">
+                <span class="nome">{{ anexo.nomeArquivo }}</span>
+                <span class="meta-anexo">
+                  {{ formatarTamanho(anexo.tamanhoBytes) }} · {{ anexo.autor.nome }} ·
+                  {{ anexo.criadoEm | date: 'dd/MM/yyyy HH:mm' }}
+                </span>
+              </div>
+              <div class="anexo-acoes">
+                @if (podeVisualizar(anexo)) {
+                  <button type="button" (click)="visualizarAnexo(anexo)">Visualizar</button>
+                }
+                <button type="button" (click)="baixarAnexo(anexo)">Baixar</button>
+              </div>
+            </li>
+          }
+        </ul>
+      }
+
+      @if (anexoErro()) {
+        <p class="erro" role="alert">{{ anexoErro() }}</p>
+      }
+
+      <label class="upload-anexo">
+        Enviar novo anexo
+        <input type="file" (change)="enviarAnexo($event)" [disabled]="enviandoAnexo()" />
+      </label>
+      @if (enviandoAnexo()) {
+        <p class="enviando">Enviando arquivo...</p>
+      }
+    </section>
   }
 </section>
+
+@if (anexoPreview(); as preview) {
+  <div class="preview-overlay" (click)="fecharPreview()">
+    <div class="preview-modal" (click)="$event.stopPropagation()">
+      <div class="preview-head">
+        <span class="nome">{{ preview.nomeArquivo }}</span>
+        <button type="button" class="fechar" (click)="fecharPreview()" aria-label="Fechar visualização">×</button>
+      </div>
+      <div class="preview-corpo">
+        @if (preview.tipoMime.startsWith('image/')) {
+          <img [src]="preview.imagemUrl" [alt]="preview.nomeArquivo" />
+        } @else {
+          <iframe [src]="preview.documentoUrl" title="{{ preview.nomeArquivo }}"></iframe>
+        }
+      </div>
+    </div>
+  </div>
+}
