@@ -15,6 +15,11 @@ FROM mcr.microsoft.com/dotnet/aspnet:9.0-alpine AS runtime
 WORKDIR /app
 
 RUN addgroup -S chamados && adduser -S chamados -G chamados
+
+# Criado com dono correto antes do USER para que o volume nomeado montado em
+# /app/uploads (docker-compose) herde essa permissão de escrita ao inicializar.
+RUN mkdir -p /app/uploads && chown -R chamados:chamados /app/uploads
+
 USER chamados
 
 COPY --from=build --chown=chamados:chamados /app/publish .

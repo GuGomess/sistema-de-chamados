@@ -21,7 +21,9 @@ obj/
 appsettings.*.local.json
 
 # ===== Uploads de usuários =====
-/uploads/
+# Sem "/" no início: cobre tanto ./uploads (Docker/produção) quanto
+# backend/src/Chamados.Api/uploads (Upload__StoragePath padrão em dev local).
+uploads/
 
 # ===== IDE / Editor =====
 .vs/

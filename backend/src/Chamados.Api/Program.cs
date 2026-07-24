@@ -5,11 +5,13 @@ using Chamados.Api.Constants;
 using Chamados.Api.Data;
 using Chamados.Api.Options;
 using Chamados.Api.Services;
+using Chamados.Api.Swagger;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -26,6 +28,14 @@ builder.Services.AddScoped<ITokenService, TokenService>();
 
 builder.Services.Configure<SlaMonitorOptions>(builder.Configuration.GetSection(SlaMonitorOptions.SectionName));
 builder.Services.AddHostedService<SlaMonitorService>();
+
+builder.Services.Configure<UploadOptions>(builder.Configuration.GetSection(UploadOptions.SectionName));
+
+// Kestrel recusa por padrão corpos de requisição maiores que ~30 MB; o limite
+// precisa acompanhar o MaxFileSizeBytes configurado para upload de anexos.
+var uploadOptions = builder.Configuration.GetSection(UploadOptions.SectionName).Get<UploadOptions>() ?? new UploadOptions();
+builder.WebHost.ConfigureKestrel(options =>
+    options.Limits.MaxRequestBodySize = uploadOptions.MaxFileSizeBytes + 1024 * 1024);
 
 // Autenticação JWT: valida o token emitido pelo TokenService (mesma chave,
 // issuer e audience) nas rotas protegidas.
@@ -73,6 +83,17 @@ builder.Services.AddSwaggerGen(options =>
         Version = "v1",
         Description = "API REST do Sistema de Chamados (help desk). Contrato: docs/openapi.yaml."
     });
+
+    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        In = ParameterLocation.Header,
+        Type = SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT",
+        Description = "Token obtido em POST /api/v1/auth/login (colar só o token, sem o prefixo 'Bearer ')."
+    });
+    options.OperationFilter<AuthorizeCheckOperationFilter>();
 });
 
 var app = builder.Build();

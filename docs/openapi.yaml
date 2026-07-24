@@ -430,6 +430,26 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
 
+  /chamados/{id}/anexos/{anexoId}/download:
+    parameters:
+      - { $ref: '#/components/parameters/IdPath' }
+      - name: anexoId
+        in: path
+        required: true
+        schema: { type: integer, format: int64 }
+    get:
+      tags: [Anexos]
+      summary: Baixa o conteúdo binário do anexo
+      responses:
+        '200':
+          description: Conteúdo do arquivo
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
   # ---------------------------------------------------------------- Histórico
   /chamados/{id}/historico:
     parameters:

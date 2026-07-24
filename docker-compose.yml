@@ -31,8 +31,12 @@ services:
       Jwt__Issuer: ${Jwt__Issuer}
       Jwt__Audience: ${Jwt__Audience}
       Jwt__ExpiresMinutes: ${Jwt__ExpiresMinutes:-60}
+      Upload__StoragePath: /app/uploads
+      Upload__MaxFileSizeBytes: ${Upload__MaxFileSizeBytes:-104857600}
     ports:
       - "${API_PORT:-5000}:8080"
+    volumes:
+      - uploads-data:/app/uploads
     depends_on:
       db:
         condition: service_healthy
@@ -50,3 +54,4 @@ services:
 
 volumes:
   db-data:
+  uploads-data:

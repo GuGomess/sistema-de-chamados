@@ -5,7 +5,7 @@ API REST que concentra as regras de negócio do Sistema de Chamados: autenticaç
 ## Stack
 
 - **.NET 9 / ASP.NET Core Web API** (controllers)
-- **Entity Framework Core** (persistência e migrations) com provider **Npgsql** — _a integrar em tarefa própria_
+- **Entity Framework Core** (persistência e migrations) com provider **Npgsql**
 - **PostgreSQL** como SGBD — ver modelagem em [`../database/MODELO-ER.md`](../database/MODELO-ER.md)
 - Autenticação **JWT** — emissão do token em `POST /api/v1/auth/login`
 - Documentação **Swagger/OpenAPI** (habilitada em Development)

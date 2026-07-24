@@ -5,9 +5,11 @@ using Chamados.Api.Data;
 using Chamados.Api.Models.Dtos;
 using Chamados.Api.Models.Dtos.Chamados;
 using Chamados.Api.Models.Entities;
+using Chamados.Api.Options;
 using Chamados.Api.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace Chamados.Api.Controllers;
 
@@ -20,10 +22,12 @@ public class ChamadosController : ControllerBase
     private const long StatusFechadoId = 5;
 
     private readonly ChamadosDbContext _dbContext;
+    private readonly UploadOptions _uploadOptions;
 
-    public ChamadosController(ChamadosDbContext dbContext)
+    public ChamadosController(ChamadosDbContext dbContext, IOptions<UploadOptions> uploadOptions)
     {
         _dbContext = dbContext;
+        _uploadOptions = uploadOptions.Value;
     }
 
     [HttpGet]
@@ -681,6 +685,137 @@ public class ChamadosController : ControllerBase
             .FirstAsync(c => c.Id == comentario.Id);
 
         return CreatedAtAction(nameof(ListarComentarios), new { id }, ComentarioDto.FromEntity(comentarioCriado));
+    }
+
+    [HttpGet("{id:long}/anexos")]
+    public async Task<ActionResult<List<AnexoDto>>> ListarAnexos(long id)
+    {
+        var usuarioId = ObterUsuarioId();
+        if (usuarioId is null)
+        {
+            return Unauthorized();
+        }
+
+        var chamado = await _dbContext.Chamados.FirstOrDefaultAsync(c => c.Id == id);
+        if (chamado is null)
+        {
+            return NotFound(ErrorResponse.Create(404, "Chamado não encontrado."));
+        }
+
+        if (!PodeAcessar(chamado, usuarioId.Value))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, ErrorResponse.Create(403, "Sem permissão para acessar este chamado."));
+        }
+
+        var anexos = await _dbContext.Anexos
+            .Where(a => a.ChamadoId == id)
+            .Include(a => a.Autor).ThenInclude(u => u.Perfil)
+            .OrderBy(a => a.CriadoEm)
+            .ToListAsync();
+
+        return Ok(anexos.Select(AnexoDto.FromEntity).ToList());
+    }
+
+    [HttpPost("{id:long}/anexos")]
+    public async Task<ActionResult<AnexoDto>> EnviarAnexo(long id, IFormFile? arquivo)
+    {
+        var usuarioId = ObterUsuarioId();
+        if (usuarioId is null)
+        {
+            return Unauthorized();
+        }
+
+        var chamado = await _dbContext.Chamados.FirstOrDefaultAsync(c => c.Id == id);
+        if (chamado is null)
+        {
+            return NotFound(ErrorResponse.Create(404, "Chamado não encontrado."));
+        }
+
+        if (!PodeAcessar(chamado, usuarioId.Value))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, ErrorResponse.Create(403, "Sem permissão para enviar anexos neste chamado."));
+        }
+
+        if (arquivo is null || arquivo.Length == 0)
+        {
+            return BadRequest(ErrorResponse.Create(400, "Nenhum arquivo enviado."));
+        }
+
+        var extensao = Path.GetExtension(arquivo.FileName).ToLowerInvariant();
+        if (!_uploadOptions.AllowedExtensions.Contains(extensao))
+        {
+            return UnprocessableEntity(ErrorResponse.Create(422, "Tipo de arquivo não permitido.", $"Extensões aceitas: {string.Join(", ", _uploadOptions.AllowedExtensions)}"));
+        }
+
+        if (arquivo.Length > _uploadOptions.MaxFileSizeBytes)
+        {
+            return UnprocessableEntity(ErrorResponse.Create(422, "Arquivo excede o tamanho máximo permitido.", $"Tamanho máximo: {_uploadOptions.MaxFileSizeBytes} bytes."));
+        }
+
+        var nomeArmazenado = $"{Guid.NewGuid()}{extensao}";
+        var caminhoRelativo = Path.Combine(id.ToString(), nomeArmazenado);
+        var caminhoCompleto = Path.Combine(_uploadOptions.StoragePath, caminhoRelativo);
+
+        Directory.CreateDirectory(Path.GetDirectoryName(caminhoCompleto)!);
+
+        await using (var destino = System.IO.File.Create(caminhoCompleto))
+        {
+            await arquivo.CopyToAsync(destino);
+        }
+
+        var anexo = new Anexo
+        {
+            ChamadoId = id,
+            AutorId = usuarioId.Value,
+            NomeArquivo = Path.GetFileName(arquivo.FileName),
+            Caminho = caminhoRelativo,
+            TipoMime = string.IsNullOrWhiteSpace(arquivo.ContentType) ? "application/octet-stream" : arquivo.ContentType,
+            TamanhoBytes = arquivo.Length
+        };
+
+        _dbContext.Anexos.Add(anexo);
+        await _dbContext.SaveChangesAsync();
+
+        var anexoCriado = await _dbContext.Anexos
+            .Include(a => a.Autor).ThenInclude(u => u.Perfil)
+            .FirstAsync(a => a.Id == anexo.Id);
+
+        return CreatedAtAction(nameof(ListarAnexos), new { id }, AnexoDto.FromEntity(anexoCriado));
+    }
+
+    [HttpGet("{id:long}/anexos/{anexoId:long}/download")]
+    public async Task<IActionResult> BaixarAnexo(long id, long anexoId)
+    {
+        var usuarioId = ObterUsuarioId();
+        if (usuarioId is null)
+        {
+            return Unauthorized();
+        }
+
+        var chamado = await _dbContext.Chamados.FirstOrDefaultAsync(c => c.Id == id);
+        if (chamado is null)
+        {
+            return NotFound(ErrorResponse.Create(404, "Chamado não encontrado."));
+        }
+
+        if (!PodeAcessar(chamado, usuarioId.Value))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, ErrorResponse.Create(403, "Sem permissão para acessar este chamado."));
+        }
+
+        var anexo = await _dbContext.Anexos.FirstOrDefaultAsync(a => a.Id == anexoId && a.ChamadoId == id);
+        if (anexo is null)
+        {
+            return NotFound(ErrorResponse.Create(404, "Anexo não encontrado."));
+        }
+
+        var caminhoCompleto = Path.Combine(_uploadOptions.StoragePath, anexo.Caminho);
+        if (!System.IO.File.Exists(caminhoCompleto))
+        {
+            return NotFound(ErrorResponse.Create(404, "Arquivo do anexo não encontrado no armazenamento."));
+        }
+
+        return PhysicalFile(Path.GetFullPath(caminhoCompleto), anexo.TipoMime, anexo.NomeArquivo);
     }
 
     private IQueryable<Chamado> ChamadosComIncludes() =>

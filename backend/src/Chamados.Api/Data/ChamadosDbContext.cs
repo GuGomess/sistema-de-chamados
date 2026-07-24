@@ -27,6 +27,8 @@ public class ChamadosDbContext : DbContext
 
     public DbSet<Comentario> Comentarios => Set<Comentario>();
 
+    public DbSet<Anexo> Anexos => Set<Anexo>();
+
     public DbSet<Notificacao> Notificacoes => Set<Notificacao>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -248,6 +250,29 @@ public class ChamadosDbContext : DbContext
             entity.HasOne(c => c.Autor)
                 .WithMany()
                 .HasForeignKey(c => c.AutorId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<Anexo>(entity =>
+        {
+            entity.ToTable("anexo");
+            entity.Property(a => a.Id).HasColumnName("id");
+            entity.Property(a => a.ChamadoId).HasColumnName("id_chamado");
+            entity.Property(a => a.AutorId).HasColumnName("id_autor");
+            entity.Property(a => a.NomeArquivo).HasColumnName("nome_arquivo").HasMaxLength(255).IsRequired();
+            entity.Property(a => a.Caminho).HasColumnName("caminho").HasMaxLength(500).IsRequired();
+            entity.Property(a => a.TipoMime).HasColumnName("tipo_mime").HasMaxLength(120).IsRequired();
+            entity.Property(a => a.TamanhoBytes).HasColumnName("tamanho_bytes");
+            entity.Property(a => a.CriadoEm).HasColumnName("criado_em").HasDefaultValueSql("now()");
+
+            entity.HasOne(a => a.Chamado)
+                .WithMany()
+                .HasForeignKey(a => a.ChamadoId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(a => a.Autor)
+                .WithMany()
+                .HasForeignKey(a => a.AutorId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
