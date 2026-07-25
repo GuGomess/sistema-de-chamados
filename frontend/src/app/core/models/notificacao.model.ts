@@ -4,7 +4,10 @@ export type TipoNotificacao =
   | 'PrazoAjustado'
   | 'ChamadoReaberto'
   | 'FechadoPorCliente'
-  | 'NovaAvaliacao';
+  | 'NovaAvaliacao'
+  | 'NovoComentario'
+  | 'MudancaStatus'
+  | 'TecnicoAtribuido';
 
 export interface Notificacao {
   id: number;
