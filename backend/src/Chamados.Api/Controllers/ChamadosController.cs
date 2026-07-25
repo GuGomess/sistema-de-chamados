@@ -314,12 +314,24 @@ public class ChamadosController : ControllerBase
                 erros["idStatus"] = new[] { "Status não encontrado." };
             else if (request.IdStatus.Value != chamado.StatusId)
             {
-                // Resolver exige que tenha havido ao menos um retorno (comentário) no
-                // chamado — evita marcar como resolvido sem nenhuma interação registrada.
-                if (request.IdStatus.Value == StatusResolvidoId
-                    && !await _dbContext.Comentarios.AnyAsync(c => c.ChamadoId == chamado.Id))
+                // Resolver exige que tenha havido ao menos um retorno (comentário) desde
+                // a última vez que o chamado foi aberto — um comentário de um ciclo
+                // anterior (antes de uma reabertura) não deve valer pra resolver de novo.
+                var bloqueadoPorFaltaDeRetorno = false;
+                if (request.IdStatus.Value == StatusResolvidoId)
                 {
-                    erros["idStatus"] = new[] { "Chamado precisa de ao menos um comentário (retorno) antes de ser marcado como resolvido." };
+                    var abertoDesde = await _dbContext.Historicos
+                        .Where(h => h.ChamadoId == chamado.Id && h.Acao == "Reabertura")
+                        .OrderByDescending(h => h.CriadoEm)
+                        .Select(h => (DateTimeOffset?)h.CriadoEm)
+                        .FirstOrDefaultAsync() ?? chamado.CriadoEm;
+
+                    bloqueadoPorFaltaDeRetorno = !await _dbContext.Comentarios.AnyAsync(c => c.ChamadoId == chamado.Id && c.CriadoEm >= abertoDesde);
+                }
+
+                if (bloqueadoPorFaltaDeRetorno)
+                {
+                    erros["idStatus"] = new[] { "Chamado precisa de ao menos um comentário (retorno) desde a última reabertura antes de ser marcado como resolvido." };
                 }
                 else
                 {
@@ -823,7 +835,7 @@ public class ChamadosController : ControllerBase
             .Include(h => h.Autor).ThenInclude(u => u.Perfil)
             .Include(h => h.StatusAnterior)
             .Include(h => h.StatusNovo)
-            .OrderBy(h => h.CriadoEm)
+            .OrderByDescending(h => h.CriadoEm)
             .ToListAsync();
 
         if (User.IsInRole(Perfis.Tecnico))

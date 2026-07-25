@@ -103,8 +103,11 @@
         <h2>Descrição</h2>
         <p>{{ chamado.descricao }}</p>
         <p class="meta">
-          Aberto em {{ chamado.criadoEm | date: 'dd/MM/yyyy HH:mm' }} · Atualizado em
-          {{ chamado.atualizadoEm | date: 'dd/MM/yyyy HH:mm' }}
+          Aberto em {{ chamado.criadoEm | date: 'dd/MM/yyyy HH:mm' }}
+          @if (reabertoEm(); as dataReabertura) {
+            · Reaberto em {{ dataReabertura | date: 'dd/MM/yyyy HH:mm' }}
+          }
+          · Atualizado em {{ chamado.atualizadoEm | date: 'dd/MM/yyyy HH:mm' }}
         </p>
       </div>
 

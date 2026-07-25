@@ -250,11 +250,31 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
     return this.ehAdministrador() || this.ehTecnico();
   }
 
-  // Resolver exige que tenha havido ao menos um retorno (comentário) no
-  // chamado — usado para desabilitar a opção "Resolvido" no select de status
-  // antes mesmo de tentar salvar (o backend também recusa, ver salvarAlteracoes).
+  // Resolver exige que tenha havido ao menos um retorno (comentário) desde a
+  // última vez que o chamado foi aberto (reabertura mais recente, ou a
+  // abertura original se nunca foi reaberto) — usado pra desabilitar a opção
+  // "Resolvido" no select de status antes mesmo de tentar salvar (o backend
+  // também recusa, ver salvarAlteracoes). Um comentário de um ciclo anterior
+  // (antes da reabertura) não conta.
   protected statusResolvidoBloqueado(): boolean {
-    return !this.carregandoComentarios() && this.comentarios().length === 0;
+    if (this.carregandoComentarios() || this.carregandoHistorico()) {
+      return false;
+    }
+
+    const abertoDesde = this.reabertoEm() ?? this.chamado()?.criadoEm;
+    if (!abertoDesde) {
+      return this.comentarios().length === 0;
+    }
+
+    const abertoDesdeMs = new Date(abertoDesde).getTime();
+    return !this.comentarios().some((c) => new Date(c.criadoEm).getTime() >= abertoDesdeMs);
+  }
+
+  // Não há coluna própria pra "reaberto em" — deriva da entrada de histórico
+  // mais recente com acao "Reabertura" (a API já devolve o histórico do mais
+  // novo pro mais antigo, então a primeira ocorrência já é a mais recente).
+  protected reabertoEm(): string | null {
+    return this.historico().find((evento) => evento.acao === 'Reabertura')?.criadoEm ?? null;
   }
 
   protected enviarComentario(): void {
