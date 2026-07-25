@@ -222,11 +222,14 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
     return this.ehTecnico() && (!chamado.tecnico || chamado.tecnico.id === this.usuarioId);
   }
 
-  // Cliente pode fechar o próprio chamado enquanto ele não estiver "Fechado"
-  // (mesmo já "Resolvido" ele pode reabrir ou fechar formalmente).
+  // Cliente pode fechar o próprio chamado enquanto ainda estiver em andamento
+  // (mesmo sem nenhuma atividade). Uma vez "Resolvido", "Fechar chamado" some
+  // — as ações que fazem sentido nesse ponto são "Reabrir" ou avaliar; fechar
+  // diretamente também abriria mão da avaliação (só chamado "Resolvido" pode
+  // ser avaliado, ver podeAvaliarAgora).
   protected podeFecharComoCliente(): boolean {
     const chamado = this.chamado();
-    return this.ehCliente() && !!chamado && chamado.status.nome !== 'Fechado';
+    return this.ehCliente() && !!chamado && chamado.status.nome !== 'Fechado' && chamado.status.nome !== 'Resolvido';
   }
 
   protected podeAjustarPrazo(): boolean {

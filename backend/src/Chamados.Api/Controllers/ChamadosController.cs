@@ -563,7 +563,7 @@ public class ChamadosController : ControllerBase
         });
 
         var mensagem = $"Chamado #{chamado.Id} — {chamado.Titulo}: reaberto por {nomeReabertura}.";
-        await NotificarAdministradoresAsync(chamado.Id, mensagem, TipoNotificacao.ChamadoReaberto);
+        await NotificarAdministradoresAsync(chamado.Id, mensagem, TipoNotificacao.ChamadoReaberto, usuarioId.Value);
 
         if (chamado.TecnicoId.HasValue && chamado.TecnicoId.Value != usuarioId.Value)
         {
@@ -635,7 +635,7 @@ public class ChamadosController : ControllerBase
         var mensagem = string.IsNullOrWhiteSpace(request.Motivo)
             ? $"Chamado #{chamado.Id} — {chamado.Titulo}: fechado pelo cliente {chamado.Solicitante.Nome}."
             : $"Chamado #{chamado.Id} — {chamado.Titulo}: fechado pelo cliente {chamado.Solicitante.Nome}. Motivo: {request.Motivo}";
-        await NotificarAdministradoresAsync(chamado.Id, mensagem, TipoNotificacao.FechadoPorCliente);
+        await NotificarAdministradoresAsync(chamado.Id, mensagem, TipoNotificacao.FechadoPorCliente, usuarioId.Value);
 
         if (chamado.TecnicoId.HasValue)
         {
@@ -717,7 +717,7 @@ public class ChamadosController : ControllerBase
         if (!User.IsInRole(Perfis.Administrador))
         {
             var mensagem = $"Chamado #{chamado.Id} — {chamado.Titulo}: prazo de resolução ajustado manualmente para {prazoNovoTexto}. Justificativa: {request.Justificativa}";
-            await NotificarAdministradoresAsync(chamado.Id, mensagem);
+            await NotificarAdministradoresAsync(chamado.Id, mensagem, excluirUsuarioId: usuarioId.Value);
         }
 
         await _dbContext.SaveChangesAsync();
@@ -779,7 +779,7 @@ public class ChamadosController : ControllerBase
         if (!User.IsInRole(Perfis.Administrador))
         {
             var mensagem = $"Chamado #{chamado.Id} — {chamado.Titulo}: prazo de resposta ajustado manualmente para {prazoNovoTexto}.";
-            await NotificarAdministradoresAsync(chamado.Id, mensagem);
+            await NotificarAdministradoresAsync(chamado.Id, mensagem, excluirUsuarioId: usuarioId.Value);
         }
 
         await _dbContext.SaveChangesAsync();
@@ -943,7 +943,7 @@ public class ChamadosController : ControllerBase
         });
 
         var mensagem = $"Chamado #{chamado.Id} — {chamado.Titulo}: recebeu uma avaliação ({avaliacao.Nota}/5).";
-        await NotificarAdministradoresAsync(chamado.Id, mensagem, TipoNotificacao.NovaAvaliacao);
+        await NotificarAdministradoresAsync(chamado.Id, mensagem, TipoNotificacao.NovaAvaliacao, usuarioId.Value);
 
         if (chamado.TecnicoId.HasValue && request.Publica)
         {
@@ -1360,12 +1360,18 @@ public class ChamadosController : ControllerBase
         }
     }
 
-    private async Task NotificarAdministradoresAsync(long chamadoId, string mensagem, TipoNotificacao tipo = TipoNotificacao.PrazoAjustado)
+    private async Task NotificarAdministradoresAsync(long chamadoId, string mensagem, TipoNotificacao tipo = TipoNotificacao.PrazoAjustado, long? excluirUsuarioId = null)
     {
-        var administradorIds = await _dbContext.Usuarios
-            .Where(u => u.PerfilId == PerfilAdministradorId && u.Ativo)
-            .Select(u => u.Id)
-            .ToListAsync();
+        var query = _dbContext.Usuarios.Where(u => u.PerfilId == PerfilAdministradorId && u.Ativo);
+        if (excluirUsuarioId.HasValue)
+        {
+            // Sem isso, um administrador que executa a própria ação (ex.: reabrir
+            // um chamado) aparece na lista de "todos os administradores" e acaba
+            // se autonotificando.
+            query = query.Where(u => u.Id != excluirUsuarioId.Value);
+        }
+
+        var administradorIds = await query.Select(u => u.Id).ToListAsync();
 
         foreach (var administradorId in administradorIds)
         {
