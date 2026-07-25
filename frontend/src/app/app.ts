@@ -34,6 +34,10 @@ export class App {
     return this.authService.usuario()?.perfil === 'CLIENTE';
   }
 
+  protected ehAdministrador(): boolean {
+    return this.authService.usuario()?.perfil === 'ADMINISTRADOR';
+  }
+
   protected labelChamados(): string {
     return this.ehCliente() ? 'Meus chamados' : 'Chamados';
   }

@@ -1,0 +1,81 @@
+<section class="usuarios-admin-wrap">
+  <div class="content-head">
+    <h1>Usuários</h1>
+  </div>
+
+  <form class="form-criar" [formGroup]="form" (ngSubmit)="onSubmit()" novalidate>
+    <h2>Novo usuário</h2>
+
+    @if (erroCriacao()) {
+      <p class="erro" role="alert">{{ erroCriacao() }}</p>
+    }
+
+    <div class="campos">
+      <label>
+        Nome
+        <input type="text" formControlName="nome" />
+      </label>
+
+      <label>
+        E-mail
+        <input type="email" formControlName="email" />
+      </label>
+
+      <label>
+        Senha
+        <input type="password" formControlName="senha" autocomplete="new-password" />
+      </label>
+
+      <label>
+        Perfil
+        <select formControlName="perfil">
+          <option value="TECNICO">Técnico</option>
+          <option value="ADMINISTRADOR">Administrador</option>
+        </select>
+      </label>
+
+      <button type="submit" [disabled]="criando()">
+        {{ criando() ? 'Criando...' : 'Criar usuário' }}
+      </button>
+    </div>
+  </form>
+
+  @if (erro()) {
+    <p class="erro" role="alert">{{ erro() }}</p>
+  }
+
+  @if (carregando()) {
+    <p>Carregando usuários...</p>
+  } @else if (usuarios().length === 0) {
+    <p>Nenhum usuário cadastrado.</p>
+  } @else {
+    <div class="tabela-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Nome</th>
+            <th>E-mail</th>
+            <th>Perfil</th>
+            <th>Ativo</th>
+            <th>Criado em</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (usuario of usuarios(); track usuario.id) {
+            <tr>
+              <td>{{ usuario.nome }}</td>
+              <td>{{ usuario.email }}</td>
+              <td>{{ usuario.perfil }}</td>
+              <td>
+                <span class="badge {{ usuario.ativo ? 'ativo' : 'inativo' }}">
+                  {{ usuario.ativo ? 'Sim' : 'Não' }}
+                </span>
+              </td>
+              <td>{{ usuario.criadoEm | date: 'dd/MM/yyyy HH:mm' }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</section>

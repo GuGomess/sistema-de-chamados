@@ -3,7 +3,7 @@ import { Injectable, signal } from '@angular/core';
 import { Observable, tap } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
-import { AuthResponse, LoginRequest, PerfilCodigo, Usuario } from '../models/auth.model';
+import { AuthResponse, LoginRequest, PerfilCodigo, RegistrarClienteRequest, Usuario } from '../models/auth.model';
 
 const AUTH_STORAGE_KEY = 'auth';
 
@@ -21,6 +21,12 @@ export class AuthService {
   login(credenciais: LoginRequest): Observable<AuthResponse> {
     return this.http
       .post<AuthResponse>(`${environment.apiBaseUrl}/v1/auth/login`, credenciais)
+      .pipe(tap((response) => this.armazenarAuth(response)));
+  }
+
+  registrar(dados: RegistrarClienteRequest): Observable<AuthResponse> {
+    return this.http
+      .post<AuthResponse>(`${environment.apiBaseUrl}/v1/auth/registrar`, dados)
       .pipe(tap((response) => this.armazenarAuth(response)));
   }
 

@@ -20,3 +20,16 @@ export interface AuthResponse {
   expiresIn: number;
   usuario: Usuario;
 }
+
+export interface UsuarioCreateRequest {
+  nome: string;
+  email: string;
+  senha: string;
+  perfil: PerfilCodigo;
+}
+
+export interface RegistrarClienteRequest {
+  nome: string;
+  email: string;
+  senha: string;
+}

@@ -35,6 +35,20 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/login/login').then((m) => m.Login),
   },
   {
+    path: 'registrar',
+    title: 'Criar conta — Sistema de Chamados',
+    canActivate: [guestGuard],
+    loadComponent: () => import('./pages/registrar/registrar').then((m) => m.Registrar),
+  },
+  {
+    path: 'admin/usuarios',
+    title: 'Usuários — Sistema de Chamados',
+    canActivate: [authGuard],
+    data: { roles: ['ADMINISTRADOR'] },
+    loadComponent: () =>
+      import('./pages/admin/usuarios/usuarios-admin').then((m) => m.UsuariosAdmin),
+  },
+  {
     path: 'dashboard',
     title: 'Dashboard — Sistema de Chamados',
     canActivate: [authGuard],

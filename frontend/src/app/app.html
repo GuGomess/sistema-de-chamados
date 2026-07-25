@@ -7,6 +7,9 @@
       }
       <a routerLink="/chamados" routerLinkActive="is-active" [routerLinkActiveOptions]="{ exact: true }">{{ labelChamados() }}</a>
       <a routerLink="/chamados/novo" routerLinkActive="is-active">Novo chamado</a>
+      @if (ehAdministrador()) {
+        <a routerLink="/admin/usuarios" routerLinkActive="is-active">Usuários</a>
+      }
     </nav>
 
     <div class="app-header__acoes">

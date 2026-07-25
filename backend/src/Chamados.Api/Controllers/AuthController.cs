@@ -1,4 +1,5 @@
 using Chamados.Api.Data;
+using Chamados.Api.Models.Dtos;
 using Chamados.Api.Models.Dtos.Auth;
 using Chamados.Api.Models.Entities;
 using Chamados.Api.Services;
@@ -46,6 +47,62 @@ public class AuthController : ControllerBase
         var refreshToken = _tokenService.GerarRefreshToken();
 
         return Ok(new AuthResponse
+        {
+            AccessToken = accessToken,
+            RefreshToken = refreshToken,
+            ExpiresIn = expiresIn,
+            Usuario = UsuarioDto.FromEntity(usuario)
+        });
+    }
+
+    [AllowAnonymous]
+    [HttpPost("registrar")]
+    public async Task<ActionResult<AuthResponse>> Registrar(RegistrarClienteRequest request)
+    {
+        var erros = new Dictionary<string, string[]>();
+
+        if (string.IsNullOrWhiteSpace(request.Senha) || request.Senha.Length < 6)
+        {
+            erros["senha"] = new[] { "Senha deve ter no mínimo 6 caracteres." };
+        }
+
+        var emailExiste = await _dbContext.Usuarios
+            .AnyAsync(u => u.Email.ToLower() == request.Email.ToLower());
+        if (emailExiste)
+        {
+            erros["email"] = new[] { "Já existe um usuário cadastrado com este e-mail." };
+        }
+
+        if (erros.Count > 0)
+        {
+            return UnprocessableEntity(new ErrorResponse { Status = 422, Title = "Falha de validação", Errors = erros });
+        }
+
+        var perfilCliente = await _dbContext.Perfis.FindAsync(3L);
+        if (perfilCliente is null)
+        {
+            return UnprocessableEntity(new ErrorResponse { Status = 422, Title = "Falha de validação", Errors = new Dictionary<string, string[]> { ["perfil"] = new[] { "Perfil de cliente não encontrado." } } });
+        }
+
+        var usuario = new Usuario
+        {
+            Nome = request.Nome,
+            Email = request.Email,
+            PerfilId = perfilCliente.Id,
+            Ativo = true,
+            CriadoEm = DateTimeOffset.UtcNow
+        };
+        usuario.SenhaHash = _passwordHasher.HashPassword(usuario, request.Senha);
+
+        _dbContext.Usuarios.Add(usuario);
+        await _dbContext.SaveChangesAsync();
+
+        usuario.Perfil = perfilCliente;
+
+        var (accessToken, expiresIn) = _tokenService.GerarAccessToken(usuario);
+        var refreshToken = _tokenService.GerarRefreshToken();
+
+        return StatusCode(StatusCodes.Status201Created, new AuthResponse
         {
             AccessToken = accessToken,
             RefreshToken = refreshToken,
