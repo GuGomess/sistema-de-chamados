@@ -100,6 +100,12 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
   protected readonly historico = signal<Historico[]>([]);
   protected readonly carregandoHistorico = signal(true);
 
+  // Novo fluxo de alteração de prazo: fica oculto por padrão (só a label com a
+  // data) e só revela o calendário + motivo quando o usuário clica em "Alterar
+  // prazo" — evita o antigo comportamento de salvar sozinho a cada campo tocado.
+  protected readonly editandoPrazoResposta = signal(false);
+  protected readonly editandoPrazoResolucao = signal(false);
+
   protected readonly form = this.formBuilder.nonNullable.group({
     idStatus: [null as number | null],
     idCategoria: [null as number | null],
@@ -242,6 +248,13 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
 
   protected podeMarcarComentarioInterno(): boolean {
     return this.ehAdministrador() || this.ehTecnico();
+  }
+
+  // Resolver exige que tenha havido ao menos um retorno (comentário) no
+  // chamado — usado para desabilitar a opção "Resolvido" no select de status
+  // antes mesmo de tentar salvar (o backend também recusa, ver salvarAlteracoes).
+  protected statusResolvidoBloqueado(): boolean {
+    return !this.carregandoComentarios() && this.comentarios().length === 0;
   }
 
   protected enviarComentario(): void {
@@ -503,6 +516,24 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
     });
   }
 
+  protected apagarAvaliacao(av: Avaliacao): void {
+    if (!window.confirm('Tem certeza que deseja apagar esta avaliação? Essa ação não pode ser desfeita.')) {
+      return;
+    }
+
+    this.chamadoService.apagarAvaliacao(this.id, av.id).subscribe({
+      next: () => {
+        this.avaliacoes.update((atual) => atual.filter((item) => item.id !== av.id));
+        if (this.editandoAvaliacaoId() === av.id) {
+          this.editandoAvaliacaoId.set(null);
+        }
+      },
+      error: (error: HttpErrorResponse) => {
+        this.avaliacaoErro.set(this.mensagemErroAcao(error));
+      },
+    });
+  }
+
   // Busca e mantém em memória a miniatura (blob local) de cada anexo de imagem
   // ainda não carregado — o download exige o header Authorization, então não dá
   // para usar a URL do anexo direto num <img src>.
@@ -655,6 +686,35 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
     this.executarAcao(this.chamadoService.fecharComoCliente(this.id, motivoTratado));
   }
 
+  // Abre/fecha o editor de prazo de resolução. Ao abrir, repopula o form com o
+  // prazo atual do chamado (nunca fica com um valor "preso" de uma edição
+  // anterior cancelada).
+  protected toggleEdicaoPrazoResolucao(): void {
+    if (this.editandoPrazoResolucao()) {
+      this.cancelarEdicaoPrazoResolucao();
+      return;
+    }
+
+    const chamado = this.chamado();
+    if (!chamado) {
+      return;
+    }
+
+    this.acaoErro.set(null);
+    this.prazoForm.reset(
+      {
+        prazoResolucao: chamado.prazoResolucao ? this.paraDatetimeLocal(chamado.prazoResolucao) : '',
+        justificativa: '',
+      },
+      { emitEvent: false },
+    );
+    this.editandoPrazoResolucao.set(true);
+  }
+
+  protected cancelarEdicaoPrazoResolucao(): void {
+    this.editandoPrazoResolucao.set(false);
+  }
+
   protected ajustarPrazo(): void {
     if (this.salvando()) {
       return;
@@ -666,15 +726,20 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
     }
 
     const { prazoResolucao, justificativa } = this.prazoForm.getRawValue();
-    const prazoOriginal = chamado.prazoResolucao ? this.paraDatetimeLocal(chamado.prazoResolucao) : '';
-    const prazoAlterado = !!prazoResolucao && prazoResolucao !== prazoOriginal;
+    if (!prazoResolucao) {
+      this.acaoErro.set('Selecione o novo prazo de resolução.');
+      return;
+    }
+    if (!justificativa.trim()) {
+      this.acaoErro.set('Informe a justificativa da alteração de prazo.');
+      return;
+    }
 
-    // Só aplica quando o prazo foi de fato alterado (não só a justificativa
-    // digitada, com o prazo pré-preenchido intocado — isso enviaria um ajuste
-    // "fantasma" para o mesmo valor) e a justificativa (obrigatória) já foi
-    // preenchida. Enquanto isso não acontece, fica em silêncio — sem mostrar
-    // erro prematuramente antes do usuário terminar de preencher os dois campos.
-    if (!prazoAlterado || !justificativa.trim()) {
+    const prazoOriginal = chamado.prazoResolucao ? this.paraDatetimeLocal(chamado.prazoResolucao) : '';
+    if (prazoResolucao === prazoOriginal) {
+      // Justificativa preenchida, mas o prazo em si não mudou — não há o que
+      // aplicar, só fecha o editor.
+      this.editandoPrazoResolucao.set(false);
       return;
     }
 
@@ -683,9 +748,33 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
       justificativa: justificativa.trim(),
     };
 
-    this.executarAcao(this.chamadoService.ajustarPrazoResolucao(this.id, request), (atualizado) =>
-      this.inicializarFormsDePrazo(atualizado),
+    this.executarAcao(this.chamadoService.ajustarPrazoResolucao(this.id, request), (atualizado) => {
+      this.inicializarFormsDePrazo(atualizado);
+      this.editandoPrazoResolucao.set(false);
+    });
+  }
+
+  protected toggleEdicaoPrazoResposta(): void {
+    if (this.editandoPrazoResposta()) {
+      this.cancelarEdicaoPrazoResposta();
+      return;
+    }
+
+    const chamado = this.chamado();
+    if (!chamado) {
+      return;
+    }
+
+    this.acaoErro.set(null);
+    this.prazoRespostaForm.reset(
+      { prazoResposta: chamado.prazoResposta ? this.paraDatetimeLocal(chamado.prazoResposta) : '' },
+      { emitEvent: false },
     );
+    this.editandoPrazoResposta.set(true);
+  }
+
+  protected cancelarEdicaoPrazoResposta(): void {
+    this.editandoPrazoResposta.set(false);
   }
 
   protected ajustarPrazoResposta(): void {
@@ -699,10 +788,14 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
     }
 
     const { prazoResposta } = this.prazoRespostaForm.getRawValue();
+    if (!prazoResposta) {
+      this.acaoErro.set('Selecione o novo prazo de resposta.');
+      return;
+    }
+
     const prazoOriginal = chamado.prazoResposta ? this.paraDatetimeLocal(chamado.prazoResposta) : '';
-    if (!prazoResposta || prazoResposta === prazoOriginal) {
-      // Nada mudou de fato (ex.: evento disparado sem alteração real) — sem
-      // valor novo, não há o que aplicar nem erro a mostrar.
+    if (prazoResposta === prazoOriginal) {
+      this.editandoPrazoResposta.set(false);
       return;
     }
 
@@ -710,9 +803,10 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
       prazoResposta: new Date(prazoResposta).toISOString(),
     };
 
-    this.executarAcao(this.chamadoService.ajustarPrazoResposta(this.id, request), (atualizado) =>
-      this.inicializarFormsDePrazo(atualizado),
-    );
+    this.executarAcao(this.chamadoService.ajustarPrazoResposta(this.id, request), (atualizado) => {
+      this.inicializarFormsDePrazo(atualizado);
+      this.editandoPrazoResposta.set(false);
+    });
   }
 
   protected salvarAlteracoes(): void {
@@ -758,6 +852,13 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
       error: (error: HttpErrorResponse) => {
         this.salvando.set(false);
         this.acaoErro.set(this.mensagemErroAcao(error));
+        // Reaplica o chamado atual (sem a mudança que falhou) para ressincronizar
+        // os selects/forms com o estado real — sem isso, o select de status, por
+        // exemplo, fica mostrando "Resolvido" mesmo que o servidor tenha recusado.
+        const chamadoAtual = this.chamado();
+        if (chamadoAtual) {
+          this.aplicarChamado(chamadoAtual);
+        }
       },
     });
   }

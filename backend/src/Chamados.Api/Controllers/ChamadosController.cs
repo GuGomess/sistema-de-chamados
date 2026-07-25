@@ -314,23 +314,33 @@ public class ChamadosController : ControllerBase
                 erros["idStatus"] = new[] { "Status não encontrado." };
             else if (request.IdStatus.Value != chamado.StatusId)
             {
-                statusAnteriorId = chamado.StatusId;
-                statusNovoNome = novoStatus.Nome;
-                chamado.StatusId = request.IdStatus.Value;
-
-                if (chamado.StatusId == StatusResolvidoId)
+                // Resolver exige que tenha havido ao menos um retorno (comentário) no
+                // chamado — evita marcar como resolvido sem nenhuma interação registrada.
+                if (request.IdStatus.Value == StatusResolvidoId
+                    && !await _dbContext.Comentarios.AnyAsync(c => c.ChamadoId == chamado.Id))
                 {
-                    chamado.ResolvidoEm = DateTimeOffset.UtcNow;
-                }
-                else if (chamado.StatusId == StatusFechadoId)
-                {
-                    chamado.FechadoEm = DateTimeOffset.UtcNow;
-                    chamado.ResolvidoEm ??= DateTimeOffset.UtcNow;
+                    erros["idStatus"] = new[] { "Chamado precisa de ao menos um comentário (retorno) antes de ser marcado como resolvido." };
                 }
                 else
                 {
-                    chamado.ResolvidoEm = null;
-                    chamado.FechadoEm = null;
+                    statusAnteriorId = chamado.StatusId;
+                    statusNovoNome = novoStatus.Nome;
+                    chamado.StatusId = request.IdStatus.Value;
+
+                    if (chamado.StatusId == StatusResolvidoId)
+                    {
+                        chamado.ResolvidoEm = DateTimeOffset.UtcNow;
+                    }
+                    else if (chamado.StatusId == StatusFechadoId)
+                    {
+                        chamado.FechadoEm = DateTimeOffset.UtcNow;
+                        chamado.ResolvidoEm ??= DateTimeOffset.UtcNow;
+                    }
+                    else
+                    {
+                        chamado.ResolvidoEm = null;
+                        chamado.FechadoEm = null;
+                    }
                 }
             }
         }
@@ -821,9 +831,9 @@ public class ChamadosController : ControllerBase
             // O técnico já vê as avaliações às quais tem direito através de
             // GET /avaliacoes (com a filtragem correta por avaliação). Aqui,
             // como o histórico não referencia qual avaliação foi registrada,
-            // a entrada genérica "Avaliação registrada" é sempre omitida para
-            // evitar vazar a existência de uma avaliação privada/oculta.
-            historico = historico.Where(h => h.Acao != "Avaliação registrada").ToList();
+            // as entradas genéricas de avaliação são sempre omitidas para
+            // evitar vazar a existência de uma avaliação privada/oculta/removida.
+            historico = historico.Where(h => h.Acao is not ("Avaliação registrada" or "Avaliação removida")).ToList();
         }
 
         return Ok(historico.Select(HistoricoDto.FromEntity).ToList());
@@ -1031,10 +1041,59 @@ public class ChamadosController : ControllerBase
             return NotFound(ErrorResponse.Create(404, "Avaliação não encontrada."));
         }
 
+        // Avaliação "somente para administradores" já não é visível ao técnico —
+        // ocultar não muda nada para quem já não a via, então não faz sentido
+        // existir esse estado para uma avaliação privada.
+        if (!avaliacao.Publica)
+        {
+            return UnprocessableEntity(new ErrorResponse
+            {
+                Status = 422,
+                Title = "Falha de validação",
+                Errors = new Dictionary<string, string[]> { ["publica"] = new[] { "Avaliações somente para administradores não podem ser ocultadas." } }
+            });
+        }
+
         avaliacao.Oculta = request.Oculta;
         await _dbContext.SaveChangesAsync();
 
         return Ok(AvaliacaoDto.FromEntity(avaliacao));
+    }
+
+    [HttpDelete("{id:long}/avaliacoes/{avaliacaoId:long}")]
+    public async Task<IActionResult> ApagarAvaliacao(long id, long avaliacaoId)
+    {
+        var usuarioId = ObterUsuarioId();
+        if (usuarioId is null)
+        {
+            return Unauthorized();
+        }
+
+        var avaliacao = await _dbContext.Avaliacoes.FirstOrDefaultAsync(a => a.Id == avaliacaoId && a.ChamadoId == id);
+        if (avaliacao is null)
+        {
+            return NotFound(ErrorResponse.Create(404, "Avaliação não encontrada."));
+        }
+
+        // Só o próprio cliente autor pode apagar a avaliação que publicou.
+        if (!User.IsInRole(Perfis.Cliente) || avaliacao.AutorId != usuarioId.Value)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, ErrorResponse.Create(403, "Sem permissão para apagar esta avaliação."));
+        }
+
+        _dbContext.Avaliacoes.Remove(avaliacao);
+
+        _dbContext.Historicos.Add(new Historico
+        {
+            ChamadoId = id,
+            AutorId = usuarioId.Value,
+            Acao = "Avaliação removida",
+            Detalhe = $"Nota {avaliacao.Nota}/5 removida pelo cliente."
+        });
+
+        await _dbContext.SaveChangesAsync();
+
+        return NoContent();
     }
 
     [HttpGet("{id:long}/comentarios")]

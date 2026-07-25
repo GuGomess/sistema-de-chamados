@@ -13,6 +13,12 @@
     font-size: 0.9rem;
   }
 
+  .dica {
+    margin: 0;
+    color: #666;
+    font-size: 0.75rem;
+  }
+
   // Estilos compartilhados por todos os formulários da página (ações, comentário,
   // avaliação) — evita repetir o mesmo bloco em cada seção.
   form {
@@ -125,6 +131,30 @@
         &.sla-vencido {
           background: #fee2e2;
           color: #b91c1c;
+        }
+      }
+
+      .btn-alterar-prazo {
+        margin-left: 0.5rem;
+        padding: 0.15rem 0.5rem;
+        font-size: 0.75rem;
+      }
+
+      .prazo-edicao {
+        margin-top: 0.5rem;
+        padding: 0.6rem;
+        background: #fff;
+        border: 1px solid #e5e5e5;
+        border-radius: 6px;
+
+        .prazo-edicao-acoes {
+          display: flex;
+          gap: 0.5rem;
+
+          button {
+            padding: 0.35rem 0.7rem;
+            font-size: 0.8rem;
+          }
         }
       }
     }

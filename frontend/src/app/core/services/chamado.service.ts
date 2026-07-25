@@ -152,6 +152,10 @@ export class ChamadoService {
     return this.http.patch<Avaliacao>(`${environment.apiBaseUrl}/v1/chamados/${id}/avaliacoes/${avaliacaoId}/ocultar`, { oculta });
   }
 
+  apagarAvaliacao(id: number, avaliacaoId: number): Observable<void> {
+    return this.http.delete<void>(`${environment.apiBaseUrl}/v1/chamados/${id}/avaliacoes/${avaliacaoId}`);
+  }
+
   listarHistorico(id: number): Observable<Historico[]> {
     return this.http.get<Historico[]>(`${environment.apiBaseUrl}/v1/chamados/${id}/historico`);
   }

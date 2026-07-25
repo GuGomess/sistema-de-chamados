@@ -35,7 +35,24 @@
                 situacaoSlaLabel(chamado.situacaoSlaResposta)
               }}</span>
             }
+            @if (podeAjustarPrazo()) {
+              <button type="button" class="btn-alterar-prazo" [disabled]="salvando()" (click)="toggleEdicaoPrazoResposta()">
+                {{ editandoPrazoResposta() ? 'Cancelar' : 'Alterar prazo' }}
+              </button>
+            }
           </span>
+          @if (editandoPrazoResposta()) {
+            <form [formGroup]="prazoRespostaForm" (ngSubmit)="ajustarPrazoResposta()" novalidate class="prazo-edicao">
+              <label>
+                Novo prazo de resposta
+                <input type="datetime-local" formControlName="prazoResposta" [disabled]="salvando()" />
+              </label>
+              <div class="prazo-edicao-acoes">
+                <button type="submit" [disabled]="salvando()">Confirmar</button>
+                <button type="button" [disabled]="salvando()" (click)="cancelarEdicaoPrazoResposta()">Cancelar</button>
+              </div>
+            </form>
+          }
         </div>
         <div class="sla-i">
           <span class="l">Prazo resolução</span>
@@ -46,10 +63,40 @@
                 situacaoSlaLabel(chamado.situacaoSlaResolucao)
               }}</span>
             }
+            @if (podeAjustarPrazo()) {
+              <button type="button" class="btn-alterar-prazo" [disabled]="salvando()" (click)="toggleEdicaoPrazoResolucao()">
+                {{ editandoPrazoResolucao() ? 'Cancelar' : 'Alterar prazo' }}
+              </button>
+            }
           </span>
+          @if (editandoPrazoResolucao()) {
+            <form [formGroup]="prazoForm" (ngSubmit)="ajustarPrazo()" novalidate class="prazo-edicao">
+              <label>
+                Novo prazo de resolução
+                <input type="datetime-local" formControlName="prazoResolucao" [disabled]="salvando()" />
+              </label>
+              <label>
+                Motivo da alteração
+                <textarea
+                  formControlName="justificativa"
+                  rows="2"
+                  placeholder="Descreva o motivo da alteração de prazo (obrigatório)"
+                  [disabled]="salvando()"
+                ></textarea>
+              </label>
+              <div class="prazo-edicao-acoes">
+                <button type="submit" [disabled]="salvando()">Confirmar</button>
+                <button type="button" [disabled]="salvando()" (click)="cancelarEdicaoPrazoResolucao()">Cancelar</button>
+              </div>
+            </form>
+          }
         </div>
       }
     </div>
+
+    @if (acaoErro() && (editandoPrazoResposta() || editandoPrazoResolucao())) {
+      <p class="erro" role="alert">{{ acaoErro() }}</p>
+    }
 
     <div class="corpo">
       <div class="descricao">
@@ -101,10 +148,15 @@
                 Alterar status
                 <select formControlName="idStatus" [disabled]="salvando()" (change)="salvarAlteracoes()">
                   @for (s of statusList(); track s.id) {
-                    <option [ngValue]="s.id">{{ s.nome }}</option>
+                    <option [ngValue]="s.id" [disabled]="s.nome === 'Resolvido' && statusResolvidoBloqueado()">
+                      {{ s.nome }}
+                    </option>
                   }
                 </select>
               </label>
+              @if (statusResolvidoBloqueado()) {
+                <p class="dica">É preciso ao menos um comentário (retorno) no chamado para marcá-lo como resolvido.</p>
+              }
             </form>
           }
 
@@ -129,42 +181,6 @@
                 <textarea formControlName="motivo" rows="2" placeholder="Motivo do fechamento"></textarea>
               </label>
               <button type="submit" [disabled]="salvando()">Fechar chamado</button>
-            </form>
-          }
-
-          @if (podeAjustarPrazo()) {
-            <form [formGroup]="prazoRespostaForm" novalidate class="prazo-form">
-              <label>
-                Novo prazo de resposta
-                <input
-                  type="datetime-local"
-                  formControlName="prazoResposta"
-                  [disabled]="salvando()"
-                  (change)="ajustarPrazoResposta()"
-                />
-              </label>
-            </form>
-
-            <form [formGroup]="prazoForm" novalidate class="prazo-form">
-              <label>
-                Novo prazo de resolução
-                <input
-                  type="datetime-local"
-                  formControlName="prazoResolucao"
-                  [disabled]="salvando()"
-                  (change)="ajustarPrazo()"
-                />
-              </label>
-              <label>
-                Justificativa
-                <textarea
-                  formControlName="justificativa"
-                  rows="2"
-                  placeholder="Motivo do ajuste (obrigatório)"
-                  [disabled]="salvando()"
-                  (change)="ajustarPrazo()"
-                ></textarea>
-              </label>
             </form>
           }
         </aside>
@@ -381,8 +397,9 @@
                   <div class="avaliacao-acoes">
                     @if (ehCliente() && av.autor.id === usuarioId) {
                       <button type="button" (click)="iniciarEdicaoAvaliacao(av)">Editar</button>
+                      <button type="button" (click)="apagarAvaliacao(av)">Apagar</button>
                     }
-                    @if (ehAdministrador()) {
+                    @if (ehAdministrador() && av.publica) {
                       <button type="button" (click)="ocultarAvaliacao(av)">{{ av.oculta ? 'Reexibir' : 'Ocultar' }}</button>
                     }
                   </div>
