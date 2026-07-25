@@ -1,7 +1,9 @@
 using Chamados.Api.Constants;
 using Chamados.Api.Data;
+using Chamados.Api.Hubs;
 using Chamados.Api.Models.Entities;
 using Chamados.Api.Options;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
@@ -19,15 +21,18 @@ public class SlaMonitorService : BackgroundService
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<SlaMonitorService> _logger;
     private readonly TimeSpan _interval;
+    private readonly IHubContext<ChamadosHub> _hubContext;
 
     public SlaMonitorService(
         IServiceScopeFactory scopeFactory,
         IOptions<SlaMonitorOptions> options,
-        ILogger<SlaMonitorService> logger)
+        ILogger<SlaMonitorService> logger,
+        IHubContext<ChamadosHub> hubContext)
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
         _interval = TimeSpan.FromSeconds(Math.Max(1, options.Value.IntervalSeconds));
+        _hubContext = hubContext;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -121,6 +126,19 @@ public class SlaMonitorService : BackgroundService
                 "Monitoramento de SLA: {Quantidade} transição(ões) registrada(s), {Notificacoes} notificação(ões) gerada(s).",
                 historicos.Count,
                 notificacoes.Count);
+
+            foreach (var notificacao in notificacoes)
+            {
+                await _hubContext.Clients.Group($"user-{notificacao.DestinatarioId}").SendAsync("NotificacaoRecebida");
+            }
+
+            // Dashboard/lista precisam refletir a mudança de situação de SLA de
+            // cada chamado afetado — um broadcast por chamado, não por transição
+            // (um mesmo chamado pode ter mudado resposta e resolução juntas).
+            foreach (var chamadoId in historicos.Select(h => h.ChamadoId).Distinct())
+            {
+                await _hubContext.Clients.Group("todos-chamados").SendAsync("ChamadoAtualizado", chamadoId);
+            }
         }
     }
 

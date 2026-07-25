@@ -67,6 +67,36 @@
     border-radius: 999px;
     font-size: 0.7rem;
     font-weight: 600;
+
+    &.oculta {
+      background: #fee2e2;
+      color: #b91c1c;
+    }
+  }
+
+  // Utilitários reaproveitados pelas ações inline de edição/ocultação de
+  // comentário, conteúdo do chamado e anexo (mesmo espaçamento em todo canto).
+  .edicao-acoes {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .linha-acoes {
+    display: flex;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+  }
+
+  .substituir-anexo {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    font-size: 0.75rem;
+    color: #555;
+
+    input[type='file'] {
+      font-size: 0.75rem;
+    }
   }
 
   .content-head {
@@ -168,6 +198,13 @@
 
     .descricao {
       flex: 2 1 320px;
+
+      .descricao-head {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+      }
 
       h2 {
         margin: 0 0 0.5rem;
@@ -313,6 +350,10 @@
 
         &.interno {
           background: #fef3c7;
+        }
+
+        &.oculta {
+          opacity: 0.65;
         }
 
         .comentario-head {

@@ -2,12 +2,14 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using Chamados.Api.Constants;
 using Chamados.Api.Data;
+using Chamados.Api.Hubs;
 using Chamados.Api.Models.Dtos;
 using Chamados.Api.Models.Dtos.Chamados;
 using Chamados.Api.Models.Entities;
 using Chamados.Api.Options;
 using Chamados.Api.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
@@ -32,11 +34,13 @@ public class ChamadosController : ControllerBase
 
     private readonly ChamadosDbContext _dbContext;
     private readonly UploadOptions _uploadOptions;
+    private readonly IHubContext<ChamadosHub> _hubContext;
 
-    public ChamadosController(ChamadosDbContext dbContext, IOptions<UploadOptions> uploadOptions)
+    public ChamadosController(ChamadosDbContext dbContext, IOptions<UploadOptions> uploadOptions, IHubContext<ChamadosHub> hubContext)
     {
         _dbContext = dbContext;
         _uploadOptions = uploadOptions.Value;
+        _hubContext = hubContext;
     }
 
     [HttpGet]
@@ -44,11 +48,13 @@ public class ChamadosController : ControllerBase
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         [FromQuery] string? sort = null,
+        [FromQuery] long? id = null,
         [FromQuery] long? idStatus = null,
         [FromQuery] long? idCategoria = null,
         [FromQuery] long? idPrioridade = null,
         [FromQuery] long? idTecnico = null,
         [FromQuery] string? q = null,
+        [FromQuery] string? solicitante = null,
         [FromQuery] DateTimeOffset? dataInicio = null,
         [FromQuery] DateTimeOffset? dataFim = null,
         [FromQuery] SituacaoSla? situacaoSla = null,
@@ -81,10 +87,12 @@ public class ChamadosController : ControllerBase
             query = query.Where(c => c.TecnicoId == usuarioId.Value || c.TecnicoId == null);
         }
 
+        if (id.HasValue) query = query.Where(c => c.Id == id.Value);
         if (idStatus.HasValue) query = query.Where(c => c.StatusId == idStatus.Value);
         if (idCategoria.HasValue) query = query.Where(c => c.CategoriaId == idCategoria.Value);
         if (idPrioridade.HasValue) query = query.Where(c => c.PrioridadeId == idPrioridade.Value);
         if (idTecnico.HasValue) query = query.Where(c => c.TecnicoId == idTecnico.Value);
+        if (!string.IsNullOrWhiteSpace(solicitante)) query = query.Where(c => EF.Functions.ILike(c.Solicitante.Nome, $"%{solicitante}%"));
 
         if (situacaoSla.HasValue)
         {
@@ -144,7 +152,7 @@ public class ChamadosController : ControllerBase
 
         return Ok(new ChamadoPageDto
         {
-            Items = chamados.Select(ChamadoDto.FromEntity).ToList(),
+            Items = chamados.Select(c => ChamadoDto.FromEntity(c, usuarioId.Value, User.IsInRole(Perfis.Administrador))).ToList(),
             Meta = new PageMetaDto
             {
                 Page = page,
@@ -245,6 +253,7 @@ public class ChamadosController : ControllerBase
 
         _dbContext.Chamados.Add(chamado);
         await _dbContext.SaveChangesAsync();
+        await BroadcastChamadoAtualizadoAsync(chamado.Id);
 
         _dbContext.Historicos.Add(new Historico
         {
@@ -255,9 +264,10 @@ public class ChamadosController : ControllerBase
             Acao = "Abertura"
         });
         await _dbContext.SaveChangesAsync();
+        await BroadcastChamadoAtualizadoAsync(chamado.Id);
 
         var chamadoCriado = await ChamadosComIncludes().FirstAsync(c => c.Id == chamado.Id);
-        return CreatedAtAction(nameof(Detalhar), new { id = chamado.Id }, ChamadoDto.FromEntity(chamadoCriado));
+        return CreatedAtAction(nameof(Detalhar), new { id = chamado.Id }, ChamadoDto.FromEntity(chamadoCriado, usuarioId.Value, User.IsInRole(Perfis.Administrador)));
     }
 
     [HttpGet("{id:long}")]
@@ -280,7 +290,7 @@ public class ChamadosController : ControllerBase
             return StatusCode(StatusCodes.Status403Forbidden, ErrorResponse.Create(403, "Sem permissão para acessar este chamado."));
         }
 
-        return Ok(ChamadoDto.FromEntity(chamado));
+        return Ok(ChamadoDto.FromEntity(chamado, usuarioId.Value, User.IsInRole(Perfis.Administrador)));
     }
 
     [HttpPatch("{id:long}")]
@@ -380,6 +390,7 @@ public class ChamadosController : ControllerBase
 
         chamado.AtualizadoEm = DateTimeOffset.UtcNow;
         await _dbContext.SaveChangesAsync();
+        await BroadcastChamadoAtualizadoAsync(chamado.Id);
 
         if (statusAnteriorId.HasValue)
         {
@@ -393,13 +404,93 @@ public class ChamadosController : ControllerBase
             });
 
             var mensagemStatus = $"Chamado #{chamado.Id} — {chamado.Titulo}: status alterado para {statusNovoNome}.";
-            NotificarInteressados(chamado, usuarioId.Value, mensagemStatus, TipoNotificacao.MudancaStatus);
+            await NotificarInteressadosAsync(chamado, usuarioId.Value, mensagemStatus, TipoNotificacao.MudancaStatus);
 
             await _dbContext.SaveChangesAsync();
+            await BroadcastChamadoAtualizadoAsync(chamado.Id);
         }
 
         var chamadoAtualizado = await ChamadosComIncludes().FirstAsync(c => c.Id == chamado.Id);
-        return Ok(ChamadoDto.FromEntity(chamadoAtualizado));
+        return Ok(ChamadoDto.FromEntity(chamadoAtualizado, usuarioId.Value, User.IsInRole(Perfis.Administrador)));
+    }
+
+    [HttpPatch("{id:long}/conteudo")]
+    public async Task<ActionResult<ChamadoDto>> AtualizarConteudo(long id, [FromBody] ChamadoConteudoUpdateRequest request)
+    {
+        var usuarioId = ObterUsuarioId();
+        if (usuarioId is null)
+        {
+            return Unauthorized();
+        }
+
+        var chamado = await _dbContext.Chamados.Include(c => c.Status).FirstOrDefaultAsync(c => c.Id == id);
+        if (chamado is null)
+        {
+            return NotFound(ErrorResponse.Create(404, "Chamado não encontrado."));
+        }
+
+        if (!PodeAcessar(chamado, usuarioId.Value))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, ErrorResponse.Create(403, "Sem permissão para editar este chamado."));
+        }
+
+        // Cliente (solicitante) não pode editar título/descrição depois que o
+        // chamado está em status final (Resolvido/Fechado) — staff (técnico ou
+        // administrador) pode editar mesmo com o chamado finalizado.
+        if (User.IsInRole(Perfis.Cliente) && chamado.Status.Final)
+        {
+            return UnprocessableEntity(new ErrorResponse
+            {
+                Status = 422,
+                Title = "Falha de validação",
+                Errors = new Dictionary<string, string[]> { ["status"] = new[] { "Chamado está em status final e não pode ter título/descrição editados pelo solicitante." } }
+            });
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.Titulo))
+        {
+            chamado.Titulo = request.Titulo;
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.Descricao))
+        {
+            chamado.Descricao = request.Descricao;
+        }
+
+        chamado.ConteudoEditadoEm = DateTimeOffset.UtcNow;
+        chamado.AtualizadoEm = DateTimeOffset.UtcNow;
+        await _dbContext.SaveChangesAsync();
+        await BroadcastChamadoAtualizadoAsync(chamado.Id);
+
+        var chamadoAtualizado = await ChamadosComIncludes().FirstAsync(c => c.Id == chamado.Id);
+        return Ok(ChamadoDto.FromEntity(chamadoAtualizado, usuarioId.Value, User.IsInRole(Perfis.Administrador)));
+    }
+
+    [HttpPatch("{id:long}/ocultar-descricao")]
+    public async Task<ActionResult<ChamadoDto>> OcultarDescricao(long id, [FromBody] ChamadoOcultarDescricaoRequest request)
+    {
+        var usuarioId = ObterUsuarioId();
+        if (usuarioId is null)
+        {
+            return Unauthorized();
+        }
+
+        if (!User.IsInRole(Perfis.Administrador))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, ErrorResponse.Create(403, "Apenas administradores podem ocultar a descrição de um chamado."));
+        }
+
+        var chamado = await ChamadosComIncludes().FirstOrDefaultAsync(c => c.Id == id);
+        if (chamado is null)
+        {
+            return NotFound(ErrorResponse.Create(404, "Chamado não encontrado."));
+        }
+
+        chamado.DescricaoOculta = request.Oculta;
+        await _dbContext.SaveChangesAsync();
+        await BroadcastChamadoAtualizadoAsync(chamado.Id);
+
+        return Ok(ChamadoDto.FromEntity(chamado, usuarioId.Value, User.IsInRole(Perfis.Administrador)));
     }
 
     [HttpPost("{id:long}/atribuir")]
@@ -458,6 +549,7 @@ public class ChamadosController : ControllerBase
         chamado.TecnicoId = tecnico!.Id;
         chamado.AtualizadoEm = DateTimeOffset.UtcNow;
         await _dbContext.SaveChangesAsync();
+        await BroadcastChamadoAtualizadoAsync(chamado.Id);
 
         _dbContext.Historicos.Add(new Historico
         {
@@ -471,12 +563,13 @@ public class ChamadosController : ControllerBase
         // chamado) e quem abriu o chamado — chamado.TecnicoId já é o novo
         // técnico neste ponto, então um único NotificarInteressados cobre os dois.
         var mensagemAtribuicao = $"Chamado #{chamado.Id} — {chamado.Titulo}: {tecnico.Nome} foi atribuído como técnico responsável.";
-        NotificarInteressados(chamado, usuarioId.Value, mensagemAtribuicao, TipoNotificacao.TecnicoAtribuido);
+        await NotificarInteressadosAsync(chamado, usuarioId.Value, mensagemAtribuicao, TipoNotificacao.TecnicoAtribuido);
 
         await _dbContext.SaveChangesAsync();
+        await BroadcastChamadoAtualizadoAsync(chamado.Id);
 
         var chamadoAtualizado = await ChamadosComIncludes().FirstAsync(c => c.Id == chamado.Id);
-        return Ok(ChamadoDto.FromEntity(chamadoAtualizado));
+        return Ok(ChamadoDto.FromEntity(chamadoAtualizado, usuarioId.Value, User.IsInRole(Perfis.Administrador)));
     }
 
     [HttpPost("{id:long}/assumir")]
@@ -517,6 +610,7 @@ public class ChamadosController : ControllerBase
         chamado.TecnicoId = usuarioId.Value;
         chamado.AtualizadoEm = DateTimeOffset.UtcNow;
         await _dbContext.SaveChangesAsync();
+        await BroadcastChamadoAtualizadoAsync(chamado.Id);
 
         _dbContext.Historicos.Add(new Historico
         {
@@ -529,12 +623,13 @@ public class ChamadosController : ControllerBase
         // responsável) — quem abriu o chamado precisa ser notificado aqui também.
         var usuarioAtual = await _dbContext.Usuarios.FirstOrDefaultAsync(u => u.Id == usuarioId.Value);
         var mensagemAssumir = $"Chamado #{chamado.Id} — {chamado.Titulo}: {usuarioAtual?.Nome ?? "um técnico"} assumiu o chamado.";
-        NotificarInteressados(chamado, usuarioId.Value, mensagemAssumir, TipoNotificacao.TecnicoAtribuido, notificarTecnico: false);
+        await NotificarInteressadosAsync(chamado, usuarioId.Value, mensagemAssumir, TipoNotificacao.TecnicoAtribuido, notificarTecnico: false);
 
         await _dbContext.SaveChangesAsync();
+        await BroadcastChamadoAtualizadoAsync(chamado.Id);
 
         var chamadoAtualizado = await ChamadosComIncludes().FirstAsync(c => c.Id == chamado.Id);
-        return Ok(ChamadoDto.FromEntity(chamadoAtualizado));
+        return Ok(ChamadoDto.FromEntity(chamadoAtualizado, usuarioId.Value, User.IsInRole(Perfis.Administrador)));
     }
 
     [HttpPost("{id:long}/reabrir")]
@@ -575,6 +670,7 @@ public class ChamadosController : ControllerBase
         chamado.FechadoEm = null;
         chamado.AtualizadoEm = DateTimeOffset.UtcNow;
         await _dbContext.SaveChangesAsync();
+        await BroadcastChamadoAtualizadoAsync(chamado.Id);
 
         _dbContext.Historicos.Add(new Historico
         {
@@ -599,9 +695,10 @@ public class ChamadosController : ControllerBase
         }
 
         await _dbContext.SaveChangesAsync();
+        await BroadcastChamadoAtualizadoAsync(chamado.Id);
 
         var chamadoAtualizado = await ChamadosComIncludes().FirstAsync(c => c.Id == chamado.Id);
-        return Ok(ChamadoDto.FromEntity(chamadoAtualizado));
+        return Ok(ChamadoDto.FromEntity(chamadoAtualizado, usuarioId.Value, User.IsInRole(Perfis.Administrador)));
     }
 
     [HttpPost("{id:long}/fechar-cliente")]
@@ -642,6 +739,7 @@ public class ChamadosController : ControllerBase
         chamado.ResolvidoEm ??= chamado.FechadoEm;
         chamado.AtualizadoEm = DateTimeOffset.UtcNow;
         await _dbContext.SaveChangesAsync();
+        await BroadcastChamadoAtualizadoAsync(chamado.Id);
 
         _dbContext.Historicos.Add(new Historico
         {
@@ -671,9 +769,10 @@ public class ChamadosController : ControllerBase
         }
 
         await _dbContext.SaveChangesAsync();
+        await BroadcastChamadoAtualizadoAsync(chamado.Id);
 
         var chamadoAtualizado = await ChamadosComIncludes().FirstAsync(c => c.Id == chamado.Id);
-        return Ok(ChamadoDto.FromEntity(chamadoAtualizado));
+        return Ok(ChamadoDto.FromEntity(chamadoAtualizado, usuarioId.Value, User.IsInRole(Perfis.Administrador)));
     }
 
     [HttpPatch("{id:long}/prazo-resolucao")]
@@ -724,6 +823,7 @@ public class ChamadosController : ControllerBase
         chamado.AtualizadoEm = DateTimeOffset.UtcNow;
         chamado.SituacaoSlaResolucao = SlaSituacaoCalculator.Calcular(chamado.CriadoEm, request.PrazoResolucao, chamado.AtualizadoEm);
         await _dbContext.SaveChangesAsync();
+        await BroadcastChamadoAtualizadoAsync(chamado.Id);
 
         var prazoAnteriorTexto = prazoAnterior is null ? "não definido" : prazoAnterior.Value.UtcDateTime.ToString("dd/MM/yyyy HH:mm") + " UTC";
         var prazoNovoTexto = request.PrazoResolucao.UtcDateTime.ToString("dd/MM/yyyy HH:mm") + " UTC";
@@ -743,9 +843,10 @@ public class ChamadosController : ControllerBase
         }
 
         await _dbContext.SaveChangesAsync();
+        await BroadcastChamadoAtualizadoAsync(chamado.Id);
 
         var chamadoAtualizado = await ChamadosComIncludes().FirstAsync(c => c.Id == chamado.Id);
-        return Ok(ChamadoDto.FromEntity(chamadoAtualizado));
+        return Ok(ChamadoDto.FromEntity(chamadoAtualizado, usuarioId.Value, User.IsInRole(Perfis.Administrador)));
     }
 
     [HttpPatch("{id:long}/prazo-resposta")]
@@ -786,6 +887,7 @@ public class ChamadosController : ControllerBase
         chamado.AtualizadoEm = DateTimeOffset.UtcNow;
         chamado.SituacaoSlaResposta = SlaSituacaoCalculator.Calcular(chamado.CriadoEm, request.PrazoResposta, chamado.AtualizadoEm);
         await _dbContext.SaveChangesAsync();
+        await BroadcastChamadoAtualizadoAsync(chamado.Id);
 
         var prazoAnteriorTexto = prazoAnterior is null ? "não definido" : prazoAnterior.Value.UtcDateTime.ToString("dd/MM/yyyy HH:mm") + " UTC";
         var prazoNovoTexto = request.PrazoResposta.UtcDateTime.ToString("dd/MM/yyyy HH:mm") + " UTC";
@@ -805,9 +907,10 @@ public class ChamadosController : ControllerBase
         }
 
         await _dbContext.SaveChangesAsync();
+        await BroadcastChamadoAtualizadoAsync(chamado.Id);
 
         var chamadoAtualizado = await ChamadosComIncludes().FirstAsync(c => c.Id == chamado.Id);
-        return Ok(ChamadoDto.FromEntity(chamadoAtualizado));
+        return Ok(ChamadoDto.FromEntity(chamadoAtualizado, usuarioId.Value, User.IsInRole(Perfis.Administrador)));
     }
 
     [HttpGet("{id:long}/historico")]
@@ -955,6 +1058,7 @@ public class ChamadosController : ControllerBase
 
         _dbContext.Avaliacoes.Add(avaliacao);
         await _dbContext.SaveChangesAsync();
+        await BroadcastChamadoAtualizadoAsync(chamado.Id);
 
         _dbContext.Historicos.Add(new Historico
         {
@@ -979,6 +1083,7 @@ public class ChamadosController : ControllerBase
         }
 
         await _dbContext.SaveChangesAsync();
+        await BroadcastChamadoAtualizadoAsync(chamado.Id);
 
         var avaliacaoCriada = await _dbContext.Avaliacoes
             .Include(a => a.Autor).ThenInclude(u => u.Perfil)
@@ -1027,6 +1132,7 @@ public class ChamadosController : ControllerBase
         avaliacao.EditadoEm = DateTimeOffset.UtcNow;
 
         await _dbContext.SaveChangesAsync();
+        await BroadcastChamadoAtualizadoAsync(id);
 
         return Ok(AvaliacaoDto.FromEntity(avaliacao));
     }
@@ -1068,6 +1174,7 @@ public class ChamadosController : ControllerBase
 
         avaliacao.Oculta = request.Oculta;
         await _dbContext.SaveChangesAsync();
+        await BroadcastChamadoAtualizadoAsync(id);
 
         return Ok(AvaliacaoDto.FromEntity(avaliacao));
     }
@@ -1104,6 +1211,7 @@ public class ChamadosController : ControllerBase
         });
 
         await _dbContext.SaveChangesAsync();
+        await BroadcastChamadoAtualizadoAsync(id);
 
         return NoContent();
     }
@@ -1141,7 +1249,7 @@ public class ChamadosController : ControllerBase
             .OrderBy(c => c.CriadoEm)
             .ToListAsync();
 
-        return Ok(comentarios.Select(ComentarioDto.FromEntity).ToList());
+        return Ok(comentarios.Select(c => ComentarioDto.FromEntity(c, usuarioId.Value, User.IsInRole(Perfis.Administrador))).ToList());
     }
 
     [HttpPost("{id:long}/comentarios")]
@@ -1212,16 +1320,104 @@ public class ChamadosController : ControllerBase
         // sobre ela (evitaria expor que existe um comentário que ele não pode ver).
         var autorNome = await _dbContext.Usuarios.Where(u => u.Id == usuarioId.Value).Select(u => u.Nome).FirstOrDefaultAsync() ?? "Alguém";
         var mensagemComentario = $"Chamado #{chamado.Id} — {chamado.Titulo}: novo comentário de {autorNome}.";
-        NotificarInteressados(chamado, usuarioId.Value, mensagemComentario, TipoNotificacao.NovoComentario, notificarSolicitante: !interno);
+        await NotificarInteressadosAsync(chamado, usuarioId.Value, mensagemComentario, TipoNotificacao.NovoComentario, notificarSolicitante: !interno);
 
         await _dbContext.SaveChangesAsync();
+        await BroadcastChamadoAtualizadoAsync(id);
 
         var comentarioCriado = await _dbContext.Comentarios
             .Include(c => c.Autor).ThenInclude(u => u.Perfil)
             .Include(c => c.Anexos).ThenInclude(a => a.Autor).ThenInclude(u => u.Perfil)
             .FirstAsync(c => c.Id == comentario.Id);
 
-        return CreatedAtAction(nameof(ListarComentarios), new { id }, ComentarioDto.FromEntity(comentarioCriado));
+        return CreatedAtAction(nameof(ListarComentarios), new { id }, ComentarioDto.FromEntity(comentarioCriado, usuarioId.Value, User.IsInRole(Perfis.Administrador)));
+    }
+
+    [HttpPatch("{id:long}/comentarios/{comentarioId:long}")]
+    public async Task<ActionResult<ComentarioDto>> AtualizarComentario(long id, long comentarioId, [FromBody] ComentarioUpdateRequest request)
+    {
+        var usuarioId = ObterUsuarioId();
+        if (usuarioId is null)
+        {
+            return Unauthorized();
+        }
+
+        var chamado = await _dbContext.Chamados.FirstOrDefaultAsync(c => c.Id == id);
+        if (chamado is null)
+        {
+            return NotFound(ErrorResponse.Create(404, "Chamado não encontrado."));
+        }
+
+        if (!PodeAcessar(chamado, usuarioId.Value))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, ErrorResponse.Create(403, "Sem permissão para acessar este chamado."));
+        }
+
+        var comentario = await _dbContext.Comentarios
+            .Include(c => c.Autor).ThenInclude(u => u.Perfil)
+            .Include(c => c.Anexos).ThenInclude(a => a.Autor).ThenInclude(u => u.Perfil)
+            .FirstOrDefaultAsync(c => c.Id == comentarioId && c.ChamadoId == id);
+        if (comentario is null)
+        {
+            return NotFound(ErrorResponse.Create(404, "Comentário não encontrado."));
+        }
+
+        // Só o autor original pode editar o próprio comentário, sem janela de
+        // tempo — administrador não edita conteúdo de terceiros, só oculta.
+        if (comentario.AutorId != usuarioId.Value)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, ErrorResponse.Create(403, "Sem permissão para editar este comentário."));
+        }
+
+        comentario.Mensagem = request.Mensagem;
+        comentario.EditadoEm = DateTimeOffset.UtcNow;
+        await _dbContext.SaveChangesAsync();
+        await BroadcastChamadoAtualizadoAsync(id);
+
+        return Ok(ComentarioDto.FromEntity(comentario, usuarioId.Value, User.IsInRole(Perfis.Administrador)));
+    }
+
+    [HttpPatch("{id:long}/comentarios/{comentarioId:long}/ocultar")]
+    public async Task<ActionResult<ComentarioDto>> OcultarComentario(long id, long comentarioId, [FromBody] ComentarioOcultarRequest request)
+    {
+        var usuarioId = ObterUsuarioId();
+        if (usuarioId is null)
+        {
+            return Unauthorized();
+        }
+
+        var chamado = await _dbContext.Chamados.FirstOrDefaultAsync(c => c.Id == id);
+        if (chamado is null)
+        {
+            return NotFound(ErrorResponse.Create(404, "Chamado não encontrado."));
+        }
+
+        if (!PodeAcessar(chamado, usuarioId.Value))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, ErrorResponse.Create(403, "Sem permissão para acessar este chamado."));
+        }
+
+        var comentario = await _dbContext.Comentarios
+            .Include(c => c.Autor).ThenInclude(u => u.Perfil)
+            .Include(c => c.Anexos).ThenInclude(a => a.Autor).ThenInclude(u => u.Perfil)
+            .FirstOrDefaultAsync(c => c.Id == comentarioId && c.ChamadoId == id);
+        if (comentario is null)
+        {
+            return NotFound(ErrorResponse.Create(404, "Comentário não encontrado."));
+        }
+
+        // Só administrador pode ocultar o comentário de qualquer autor (ex.:
+        // conteúdo impróprio) — não edita o conteúdo, só o marca como oculto.
+        if (!User.IsInRole(Perfis.Administrador))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, ErrorResponse.Create(403, "Apenas administradores podem ocultar comentários."));
+        }
+
+        comentario.Oculta = request.Oculta;
+        await _dbContext.SaveChangesAsync();
+        await BroadcastChamadoAtualizadoAsync(id);
+
+        return Ok(ComentarioDto.FromEntity(comentario, usuarioId.Value, User.IsInRole(Perfis.Administrador)));
     }
 
     [HttpGet("{id:long}/anexos")]
@@ -1288,12 +1484,90 @@ public class ChamadosController : ControllerBase
 
         _dbContext.Anexos.Add(anexo);
         await _dbContext.SaveChangesAsync();
+        await BroadcastChamadoAtualizadoAsync(id);
 
         var anexoCriado = await _dbContext.Anexos
             .Include(a => a.Autor).ThenInclude(u => u.Perfil)
             .FirstAsync(a => a.Id == anexo.Id);
 
         return CreatedAtAction(nameof(ListarAnexos), new { id }, AnexoDto.FromEntity(anexoCriado));
+    }
+
+    [HttpPut("{id:long}/anexos/{anexoId:long}")]
+    public async Task<ActionResult<AnexoDto>> SubstituirAnexo(long id, long anexoId, IFormFile? arquivo)
+    {
+        var usuarioId = ObterUsuarioId();
+        if (usuarioId is null)
+        {
+            return Unauthorized();
+        }
+
+        var chamado = await _dbContext.Chamados.FirstOrDefaultAsync(c => c.Id == id);
+        if (chamado is null)
+        {
+            return NotFound(ErrorResponse.Create(404, "Chamado não encontrado."));
+        }
+
+        if (!PodeAcessar(chamado, usuarioId.Value))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, ErrorResponse.Create(403, "Sem permissão para acessar este chamado."));
+        }
+
+        var anexo = await _dbContext.Anexos
+            .Include(a => a.Autor).ThenInclude(u => u.Perfil)
+            .FirstOrDefaultAsync(a => a.Id == anexoId && a.ChamadoId == id);
+        if (anexo is null)
+        {
+            return NotFound(ErrorResponse.Create(404, "Anexo não encontrado."));
+        }
+
+        // Só o autor original do upload ou um administrador pode substituir o
+        // arquivo — mantém o mesmo registro (mesmo Id), não cria um novo anexo.
+        if (anexo.AutorId != usuarioId.Value && !User.IsInRole(Perfis.Administrador))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, ErrorResponse.Create(403, "Sem permissão para substituir este anexo."));
+        }
+
+        if (arquivo is null || arquivo.Length == 0)
+        {
+            return BadRequest(ErrorResponse.Create(400, "Nenhum arquivo enviado."));
+        }
+
+        var (valido, titulo, detalhe) = ValidarArquivo(arquivo);
+        if (!valido)
+        {
+            return UnprocessableEntity(ErrorResponse.Create(422, titulo!, detalhe));
+        }
+
+        var caminhoAntigoCompleto = Path.Combine(_uploadOptions.StoragePath, anexo.Caminho);
+
+        var extensao = Path.GetExtension(arquivo.FileName).ToLowerInvariant();
+        var nomeArmazenado = $"{Guid.NewGuid()}{extensao}";
+        var caminhoRelativo = Path.Combine(id.ToString(), nomeArmazenado);
+        var caminhoCompleto = Path.Combine(_uploadOptions.StoragePath, caminhoRelativo);
+
+        Directory.CreateDirectory(Path.GetDirectoryName(caminhoCompleto)!);
+
+        await using (var destino = System.IO.File.Create(caminhoCompleto))
+        {
+            await arquivo.CopyToAsync(destino);
+        }
+
+        if (System.IO.File.Exists(caminhoAntigoCompleto))
+        {
+            System.IO.File.Delete(caminhoAntigoCompleto);
+        }
+
+        anexo.NomeArquivo = Path.GetFileName(arquivo.FileName);
+        anexo.Caminho = caminhoRelativo;
+        anexo.TipoMime = string.IsNullOrWhiteSpace(arquivo.ContentType) ? "application/octet-stream" : arquivo.ContentType;
+        anexo.TamanhoBytes = arquivo.Length;
+        anexo.EditadoEm = DateTimeOffset.UtcNow;
+
+        await _dbContext.SaveChangesAsync();
+        await BroadcastChamadoAtualizadoAsync(id);
+
+        return Ok(AnexoDto.FromEntity(anexo));
     }
 
     [HttpGet("{id:long}/anexos/{anexoId:long}/download")]
@@ -1394,10 +1668,19 @@ public class ChamadosController : ControllerBase
         return claim is not null && long.TryParse(claim.Value, out var id) ? id : null;
     }
 
+    // Avisa quem está com a tela do chamado aberta ("chamado-{id}") e quem está
+    // na lista/dashboard ("todos-chamados") que algo mudou — o payload é só o
+    // id, o cliente re-busca o chamado atualizado via GET.
+    private async Task BroadcastChamadoAtualizadoAsync(long chamadoId)
+    {
+        await _hubContext.Clients.Group($"chamado-{chamadoId}").SendAsync("ChamadoAtualizado", chamadoId);
+        await _hubContext.Clients.Group("todos-chamados").SendAsync("ChamadoAtualizado", chamadoId);
+    }
+
     // Notifica quem abriu o chamado e o técnico vinculado sobre uma atualização
     // (comentário, mudança de status, atribuição de técnico) — nunca o próprio
     // autor da ação, e nunca duplicado se solicitante e técnico forem a mesma pessoa.
-    private void NotificarInteressados(
+    private async Task NotificarInteressadosAsync(
         Chamado chamado,
         long autorId,
         string mensagem,
@@ -1414,6 +1697,7 @@ public class ChamadosController : ControllerBase
                 Tipo = tipo,
                 Mensagem = mensagem
             });
+            await _hubContext.Clients.Group($"user-{chamado.SolicitanteId}").SendAsync("NotificacaoRecebida");
         }
 
         if (notificarTecnico
@@ -1428,6 +1712,7 @@ public class ChamadosController : ControllerBase
                 Tipo = tipo,
                 Mensagem = mensagem
             });
+            await _hubContext.Clients.Group($"user-{chamado.TecnicoId.Value}").SendAsync("NotificacaoRecebida");
         }
     }
 
@@ -1453,6 +1738,7 @@ public class ChamadosController : ControllerBase
                 Tipo = tipo,
                 Mensagem = mensagem
             });
+            await _hubContext.Clients.Group($"user-{administradorId}").SendAsync("NotificacaoRecebida");
         }
     }
 }

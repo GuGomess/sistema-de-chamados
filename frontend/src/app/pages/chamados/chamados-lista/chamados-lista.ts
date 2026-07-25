@@ -7,6 +7,7 @@ import { forkJoin } from 'rxjs';
 
 import { AuthService } from '../../../core/services/auth.service';
 import { ChamadoService } from '../../../core/services/chamado.service';
+import { RealtimeService } from '../../../core/services/realtime.service';
 import {
   Categoria,
   Chamado,
@@ -27,6 +28,7 @@ export class ChamadosLista implements OnInit {
   private readonly formBuilder = inject(FormBuilder);
   private readonly chamadoService = inject(ChamadoService);
   private readonly authService = inject(AuthService);
+  private readonly realtimeService = inject(RealtimeService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
 
@@ -56,6 +58,7 @@ export class ChamadosLista implements OnInit {
 
   protected readonly form = this.formBuilder.nonNullable.group({
     q: [''],
+    id: [null as number | null],
     idStatus: [null as number | null],
     idCategoria: [null as number | null],
     idPrioridade: [null as number | null],
@@ -63,6 +66,7 @@ export class ChamadosLista implements OnInit {
     dataInicio: [''],
     dataFim: [''],
     situacaoSla: [null as SituacaoSla | null],
+    solicitante: [''],
     ocultarFinalizados: [false],
   });
 
@@ -95,6 +99,8 @@ export class ChamadosLista implements OnInit {
         this.carregandoOpcoes.set(false);
       },
     });
+
+    this.realtimeService.on('ChamadoAtualizado', () => this.buscar());
   }
 
   protected onFiltrar(): void {
@@ -169,8 +175,19 @@ export class ChamadosLista implements OnInit {
     this.carregando.set(true);
     this.erro.set(null);
 
-    const { q, idStatus, idCategoria, idPrioridade, idTecnico, dataInicio, dataFim, situacaoSla, ocultarFinalizados } =
-      this.form.getRawValue();
+    const {
+      q,
+      id,
+      idStatus,
+      idCategoria,
+      idPrioridade,
+      idTecnico,
+      dataInicio,
+      dataFim,
+      situacaoSla,
+      solicitante,
+      ocultarFinalizados,
+    } = this.form.getRawValue();
 
     this.chamadoService
       .listar({
@@ -178,6 +195,7 @@ export class ChamadosLista implements OnInit {
         pageSize: 20,
         sort: (this.sortDescendente() ? '-' : '') + this.sortCampo(),
         q,
+        id,
         idStatus,
         idCategoria,
         idPrioridade,
@@ -185,6 +203,7 @@ export class ChamadosLista implements OnInit {
         dataInicio: dataInicio || null,
         dataFim: dataFim || null,
         situacaoSla,
+        solicitante: this.ehStaff ? solicitante || null : undefined,
         meus: this.ehStaff && this.mostrarMeus() ? true : undefined,
         ocultarFinalizados,
       })

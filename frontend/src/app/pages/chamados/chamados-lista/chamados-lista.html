@@ -25,6 +25,12 @@
     <form class="filtros" [formGroup]="form" (ngSubmit)="onFiltrar()" novalidate>
       <input type="text" formControlName="q" placeholder="Buscar por título ou descrição" />
 
+      <input type="number" formControlName="id" placeholder="Nº do chamado" min="1" />
+
+      @if (ehStaff) {
+        <input type="text" formControlName="solicitante" placeholder="Solicitante" />
+      }
+
       <select formControlName="idStatus">
         <option [ngValue]="null">Status</option>
         @for (s of status(); track s.id) {

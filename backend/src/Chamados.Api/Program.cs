@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Chamados.Api.Constants;
 using Chamados.Api.Data;
+using Chamados.Api.Hubs;
 using Chamados.Api.Options;
 using Chamados.Api.Services;
 using Chamados.Api.Swagger;
@@ -31,6 +32,8 @@ builder.Services.AddHostedService<SlaMonitorService>();
 
 builder.Services.Configure<UploadOptions>(builder.Configuration.GetSection(UploadOptions.SectionName));
 
+builder.Services.AddSignalR();
+
 // Kestrel recusa por padrão corpos de requisição maiores que ~30 MB; o limite
 // precisa acompanhar o MaxFileSizeBytes configurado para upload de anexos.
 var uploadOptions = builder.Configuration.GetSection(UploadOptions.SectionName).Get<UploadOptions>() ?? new UploadOptions();
@@ -54,6 +57,23 @@ builder.Services
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.Key)),
             ValidateLifetime = true,
             ClockSkew = TimeSpan.Zero
+        };
+
+        // SignalR via WebSocket não consegue mandar o header Authorization no
+        // handshake do browser — o token vem via query string só para as rotas
+        // do hub (/hubs/...), padrão oficial do ASP.NET Core.
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                var path = context.HttpContext.Request.Path;
+                if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
+                {
+                    context.Token = accessToken;
+                }
+                return Task.CompletedTask;
+            }
         };
     });
 
@@ -131,5 +151,6 @@ app.MapHealthChecks("/health", new HealthCheckOptions
 }).AllowAnonymous();
 
 app.MapControllers();
+app.MapHub<ChamadosHub>("/hubs/chamados");
 
 app.Run();

@@ -94,14 +94,54 @@
       }
     </div>
 
-    @if (acaoErro() && (editandoPrazoResposta() || editandoPrazoResolucao())) {
+    @if (acaoErro() && (editandoPrazoResposta() || editandoPrazoResolucao() || editandoConteudo())) {
       <p class="erro" role="alert">{{ acaoErro() }}</p>
     }
 
     <div class="corpo">
       <div class="descricao">
-        <h2>Descrição</h2>
-        <p>{{ chamado.descricao }}</p>
+        <div class="descricao-head">
+          <h2>Descrição</h2>
+          @if (chamado.conteudoEditado) {
+            <span class="badge">Editado</span>
+          }
+          @if (chamado.descricaoOculta) {
+            <span class="badge oculta">Descrição oculta</span>
+          }
+        </div>
+
+        @if ((podeEditarConteudo() && !editandoConteudo()) || podeOcultarDescricao()) {
+          <div class="linha-acoes">
+            @if (podeEditarConteudo() && !editandoConteudo()) {
+              <button type="button" [disabled]="salvando()" (click)="iniciarEdicaoConteudo()">Editar</button>
+            }
+            @if (podeOcultarDescricao()) {
+              <button type="button" [disabled]="salvando()" (click)="ocultarDescricaoChamado()">
+                {{ chamado.descricaoOculta ? 'Reexibir descrição' : 'Ocultar descrição' }}
+              </button>
+            }
+          </div>
+        }
+
+        @if (editandoConteudo()) {
+          <form [formGroup]="conteudoForm" (ngSubmit)="salvarEdicaoConteudo()" novalidate class="form-conteudo">
+            <label>
+              Título
+              <input type="text" formControlName="titulo" [disabled]="salvando()" />
+            </label>
+            <label>
+              Descrição
+              <textarea formControlName="descricao" rows="4" [disabled]="salvando()"></textarea>
+            </label>
+            <div class="edicao-acoes">
+              <button type="submit" [disabled]="salvando()">Salvar</button>
+              <button type="button" [disabled]="salvando()" (click)="cancelarEdicaoConteudo()">Cancelar</button>
+            </div>
+          </form>
+        } @else {
+          <p>{{ chamado.descricao }}</p>
+        }
+
         <p class="meta">
           Aberto em {{ chamado.criadoEm | date: 'dd/MM/yyyy HH:mm' }}
           @if (reabertoEm(); as dataReabertura) {
@@ -225,15 +265,55 @@
       } @else {
         <ul class="lista-comentarios">
           @for (comentario of comentarios(); track comentario.id) {
-            <li class="comentario" [class.interno]="comentario.interno">
+            <li class="comentario" [class.interno]="comentario.interno" [class.oculta]="comentario.oculta">
               <div class="comentario-head">
                 <span class="autor">{{ comentario.autor.nome }}</span>
                 @if (comentario.interno) {
                   <span class="badge interno">Nota interna</span>
                 }
-                <span class="data">{{ comentario.criadoEm | date: 'dd/MM/yyyy HH:mm' }}</span>
+                @if (comentario.oculta) {
+                  <span class="badge oculta">Oculto</span>
+                }
+                <span class="data">
+                  {{ comentario.criadoEm | date: 'dd/MM/yyyy HH:mm' }}
+                  @if (comentario.editado) {
+                    · Editado
+                  }
+                </span>
               </div>
-              <p class="mensagem">{{ comentario.mensagem }}</p>
+
+              @if (editandoComentarioId() === comentario.id) {
+                <form
+                  [formGroup]="comentarioEdicaoForm"
+                  (ngSubmit)="salvarEdicaoComentario(comentario)"
+                  novalidate
+                  class="form-comentario-edicao"
+                >
+                  <label>
+                    Mensagem
+                    <textarea formControlName="mensagem" rows="3"></textarea>
+                  </label>
+                  <div class="edicao-acoes">
+                    <button type="submit" [disabled]="enviandoComentario()">Salvar</button>
+                    <button type="button" [disabled]="enviandoComentario()" (click)="cancelarEdicaoComentario()">Cancelar</button>
+                  </div>
+                </form>
+              } @else {
+                <p class="mensagem">{{ comentario.mensagem }}</p>
+                @if (podeEditarComentario(comentario) || ehAdministrador()) {
+                  <div class="linha-acoes">
+                    @if (podeEditarComentario(comentario)) {
+                      <button type="button" (click)="iniciarEdicaoComentario(comentario)">Editar</button>
+                    }
+                    @if (ehAdministrador()) {
+                      <button type="button" (click)="ocultarComentario(comentario)">
+                        {{ comentario.oculta ? 'Reexibir' : 'Ocultar' }}
+                      </button>
+                    }
+                  </div>
+                }
+              }
+
               @if (comentario.anexos.length > 0) {
                 <ul class="lista-anexos">
                   @for (anexo of comentario.anexos; track anexo.id) {
@@ -248,13 +328,28 @@
                       }
                       <div class="anexo-info">
                         <span class="nome">{{ anexo.nomeArquivo }}</span>
-                        <span class="meta-anexo">{{ formatarTamanho(anexo.tamanhoBytes) }}</span>
+                        <span class="meta-anexo">
+                          {{ formatarTamanho(anexo.tamanhoBytes) }}
+                          @if (anexo.editado) {
+                            · Editado
+                          }
+                        </span>
                       </div>
                       <div class="anexo-acoes">
                         @if (anexo.tipoMime === 'application/pdf') {
                           <button type="button" (click)="visualizarAnexo(anexo)">Visualizar</button>
                         }
                         <button type="button" (click)="baixarAnexo(anexo)">Baixar</button>
+                        @if (podeSubstituirAnexo(anexo)) {
+                          <label class="substituir-anexo">
+                            Substituir arquivo
+                            <input
+                              type="file"
+                              (change)="substituirAnexo(anexo, $event)"
+                              [disabled]="substituindoAnexoId() === anexo.id"
+                            />
+                          </label>
+                        }
                       </div>
                     </li>
                   }
@@ -438,6 +533,9 @@
                 <span class="meta-anexo">
                   {{ formatarTamanho(anexo.tamanhoBytes) }} · {{ anexo.autor.nome }} ·
                   {{ anexo.criadoEm | date: 'dd/MM/yyyy HH:mm' }}
+                  @if (anexo.editado) {
+                    · Editado
+                  }
                 </span>
               </div>
               <div class="anexo-acoes">
@@ -445,6 +543,16 @@
                   <button type="button" (click)="visualizarAnexo(anexo)">Visualizar</button>
                 }
                 <button type="button" (click)="baixarAnexo(anexo)">Baixar</button>
+                @if (podeSubstituirAnexo(anexo)) {
+                  <label class="substituir-anexo">
+                    Substituir arquivo
+                    <input
+                      type="file"
+                      (change)="substituirAnexo(anexo, $event)"
+                      [disabled]="substituindoAnexoId() === anexo.id"
+                    />
+                  </label>
+                }
               </div>
             </li>
           }

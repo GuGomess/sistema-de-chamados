@@ -44,6 +44,15 @@ export interface ChamadoUpdateRequest {
   idPrioridade?: number;
 }
 
+export interface ChamadoConteudoUpdateRequest {
+  titulo?: string;
+  descricao?: string;
+}
+
+export interface ChamadoOcultarDescricaoRequest {
+  oculta: boolean;
+}
+
 export interface AtribuirTecnicoRequest {
   idTecnico: number;
 }
@@ -75,6 +84,8 @@ export interface Chamado {
   fechadoEm: string | null;
   situacaoSlaResposta: SituacaoSla;
   situacaoSlaResolucao: SituacaoSla;
+  conteudoEditado: boolean;
+  descricaoOculta: boolean;
 }
 
 export interface PageMeta {
@@ -94,6 +105,7 @@ export interface ChamadoFiltros {
   pageSize?: number;
   sort?: string;
   q?: string;
+  id?: number | null;
   idStatus?: number | null;
   idCategoria?: number | null;
   idPrioridade?: number | null;
@@ -101,6 +113,7 @@ export interface ChamadoFiltros {
   dataInicio?: string | null;
   dataFim?: string | null;
   situacaoSla?: SituacaoSla | null;
+  solicitante?: string | null;
   // Aba "Meus chamados" (técnico/administrador): assumidos por mim ou abertos por mim.
   meus?: boolean;
   ocultarFinalizados?: boolean;
@@ -147,12 +160,22 @@ export interface Comentario {
   interno: boolean;
   criadoEm: string;
   anexos: Anexo[];
+  editado: boolean;
+  oculta: boolean;
 }
 
 export interface ComentarioCreateRequest {
   mensagem: string;
   interno: boolean;
   arquivos?: File[];
+}
+
+export interface ComentarioUpdateRequest {
+  mensagem: string;
+}
+
+export interface ComentarioOcultarRequest {
+  oculta: boolean;
 }
 
 export interface Historico {
@@ -176,4 +199,5 @@ export interface Anexo {
   tamanhoBytes: number;
   url: string;
   criadoEm: string;
+  editado: boolean;
 }

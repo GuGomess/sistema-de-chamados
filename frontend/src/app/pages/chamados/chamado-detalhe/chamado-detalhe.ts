@@ -8,6 +8,7 @@ import { Observable } from 'rxjs';
 
 import { AuthService } from '../../../core/services/auth.service';
 import { ChamadoService } from '../../../core/services/chamado.service';
+import { RealtimeService } from '../../../core/services/realtime.service';
 import {
   Anexo,
   Avaliacao,
@@ -15,9 +16,11 @@ import {
   AvaliacaoUpdateRequest,
   Categoria,
   Chamado,
+  ChamadoConteudoUpdateRequest,
   ChamadoUpdateRequest,
   Comentario,
   ComentarioCreateRequest,
+  ComentarioUpdateRequest,
   Historico,
   PrazoResolucaoUpdateRequest,
   PrazoRespostaUpdateRequest,
@@ -50,6 +53,7 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly chamadoService = inject(ChamadoService);
   private readonly authService = inject(AuthService);
+  private readonly realtimeService = inject(RealtimeService);
   private readonly formBuilder = inject(FormBuilder);
   private readonly sanitizer = inject(DomSanitizer);
 
@@ -72,6 +76,7 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
   protected readonly enviandoComentario = signal(false);
   protected readonly comentarioErro = signal<string | null>(null);
   protected readonly comentarioArquivos = signal<File[]>([]);
+  protected readonly editandoComentarioId = signal<number | null>(null);
 
   private readonly extensoesPermitidas = [
     '.jpg', '.jpeg', '.png', '.gif', '.webp',
@@ -85,6 +90,7 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
   protected readonly enviandoAnexo = signal(false);
   protected readonly anexoErro = signal<string | null>(null);
   protected readonly anexoPreview = signal<AnexoPreview | null>(null);
+  protected readonly substituindoAnexoId = signal<number | null>(null);
 
   // Miniaturas de anexos de imagem carregadas sob demanda (o download exige
   // Authorization, então um <img src> direto não funciona — ver carregarThumbsImagens).
@@ -105,6 +111,10 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
   // prazo" — evita o antigo comportamento de salvar sozinho a cada campo tocado.
   protected readonly editandoPrazoResposta = signal(false);
   protected readonly editandoPrazoResolucao = signal(false);
+
+  // Edição inline de título/descrição do chamado — mesmo padrão de "fica oculto
+  // até clicar em Editar" usado para o prazo, ver toggleEdicaoPrazoResolucao.
+  protected readonly editandoConteudo = signal(false);
 
   protected readonly form = this.formBuilder.nonNullable.group({
     idStatus: [null as number | null],
@@ -137,6 +147,15 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
     interno: [false],
   });
 
+  protected readonly comentarioEdicaoForm = this.formBuilder.nonNullable.group({
+    mensagem: [''],
+  });
+
+  protected readonly conteudoForm = this.formBuilder.nonNullable.group({
+    titulo: [''],
+    descricao: [''],
+  });
+
   protected readonly prazoForm = this.formBuilder.nonNullable.group({
     prazoResolucao: [''],
     justificativa: [''],
@@ -163,9 +182,22 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
       // Reatribuição: administrador vê técnicos e administradores; técnico só vê técnicos.
       this.chamadoService.listarAtribuiveis().subscribe({ next: (atribuiveis) => this.tecnicos.set(atribuiveis) });
     }
+
+    this.realtimeService.entrarChamado(this.id);
+    this.realtimeService.on<number>('ChamadoAtualizado', (chamadoId) => {
+      if (chamadoId === this.id) {
+        this.carregarChamado();
+        this.carregarComentarios();
+        this.carregarAnexos();
+        this.carregarAvaliacoes();
+        this.carregarHistorico();
+      }
+    });
   }
 
   ngOnDestroy(): void {
+    this.realtimeService.sairChamado(this.id);
+
     const preview = this.anexoPreview();
     if (preview) {
       URL.revokeObjectURL(preview.objectUrl);
@@ -331,6 +363,62 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
 
   protected removerArquivoComentario(index: number): void {
     this.comentarioArquivos.update((atual) => atual.filter((_, i) => i !== index));
+  }
+
+  protected podeEditarComentario(comentario: Comentario): boolean {
+    return comentario.autor.id === this.usuarioId;
+  }
+
+  protected iniciarEdicaoComentario(comentario: Comentario): void {
+    this.comentarioErro.set(null);
+    this.editandoComentarioId.set(comentario.id);
+    this.comentarioEdicaoForm.reset({ mensagem: comentario.mensagem });
+  }
+
+  protected cancelarEdicaoComentario(): void {
+    this.editandoComentarioId.set(null);
+  }
+
+  protected salvarEdicaoComentario(comentario: Comentario): void {
+    if (this.enviandoComentario()) {
+      return;
+    }
+
+    const { mensagem } = this.comentarioEdicaoForm.getRawValue();
+    if (!mensagem.trim()) {
+      this.comentarioErro.set('Escreva uma mensagem para comentar.');
+      return;
+    }
+
+    const request: ComentarioUpdateRequest = { mensagem: mensagem.trim() };
+
+    this.enviandoComentario.set(true);
+    this.comentarioErro.set(null);
+
+    this.chamadoService.editarComentario(this.id, comentario.id, request).subscribe({
+      next: (atualizado) => {
+        this.atualizarComentarioNaLista(atualizado);
+        this.editandoComentarioId.set(null);
+        this.enviandoComentario.set(false);
+      },
+      error: (error: HttpErrorResponse) => {
+        this.enviandoComentario.set(false);
+        this.comentarioErro.set(this.mensagemErroAcao(error));
+      },
+    });
+  }
+
+  protected ocultarComentario(comentario: Comentario): void {
+    this.chamadoService.ocultarComentario(this.id, comentario.id, !comentario.oculta).subscribe({
+      next: (atualizado) => this.atualizarComentarioNaLista(atualizado),
+      error: (error: HttpErrorResponse) => {
+        this.comentarioErro.set(this.mensagemErroAcao(error));
+      },
+    });
+  }
+
+  private atualizarComentarioNaLista(atualizado: Comentario): void {
+    this.comentarios.update((atual) => atual.map((item) => (item.id === atualizado.id ? atualizado : item)));
   }
 
   private validarArquivoComentario(arquivo: File): string | null {
@@ -608,6 +696,57 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
     });
   }
 
+  protected podeSubstituirAnexo(anexo: Anexo): boolean {
+    return anexo.autor.id === this.usuarioId || this.ehAdministrador();
+  }
+
+  protected substituirAnexo(anexo: Anexo, event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const arquivo = input.files?.[0];
+    if (!arquivo) {
+      return;
+    }
+
+    this.substituindoAnexoId.set(anexo.id);
+    this.anexoErro.set(null);
+
+    this.chamadoService.substituirAnexo(this.id, anexo.id, arquivo).subscribe({
+      next: (atualizado) => {
+        this.removerThumb(atualizado.id);
+        this.atualizarAnexoNaLista(atualizado);
+        this.substituindoAnexoId.set(null);
+        input.value = '';
+        this.carregarThumbsImagens([atualizado]);
+      },
+      error: (error: HttpErrorResponse) => {
+        this.substituindoAnexoId.set(null);
+        this.anexoErro.set(this.mensagemErroAcao(error));
+        input.value = '';
+      },
+    });
+  }
+
+  private atualizarAnexoNaLista(atualizado: Anexo): void {
+    this.anexos.update((atual) => atual.map((item) => (item.id === atualizado.id ? atualizado : item)));
+    this.comentarios.update((atual) =>
+      atual.map((comentario) => ({
+        ...comentario,
+        anexos: comentario.anexos.map((item) => (item.id === atualizado.id ? atualizado : item)),
+      })),
+    );
+  }
+
+  private removerThumb(anexoId: number): void {
+    if (!this.anexoThumbs().has(anexoId)) {
+      return;
+    }
+    this.anexoThumbs.update((atual) => {
+      const novo = new Map(atual);
+      novo.delete(anexoId);
+      return novo;
+    });
+  }
+
   protected baixarAnexo(anexo: Anexo): void {
     this.chamadoService.baixarAnexo(this.id, anexo.id).subscribe({
       next: (blob) => {
@@ -853,6 +992,76 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
     }
 
     this.executarAcao(this.chamadoService.atualizar(chamado.id, atualizacao));
+  }
+
+  // Cliente só pode editar o próprio chamado (título/descrição) enquanto ele não
+  // estiver num status final — depois disso só staff (admin/técnico) edita.
+  protected podeEditarConteudo(): boolean {
+    const chamado = this.chamado();
+    if (!chamado) {
+      return false;
+    }
+    if (this.ehCliente()) {
+      return chamado.solicitante.id === this.usuarioId && !chamado.status.final;
+    }
+    return this.ehAdministrador() || this.ehTecnico();
+  }
+
+  protected podeOcultarDescricao(): boolean {
+    return this.ehAdministrador();
+  }
+
+  protected iniciarEdicaoConteudo(): void {
+    const chamado = this.chamado();
+    if (!chamado) {
+      return;
+    }
+
+    this.acaoErro.set(null);
+    this.conteudoForm.reset({ titulo: chamado.titulo, descricao: chamado.descricao });
+    this.editandoConteudo.set(true);
+  }
+
+  protected cancelarEdicaoConteudo(): void {
+    this.editandoConteudo.set(false);
+  }
+
+  protected salvarEdicaoConteudo(): void {
+    const chamado = this.chamado();
+    if (!chamado || this.salvando()) {
+      return;
+    }
+
+    const { titulo, descricao } = this.conteudoForm.getRawValue();
+    if (!titulo.trim() || !descricao.trim()) {
+      this.acaoErro.set('Preencha título e descrição.');
+      return;
+    }
+
+    const request: ChamadoConteudoUpdateRequest = {};
+    if (titulo.trim() !== chamado.titulo) {
+      request.titulo = titulo.trim();
+    }
+    if (descricao.trim() !== chamado.descricao) {
+      request.descricao = descricao.trim();
+    }
+
+    if (Object.keys(request).length === 0) {
+      this.editandoConteudo.set(false);
+      return;
+    }
+
+    this.executarAcao(this.chamadoService.editarConteudoChamado(chamado.id, request), () => {
+      this.editandoConteudo.set(false);
+    });
+  }
+
+  protected ocultarDescricaoChamado(): void {
+    const chamado = this.chamado();
+    if (!chamado) {
+      return;
+    }
+    this.executarAcao(this.chamadoService.ocultarDescricaoChamado(chamado.id, !chamado.descricaoOculta));
   }
 
   private executarAcao(acao: Observable<Chamado>, aposSucesso?: (atualizado: Chamado) => void): void {

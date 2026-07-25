@@ -5,6 +5,7 @@ import { Observable, Subject, catchError, interval, merge, of, switchMap, tap } 
 import { environment } from '../../../environments/environment';
 import { Notificacao } from '../models/notificacao.model';
 import { AuthService } from './auth.service';
+import { RealtimeService } from './realtime.service';
 
 const INTERVALO_POLLING_MS = 60_000;
 
@@ -12,6 +13,7 @@ const INTERVALO_POLLING_MS = 60_000;
 export class NotificacaoService {
   private readonly http = inject(HttpClient);
   private readonly authService = inject(AuthService);
+  private readonly realtimeService = inject(RealtimeService);
 
   private readonly _naoLidas = signal(0);
   readonly naoLidas = this._naoLidas.asReadonly();
@@ -32,6 +34,10 @@ export class NotificacaoService {
     merge(interval(INTERVALO_POLLING_MS), this.atualizar$)
       .pipe(switchMap(() => (this.authService.isAutenticado() ? this.buscarNaoLidasEAtualizar() : of(null))))
       .subscribe();
+
+    // Push instantâneo via SignalR — reaproveita o mesmo pipeline do atualizar$
+    // que o polling já usa, então o polling de 60s segue como rede de segurança.
+    this.realtimeService.on('NotificacaoRecebida', () => this.atualizar$.next());
 
     // NotificacaoService é um singleton (providedIn: 'root') que sobrevive a
     // login/logout dentro da mesma aba — sem isto, trocar de usuário sem

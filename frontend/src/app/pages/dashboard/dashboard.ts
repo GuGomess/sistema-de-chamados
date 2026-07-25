@@ -3,6 +3,7 @@ import { Router } from '@angular/router';
 
 import { ResumoSla } from '../../core/models/chamado.model';
 import { ChamadoService } from '../../core/services/chamado.service';
+import { RealtimeService } from '../../core/services/realtime.service';
 
 @Component({
   selector: 'app-dashboard',
@@ -12,6 +13,7 @@ import { ChamadoService } from '../../core/services/chamado.service';
 })
 export class Dashboard implements OnInit {
   private readonly chamadoService = inject(ChamadoService);
+  private readonly realtimeService = inject(RealtimeService);
   private readonly router = inject(Router);
 
   protected readonly resumo = signal<ResumoSla | null>(null);
@@ -19,6 +21,11 @@ export class Dashboard implements OnInit {
   protected readonly erro = signal<string | null>(null);
 
   ngOnInit(): void {
+    this.carregarResumo();
+    this.realtimeService.on('ChamadoAtualizado', () => this.carregarResumo());
+  }
+
+  private carregarResumo(): void {
     this.chamadoService.resumoSla().subscribe({
       next: (resumo) => {
         this.resumo.set(resumo);
