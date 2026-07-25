@@ -17,19 +17,40 @@ public class ComentarioDto
 
     public DateTimeOffset CriadoEm { get; set; }
 
+    public bool Editado { get; set; }
+
+    public bool Oculta { get; set; }
+
     public List<AnexoDto> Anexos { get; set; } = [];
 
-    public static ComentarioDto FromEntity(Comentario comentario) => new()
+    public static ComentarioDto FromEntity(Comentario comentario, long viewerUsuarioId, bool viewerEhAdmin)
     {
-        Id = comentario.Id,
-        IdChamado = comentario.ChamadoId,
-        Autor = UsuarioDto.FromEntity(comentario.Autor),
-        Mensagem = comentario.Mensagem,
-        Interno = comentario.Interno,
-        CriadoEm = comentario.CriadoEm,
-        Anexos = comentario.Anexos
-            .OrderBy(a => a.CriadoEm)
-            .Select(AnexoDto.FromEntity)
-            .ToList()
-    };
+        var podeVerConteudoReal = viewerEhAdmin || comentario.AutorId == viewerUsuarioId;
+
+        return new()
+        {
+            Id = comentario.Id,
+            IdChamado = comentario.ChamadoId,
+            Autor = UsuarioDto.FromEntity(comentario.Autor),
+            Mensagem = comentario.Oculta && !podeVerConteudoReal ? "(Ocultado pelo Administrador)" : comentario.Mensagem,
+            Interno = comentario.Interno,
+            CriadoEm = comentario.CriadoEm,
+            Editado = comentario.EditadoEm.HasValue,
+            Oculta = comentario.Oculta,
+            Anexos = comentario.Anexos
+                .OrderBy(a => a.CriadoEm)
+                .Select(AnexoDto.FromEntity)
+                .ToList()
+        };
+    }
+}
+
+public class ComentarioUpdateRequest
+{
+    public string Mensagem { get; set; } = string.Empty;
+}
+
+public class ComentarioOcultarRequest
+{
+    public bool Oculta { get; set; }
 }

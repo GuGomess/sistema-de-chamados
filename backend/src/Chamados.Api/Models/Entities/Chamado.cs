@@ -49,4 +49,12 @@ public class Chamado
     public SituacaoSla SituacaoSlaResposta { get; set; } = SituacaoSla.EmDia;
 
     public SituacaoSla SituacaoSlaResolucao { get; set; } = SituacaoSla.EmDia;
+
+    public DateTimeOffset? ConteudoEditadoEm { get; set; }
+
+    // Administrador pode ocultar especificamente a descrição do chamado (ex.:
+    // conteúdo impróprio) sem apagar o registro — mesmo mecanismo de
+    // Avaliacao.Oculta/Comentario.Oculta: administrador e o solicitante original
+    // sempre veem o texto real, os demais veem um placeholder (ver ChamadoDto.FromEntity).
+    public bool DescricaoOculta { get; set; }
 }

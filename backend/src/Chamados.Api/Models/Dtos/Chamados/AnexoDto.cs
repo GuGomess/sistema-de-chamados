@@ -23,6 +23,8 @@ public class AnexoDto
 
     public DateTimeOffset CriadoEm { get; set; }
 
+    public bool Editado { get; set; }
+
     public static AnexoDto FromEntity(Anexo anexo) => new()
     {
         Id = anexo.Id,
@@ -33,6 +35,7 @@ public class AnexoDto
         TipoMime = anexo.TipoMime,
         TamanhoBytes = anexo.TamanhoBytes,
         Url = $"/api/v1/chamados/{anexo.ChamadoId}/anexos/{anexo.Id}/download",
-        CriadoEm = anexo.CriadoEm
+        CriadoEm = anexo.CriadoEm,
+        Editado = anexo.EditadoEm.HasValue
     };
 }

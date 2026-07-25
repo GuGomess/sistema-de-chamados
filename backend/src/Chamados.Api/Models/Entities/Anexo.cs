@@ -25,4 +25,6 @@ public class Anexo
     public long TamanhoBytes { get; set; }
 
     public DateTimeOffset CriadoEm { get; set; }
+
+    public DateTimeOffset? EditadoEm { get; set; }
 }

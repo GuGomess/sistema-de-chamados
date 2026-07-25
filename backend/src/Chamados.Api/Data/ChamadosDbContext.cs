@@ -178,6 +178,8 @@ public class ChamadosDbContext : DbContext
                 .HasConversion<string>()
                 .HasMaxLength(20)
                 .HasDefaultValue(SituacaoSla.EmDia);
+            entity.Property(c => c.ConteudoEditadoEm).HasColumnName("conteudo_editado_em");
+            entity.Property(c => c.DescricaoOculta).HasColumnName("descricao_oculta").HasDefaultValue(false);
 
             entity.HasOne(c => c.Solicitante)
                 .WithMany(u => u.ChamadosSolicitados)
@@ -247,6 +249,8 @@ public class ChamadosDbContext : DbContext
             entity.Property(c => c.Mensagem).HasColumnName("mensagem").IsRequired();
             entity.Property(c => c.Interno).HasColumnName("interno").HasDefaultValue(false);
             entity.Property(c => c.CriadoEm).HasColumnName("criado_em").HasDefaultValueSql("now()");
+            entity.Property(c => c.EditadoEm).HasColumnName("editado_em");
+            entity.Property(c => c.Oculta).HasColumnName("oculta").HasDefaultValue(false);
 
             entity.HasOne(c => c.Chamado)
                 .WithMany()
@@ -271,6 +275,7 @@ public class ChamadosDbContext : DbContext
             entity.Property(a => a.TamanhoBytes).HasColumnName("tamanho_bytes");
             entity.Property(a => a.ComentarioId).HasColumnName("id_comentario");
             entity.Property(a => a.CriadoEm).HasColumnName("criado_em").HasDefaultValueSql("now()");
+            entity.Property(a => a.EditadoEm).HasColumnName("editado_em");
 
             entity.HasOne(a => a.Chamado)
                 .WithMany()

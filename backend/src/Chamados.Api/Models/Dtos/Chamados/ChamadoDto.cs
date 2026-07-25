@@ -39,26 +39,37 @@ public class ChamadoDto
 
     public SituacaoSla SituacaoSlaResolucao { get; set; }
 
-    public static ChamadoDto FromEntity(Chamado chamado) => new()
+    public bool ConteudoEditado { get; set; }
+
+    public bool DescricaoOculta { get; set; }
+
+    public static ChamadoDto FromEntity(Chamado chamado, long viewerUsuarioId, bool viewerEhAdmin)
     {
-        Id = chamado.Id,
-        Titulo = chamado.Titulo,
-        Descricao = chamado.Descricao,
-        Solicitante = UsuarioDto.FromEntity(chamado.Solicitante),
-        Tecnico = chamado.Tecnico is null ? null : UsuarioDto.FromEntity(chamado.Tecnico),
-        Status = StatusDto.FromEntity(chamado.Status),
-        Categoria = CategoriaDto.FromEntity(chamado.Categoria),
-        Prioridade = PrioridadeDto.FromEntity(chamado.Prioridade),
-        CriadoEm = chamado.CriadoEm,
-        AtualizadoEm = chamado.AtualizadoEm,
-        PrazoResposta = chamado.PrazoResposta,
-        PrazoResolucao = chamado.PrazoResolucao,
-        PrimeiraRespostaEm = chamado.PrimeiraRespostaEm,
-        ResolvidoEm = chamado.ResolvidoEm,
-        FechadoEm = chamado.FechadoEm,
-        SituacaoSlaResposta = chamado.SituacaoSlaResposta,
-        SituacaoSlaResolucao = chamado.SituacaoSlaResolucao
-    };
+        var podeVerConteudoReal = viewerEhAdmin || chamado.SolicitanteId == viewerUsuarioId;
+
+        return new()
+        {
+            Id = chamado.Id,
+            Titulo = chamado.Titulo,
+            Descricao = chamado.DescricaoOculta && !podeVerConteudoReal ? "(Ocultado pelo Administrador)" : chamado.Descricao,
+            Solicitante = UsuarioDto.FromEntity(chamado.Solicitante),
+            Tecnico = chamado.Tecnico is null ? null : UsuarioDto.FromEntity(chamado.Tecnico),
+            Status = StatusDto.FromEntity(chamado.Status),
+            Categoria = CategoriaDto.FromEntity(chamado.Categoria),
+            Prioridade = PrioridadeDto.FromEntity(chamado.Prioridade),
+            CriadoEm = chamado.CriadoEm,
+            AtualizadoEm = chamado.AtualizadoEm,
+            PrazoResposta = chamado.PrazoResposta,
+            PrazoResolucao = chamado.PrazoResolucao,
+            PrimeiraRespostaEm = chamado.PrimeiraRespostaEm,
+            ResolvidoEm = chamado.ResolvidoEm,
+            FechadoEm = chamado.FechadoEm,
+            SituacaoSlaResposta = chamado.SituacaoSlaResposta,
+            SituacaoSlaResolucao = chamado.SituacaoSlaResolucao,
+            ConteudoEditado = chamado.ConteudoEditadoEm.HasValue,
+            DescricaoOculta = chamado.DescricaoOculta
+        };
+    }
 }
 
 public class StatusDto
@@ -113,4 +124,16 @@ public class PrioridadeDto
         Nome = prioridade.Nome,
         Nivel = prioridade.Nivel
     };
+}
+
+public class ChamadoConteudoUpdateRequest
+{
+    public string? Titulo { get; set; }
+
+    public string? Descricao { get; set; }
+}
+
+public class ChamadoOcultarDescricaoRequest
+{
+    public bool Oculta { get; set; }
 }

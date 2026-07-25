@@ -11,12 +11,14 @@ import {
   AvaliacaoUpdateRequest,
   Categoria,
   Chamado,
+  ChamadoConteudoUpdateRequest,
   ChamadoCreateRequest,
   ChamadoFiltros,
   ChamadoPage,
   ChamadoUpdateRequest,
   Comentario,
   ComentarioCreateRequest,
+  ComentarioUpdateRequest,
   FecharClienteRequest,
   Historico,
   PrazoResolucaoUpdateRequest,
@@ -41,6 +43,14 @@ export class ChamadoService {
 
   atualizar(id: number, request: ChamadoUpdateRequest): Observable<Chamado> {
     return this.http.patch<Chamado>(`${environment.apiBaseUrl}/v1/chamados/${id}`, request);
+  }
+
+  editarConteudoChamado(id: number, request: ChamadoConteudoUpdateRequest): Observable<Chamado> {
+    return this.http.patch<Chamado>(`${environment.apiBaseUrl}/v1/chamados/${id}/conteudo`, request);
+  }
+
+  ocultarDescricaoChamado(id: number, oculta: boolean): Observable<Chamado> {
+    return this.http.patch<Chamado>(`${environment.apiBaseUrl}/v1/chamados/${id}/ocultar-descricao`, { oculta });
   }
 
   atribuir(id: number, idTecnico: number): Observable<Chamado> {
@@ -118,6 +128,20 @@ export class ChamadoService {
     return this.http.post<Comentario>(`${environment.apiBaseUrl}/v1/chamados/${id}/comentarios`, formData);
   }
 
+  editarComentario(id: number, comentarioId: number, request: ComentarioUpdateRequest): Observable<Comentario> {
+    return this.http.patch<Comentario>(
+      `${environment.apiBaseUrl}/v1/chamados/${id}/comentarios/${comentarioId}`,
+      request,
+    );
+  }
+
+  ocultarComentario(id: number, comentarioId: number, oculta: boolean): Observable<Comentario> {
+    return this.http.patch<Comentario>(
+      `${environment.apiBaseUrl}/v1/chamados/${id}/comentarios/${comentarioId}/ocultar`,
+      { oculta },
+    );
+  }
+
   listarAnexos(id: number): Observable<Anexo[]> {
     return this.http.get<Anexo[]>(`${environment.apiBaseUrl}/v1/chamados/${id}/anexos`);
   }
@@ -126,6 +150,12 @@ export class ChamadoService {
     const formData = new FormData();
     formData.append('arquivo', arquivo);
     return this.http.post<Anexo>(`${environment.apiBaseUrl}/v1/chamados/${id}/anexos`, formData);
+  }
+
+  substituirAnexo(id: number, anexoId: number, arquivo: File): Observable<Anexo> {
+    const formData = new FormData();
+    formData.append('arquivo', arquivo);
+    return this.http.put<Anexo>(`${environment.apiBaseUrl}/v1/chamados/${id}/anexos/${anexoId}`, formData);
   }
 
   baixarAnexo(id: number, anexoId: number): Observable<Blob> {
