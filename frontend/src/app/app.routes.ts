@@ -49,6 +49,14 @@ export const routes: Routes = [
       import('./pages/admin/usuarios/usuarios-admin').then((m) => m.UsuariosAdmin),
   },
   {
+    path: 'admin/departamentos',
+    title: 'Departamentos — Sistema de Chamados',
+    canActivate: [authGuard],
+    data: { roles: ['ADMINISTRADOR'] },
+    loadComponent: () =>
+      import('./pages/admin/departamentos/departamentos-admin').then((m) => m.DepartamentosAdmin),
+  },
+  {
     path: 'dashboard',
     title: 'Dashboard — Sistema de Chamados',
     canActivate: [authGuard],

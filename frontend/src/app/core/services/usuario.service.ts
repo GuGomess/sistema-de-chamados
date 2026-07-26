@@ -16,4 +16,10 @@ export class UsuarioService {
   listar(): Observable<Usuario[]> {
     return this.http.get<Usuario[]>(`${environment.apiBaseUrl}/v1/usuarios`);
   }
+
+  atualizarDepartamentos(idUsuario: number, idsDepartamentos: number[]): Observable<Usuario> {
+    return this.http.put<Usuario>(`${environment.apiBaseUrl}/v1/usuarios/${idUsuario}/departamentos`, {
+      idsDepartamentos,
+    });
+  }
 }

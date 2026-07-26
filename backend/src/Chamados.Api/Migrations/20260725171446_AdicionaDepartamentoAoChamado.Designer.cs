@@ -3,6 +3,7 @@ using System;
 using Chamados.Api.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Chamados.Api.Migrations
 {
     [DbContext(typeof(ChamadosDbContext))]
-    partial class ChamadosDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260725171446_AdicionaDepartamentoAoChamado")]
+    partial class AdicionaDepartamentoAoChamado
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -475,14 +478,6 @@ namespace Chamados.Api.Migrations
                         .HasColumnName("criado_em")
                         .HasDefaultValueSql("now()");
 
-                    b.Property<long?>("DepartamentoAnteriorId")
-                        .HasColumnType("bigint")
-                        .HasColumnName("id_departamento_anterior");
-
-                    b.Property<long?>("DepartamentoNovoId")
-                        .HasColumnType("bigint")
-                        .HasColumnName("id_departamento_novo");
-
                     b.Property<string>("Detalhe")
                         .HasColumnType("text")
                         .HasColumnName("detalhe");
@@ -500,10 +495,6 @@ namespace Chamados.Api.Migrations
                     b.HasIndex("AutorId");
 
                     b.HasIndex("ChamadoId");
-
-                    b.HasIndex("DepartamentoAnteriorId");
-
-                    b.HasIndex("DepartamentoNovoId");
 
                     b.HasIndex("StatusAnteriorId");
 
@@ -1003,16 +994,6 @@ namespace Chamados.Api.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("Chamados.Api.Models.Entities.Departamento", "DepartamentoAnterior")
-                        .WithMany()
-                        .HasForeignKey("DepartamentoAnteriorId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("Chamados.Api.Models.Entities.Departamento", "DepartamentoNovo")
-                        .WithMany()
-                        .HasForeignKey("DepartamentoNovoId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.HasOne("Chamados.Api.Models.Entities.Status", "StatusAnterior")
                         .WithMany()
                         .HasForeignKey("StatusAnteriorId")
@@ -1026,10 +1007,6 @@ namespace Chamados.Api.Migrations
                     b.Navigation("Autor");
 
                     b.Navigation("Chamado");
-
-                    b.Navigation("DepartamentoAnterior");
-
-                    b.Navigation("DepartamentoNovo");
 
                     b.Navigation("StatusAnterior");
 

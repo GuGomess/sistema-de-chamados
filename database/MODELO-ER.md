@@ -23,6 +23,8 @@ erDiagram
     CATEGORIA ||--o{ CHAMADO : "categoriza"
     PRIORIDADE ||--o{ CHAMADO : "prioriza"
     PRIORIDADE ||--o{ SLA : "define metas"
+    DEPARTAMENTO }o--o{ USUARIO : "segmenta tecnicos"
+    DEPARTAMENTO ||--o{ CHAMADO : "atende"
     CHAMADO ||--o{ COMENTARIO : "recebe"
     CHAMADO ||--o{ ANEXO : "possui"
     CHAMADO ||--o{ HISTORICO : "registra"
@@ -33,6 +35,8 @@ erDiagram
     USUARIO ||--o{ AVALIACAO : "avalia"
     STATUS ||--o{ HISTORICO : "status_anterior"
     STATUS ||--o{ HISTORICO : "status_novo"
+    DEPARTAMENTO ||--o{ HISTORICO : "departamento_anterior"
+    DEPARTAMENTO ||--o{ HISTORICO : "departamento_novo"
 
     PERFIL {
         bigint id PK
@@ -72,6 +76,13 @@ erDiagram
         int tempo_resolucao_min
         boolean ativo
     }
+    DEPARTAMENTO {
+        bigint id PK
+        varchar nome
+        varchar descricao
+        boolean ativo
+        timestamptz criado_em
+    }
     CHAMADO {
         bigint id PK
         varchar titulo
@@ -81,6 +92,7 @@ erDiagram
         bigint id_status FK
         bigint id_categoria FK
         bigint id_prioridade FK
+        bigint id_departamento FK
         timestamptz criado_em
         timestamptz atualizado_em
         timestamptz prazo_resposta
@@ -112,6 +124,8 @@ erDiagram
         bigint id_autor FK
         bigint id_status_anterior FK
         bigint id_status_novo FK
+        bigint id_departamento_anterior FK
+        bigint id_departamento_novo FK
         varchar acao
         text detalhe
         timestamptz criado_em
@@ -154,7 +168,8 @@ Pessoa que acessa o sistema (cliente, técnico ou admin), sempre vinculada a um 
 | criado_em | timestamptz | não | | Default `now()` |
 
 ### STATUS
-Estado do chamado (tabela de domínio). Ex.: Aberto, Em Atendimento, Aguardando Cliente, Resolvido, Fechado.
+Estado do chamado (tabela de domínio). Ex.: Novo, Aberto, Em Atendimento, Aguardando Cliente, Resolvido, Fechado.
+Todo chamado nasce em **Novo** (triagem no HelpDesk) e passa a **Aberto** quando o departamento responsável é definido.
 
 | Campo | Tipo | Nulo | Chave | Observação |
 |-------|------|------|-------|------------|
@@ -194,6 +209,28 @@ Metas de atendimento por prioridade (usadas para calcular prazos do chamado).
 | tempo_resolucao_min | int | não | | Minutos para resolução |
 | ativo | boolean | não | | Default `true` |
 
+### DEPARTAMENTO
+Segmenta técnicos por área de atendimento (tabela de domínio, gerenciada pelo Administrador).
+Predefinidos: **HelpDesk**, **Desenvolvimento**, **Infraestrutura**. HelpDesk faz a triagem inicial
+de todo chamado e tem visão ampla sobre os chamados de qualquer departamento.
+
+| Campo | Tipo | Nulo | Chave | Observação |
+|-------|------|------|-------|------------|
+| id | bigint | não | PK | |
+| nome | varchar(80) | não | UK | |
+| descricao | varchar(255) | sim | | |
+| ativo | boolean | não | | Default `true` |
+| criado_em | timestamptz | não | | Default `now()` |
+
+### USUARIO_DEPARTAMENTO
+Tabela de junção pura (sem entidade própria no código) do vínculo N:N entre técnicos e departamentos —
+um técnico pode pertencer a um ou mais departamentos.
+
+| Campo | Tipo | Nulo | Chave | Observação |
+|-------|------|------|-------|------------|
+| id_usuario | bigint | não | PK, FK → USUARIO | |
+| id_departamento | bigint | não | PK, FK → DEPARTAMENTO | |
+
 ### CHAMADO
 Entidade central — a solicitação de suporte e seu ciclo de vida.
 
@@ -203,10 +240,11 @@ Entidade central — a solicitação de suporte e seu ciclo de vida.
 | titulo | varchar(160) | não | | |
 | descricao | text | não | | |
 | id_solicitante | bigint | não | FK → USUARIO | Cliente que abriu |
-| id_tecnico | bigint | sim | FK → USUARIO | Técnico responsável (atribuído depois) |
+| id_tecnico | bigint | sim | FK → USUARIO | Técnico responsável (atribuído depois, removido a cada troca de departamento) |
 | id_status | bigint | não | FK → STATUS | |
 | id_categoria | bigint | não | FK → CATEGORIA | |
 | id_prioridade | bigint | não | FK → PRIORIDADE | |
+| id_departamento | bigint | não | FK → DEPARTAMENTO | Departamento responsável atual. Default HelpDesk na abertura |
 | criado_em | timestamptz | não | | Default `now()` |
 | atualizado_em | timestamptz | não | | Atualizado a cada mudança |
 | prazo_resposta | timestamptz | sim | | Calculado a partir do SLA |
@@ -251,7 +289,9 @@ Trilha de auditoria: cada mudança de status/ação relevante no chamado.
 | id_autor | bigint | não | FK → USUARIO | Quem executou a ação |
 | id_status_anterior | bigint | sim | FK → STATUS | Nulo na abertura |
 | id_status_novo | bigint | sim | FK → STATUS | |
-| acao | varchar(80) | não | | Ex.: "Abertura", "Mudança de status", "Atribuição" |
+| id_departamento_anterior | bigint | sim | FK → DEPARTAMENTO | Preenchido em encaminhamentos entre departamentos |
+| id_departamento_novo | bigint | sim | FK → DEPARTAMENTO | Preenchido em encaminhamentos entre departamentos |
+| acao | varchar(80) | não | | Ex.: "Abertura", "Mudança de status", "Atribuição", "Departamento alterado", "Devolvido ao HelpDesk" |
 | detalhe | text | sim | | Descrição livre da alteração |
 | criado_em | timestamptz | não | | Default `now()` |
 
@@ -276,6 +316,7 @@ Avaliação do atendimento, feita pelo Cliente solicitante após o chamado ser f
 - **Domínios configuráveis:** `Status`, `Categoria` e `Prioridade` são tabelas para permitir que o Administrador gerencie os valores sem alterar código.
 - **SLA por prioridade:** os prazos (`prazo_resposta`/`prazo_resolucao`) são derivados do SLA vigente da prioridade no momento da abertura e persistidos no chamado, preservando a meta histórica mesmo que o SLA mude depois.
 - **Anexos:** apenas metadados no banco; o conteúdo é armazenado fora (pasta `/uploads` já ignorada no `.gitignore`).
-- **Histórico:** append-only (nunca atualizado/removido), garantindo trilha de auditoria completa das mudanças de status e ações.
+- **Histórico:** append-only (nunca atualizado/removido), garantindo trilha de auditoria completa das mudanças de status, departamento e demais ações.
+- **Departamento e triagem:** todo chamado nasce em **Novo** e vinculado ao departamento **HelpDesk**; ao ser encaminhado, o status vira **Aberto**, o técnico responsável (se houver) é removido e `id_departamento` passa a apontar para o novo departamento — só técnicos do departamento responsável atual podem assumir o chamado. O vínculo Usuário↔Departamento é N:N (`usuario_departamento`), sem entidade própria (skip navigation do EF Core); só técnicos são segmentados por departamento.
 - **Avaliação:** vínculo 1:1 opcional com `Chamado` (`id_chamado` com índice único), só pode ser criada pelo Cliente solicitante depois que o chamado é finalizado; `publica` controla se o técnico atribuído também enxerga a avaliação (administradores sempre veem).
 - **Exclusões:** preferir *soft delete* (`ativo`/`ativa`) em `Usuario`/`Categoria` a exclusão física, preservando integridade referencial do histórico.

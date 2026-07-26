@@ -7,6 +7,7 @@ import { forkJoin } from 'rxjs';
 
 import { AuthService } from '../../../core/services/auth.service';
 import { ChamadoService } from '../../../core/services/chamado.service';
+import { DepartamentoService } from '../../../core/services/departamento.service';
 import { RealtimeService } from '../../../core/services/realtime.service';
 import {
   Categoria,
@@ -17,6 +18,7 @@ import {
   Status,
   UsuarioResumo,
 } from '../../../core/models/chamado.model';
+import { Departamento } from '../../../core/models/departamento.model';
 
 @Component({
   selector: 'app-chamados-lista',
@@ -27,6 +29,7 @@ import {
 export class ChamadosLista implements OnInit {
   private readonly formBuilder = inject(FormBuilder);
   private readonly chamadoService = inject(ChamadoService);
+  private readonly departamentoService = inject(DepartamentoService);
   private readonly authService = inject(AuthService);
   private readonly realtimeService = inject(RealtimeService);
   private readonly router = inject(Router);
@@ -42,6 +45,7 @@ export class ChamadosLista implements OnInit {
   protected readonly categorias = signal<Categoria[]>([]);
   protected readonly prioridades = signal<Prioridade[]>([]);
   protected readonly tecnicos = signal<UsuarioResumo[]>([]);
+  protected readonly departamentos = signal<Departamento[]>([]);
   protected readonly carregandoOpcoes = signal(true);
 
   protected readonly chamados = signal<Chamado[]>([]);
@@ -63,6 +67,7 @@ export class ChamadosLista implements OnInit {
     idCategoria: [null as number | null],
     idPrioridade: [null as number | null],
     idTecnico: [null as number | null],
+    idDepartamento: [null as number | null],
     dataInicio: [''],
     dataFim: [''],
     situacaoSla: [null as SituacaoSla | null],
@@ -85,12 +90,14 @@ export class ChamadosLista implements OnInit {
       categorias: this.chamadoService.listarCategorias(),
       prioridades: this.chamadoService.listarPrioridades(),
       tecnicos: this.chamadoService.listarTecnicos(),
+      departamentos: this.departamentoService.listar(true),
     }).subscribe({
-      next: ({ status, categorias, prioridades, tecnicos }) => {
+      next: ({ status, categorias, prioridades, tecnicos, departamentos }) => {
         this.status.set(status);
         this.categorias.set(categorias);
         this.prioridades.set(prioridades);
         this.tecnicos.set(tecnicos);
+        this.departamentos.set(departamentos);
         this.carregandoOpcoes.set(false);
         this.buscar();
       },
@@ -100,7 +107,9 @@ export class ChamadosLista implements OnInit {
       },
     });
 
-    this.realtimeService.on('ChamadoAtualizado', () => this.buscar());
+    // Silencioso: evita alternar `carregando()` e desmontar a tabela a cada
+    // evento em tempo real — isso encolhia a página e resetava o scroll pro topo.
+    this.realtimeService.on('ChamadoAtualizado', () => this.buscar({ silencioso: true }));
   }
 
   protected onFiltrar(): void {
@@ -171,8 +180,10 @@ export class ChamadosLista implements OnInit {
     return 'EmDia';
   }
 
-  private buscar(): void {
-    this.carregando.set(true);
+  private buscar(opcoes: { silencioso?: boolean } = {}): void {
+    if (!opcoes.silencioso) {
+      this.carregando.set(true);
+    }
     this.erro.set(null);
 
     const {
@@ -182,6 +193,7 @@ export class ChamadosLista implements OnInit {
       idCategoria,
       idPrioridade,
       idTecnico,
+      idDepartamento,
       dataInicio,
       dataFim,
       situacaoSla,
@@ -200,6 +212,7 @@ export class ChamadosLista implements OnInit {
         idCategoria,
         idPrioridade,
         idTecnico,
+        idDepartamento,
         dataInicio: dataInicio || null,
         dataFim: dataFim || null,
         situacaoSla,

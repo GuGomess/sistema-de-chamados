@@ -32,6 +32,10 @@ public class ChamadosController : ControllerBase
     private const long CategoriaTriagemId = 5;
     private const long PrioridadeMediaId = 2;
 
+    // Todo chamado é criado em triagem no HelpDesk (Migrations/…_AdicionaDepartamentoAoChamado).
+    private const long StatusNovoId = 6;
+    private const long DepartamentoHelpDeskId = 1;
+
     private readonly ChamadosDbContext _dbContext;
     private readonly UploadOptions _uploadOptions;
     private readonly IHubContext<ChamadosHub> _hubContext;
@@ -53,6 +57,7 @@ public class ChamadosController : ControllerBase
         [FromQuery] long? idCategoria = null,
         [FromQuery] long? idPrioridade = null,
         [FromQuery] long? idTecnico = null,
+        [FromQuery] long? idDepartamento = null,
         [FromQuery] string? q = null,
         [FromQuery] string? solicitante = null,
         [FromQuery] DateTimeOffset? dataInicio = null,
@@ -82,9 +87,12 @@ public class ChamadosController : ControllerBase
             // mesmo (ex.: administrador que abriu um chamado em nome próprio).
             query = query.Where(c => c.TecnicoId == usuarioId.Value || c.SolicitanteId == usuarioId.Value);
         }
-        else if (User.IsInRole(Perfis.Tecnico))
+        else if (User.IsInRole(Perfis.Tecnico) && !meus && !await EstaNoDepartamentoAsync(usuarioId.Value, DepartamentoHelpDeskId))
         {
-            query = query.Where(c => c.TecnicoId == usuarioId.Value || c.TecnicoId == null);
+            // Fora do HelpDesk (que tem visão ampla para triagem), o técnico só vê
+            // chamados dos departamentos aos quais pertence.
+            var idsDepartamentos = await IdsDepartamentosDoUsuarioAsync(usuarioId.Value);
+            query = query.Where(c => idsDepartamentos.Contains(c.DepartamentoId));
         }
 
         if (id.HasValue) query = query.Where(c => c.Id == id.Value);
@@ -92,6 +100,7 @@ public class ChamadosController : ControllerBase
         if (idCategoria.HasValue) query = query.Where(c => c.CategoriaId == idCategoria.Value);
         if (idPrioridade.HasValue) query = query.Where(c => c.PrioridadeId == idPrioridade.Value);
         if (idTecnico.HasValue) query = query.Where(c => c.TecnicoId == idTecnico.Value);
+        if (idDepartamento.HasValue) query = query.Where(c => c.DepartamentoId == idDepartamento.Value);
         if (!string.IsNullOrWhiteSpace(solicitante)) query = query.Where(c => EF.Functions.ILike(c.Solicitante.Nome, $"%{solicitante}%"));
 
         if (situacaoSla.HasValue)
@@ -181,6 +190,12 @@ public class ChamadosController : ControllerBase
         else if (User.IsInRole(Perfis.Tecnico))
         {
             query = query.Where(c => c.TecnicoId == usuarioId.Value || c.TecnicoId == null);
+
+            if (!await EstaNoDepartamentoAsync(usuarioId.Value, DepartamentoHelpDeskId))
+            {
+                var idsDepartamentos = await IdsDepartamentosDoUsuarioAsync(usuarioId.Value);
+                query = query.Where(c => idsDepartamentos.Contains(c.DepartamentoId));
+            }
         }
 
         var emRisco = await query.CountAsync(c => c.SituacaoSlaResposta == SituacaoSla.EmRisco || c.SituacaoSlaResolucao == SituacaoSla.EmRisco);
@@ -244,9 +259,10 @@ public class ChamadosController : ControllerBase
             Titulo = request.Titulo,
             Descricao = request.Descricao,
             SolicitanteId = usuarioId.Value,
-            StatusId = StatusAbertoId,
+            StatusId = StatusNovoId,
             CategoriaId = idCategoria,
             PrioridadeId = idPrioridade,
+            DepartamentoId = DepartamentoHelpDeskId,
             PrazoResposta = sla is null ? null : criadoEm.AddMinutes(sla.TempoRespostaMin),
             PrazoResolucao = sla is null ? null : criadoEm.AddMinutes(sla.TempoResolucaoMin)
         };
@@ -285,7 +301,7 @@ public class ChamadosController : ControllerBase
             return NotFound(ErrorResponse.Create(404, "Chamado não encontrado."));
         }
 
-        if (!PodeAcessar(chamado, usuarioId.Value))
+        if (!await PodeAcessarAsync(chamado, usuarioId.Value))
         {
             return StatusCode(StatusCodes.Status403Forbidden, ErrorResponse.Create(403, "Sem permissão para acessar este chamado."));
         }
@@ -308,7 +324,7 @@ public class ChamadosController : ControllerBase
             return NotFound(ErrorResponse.Create(404, "Chamado não encontrado."));
         }
 
-        if (!PodeAcessar(chamado, usuarioId.Value))
+        if (!await PodeAcessarAsync(chamado, usuarioId.Value))
         {
             return StatusCode(StatusCodes.Status403Forbidden, ErrorResponse.Create(403, "Sem permissão para atualizar este chamado."));
         }
@@ -322,6 +338,14 @@ public class ChamadosController : ControllerBase
             var novoStatus = await _dbContext.Status.FirstOrDefaultAsync(s => s.Id == request.IdStatus.Value);
             if (novoStatus is null)
                 erros["idStatus"] = new[] { "Status não encontrado." };
+            else if (request.IdStatus.Value == StatusNovoId)
+            {
+                // "Novo" só é atingido pelo fluxo de devolver-helpdesk (que também zera
+                // o técnico e reatribui o departamento ao HelpDesk) — setar isoladamente
+                // por aqui quebraria a garantia de que "Novo" sempre implica HelpDesk e
+                // sem técnico vinculado.
+                erros["idStatus"] = new[] { "Use o endpoint 'devolver-helpdesk' para retornar um chamado ao status Novo." };
+            }
             else if (request.IdStatus.Value != chamado.StatusId)
             {
                 // Resolver exige que tenha havido ao menos um retorno (comentário) desde
@@ -429,7 +453,7 @@ public class ChamadosController : ControllerBase
             return NotFound(ErrorResponse.Create(404, "Chamado não encontrado."));
         }
 
-        if (!PodeAcessar(chamado, usuarioId.Value))
+        if (!await PodeAcessarAsync(chamado, usuarioId.Value))
         {
             return StatusCode(StatusCodes.Status403Forbidden, ErrorResponse.Create(403, "Sem permissão para editar este chamado."));
         }
@@ -508,8 +532,12 @@ public class ChamadosController : ControllerBase
             return NotFound(ErrorResponse.Create(404, "Chamado não encontrado."));
         }
 
+        // Mesma regra de Assumir (sem exceção para o HelpDesk): quem atribui
+        // precisa pertencer ao departamento responsável pelo chamado — o
+        // HelpDesk move chamados entre departamentos via /encaminhar, não
+        // atribuindo diretamente técnicos de outros departamentos.
         var podeAtribuir = User.IsInRole(Perfis.Administrador)
-            || (User.IsInRole(Perfis.Tecnico) && PodeAcessar(chamado, usuarioId.Value));
+            || (User.IsInRole(Perfis.Tecnico) && await EstaNoDepartamentoAsync(usuarioId.Value, chamado.DepartamentoId));
 
         if (!podeAtribuir)
         {
@@ -530,11 +558,17 @@ public class ChamadosController : ControllerBase
         var perfilAlvo = tecnico is null ? null : Perfis.NormalizarCodigo(tecnico.Perfil.Nome);
         var chamadorEhAdministrador = User.IsInRole(Perfis.Administrador);
 
+        // Alvo Técnico só é válido se pertencer ao departamento responsável pelo
+        // chamado (sem excecão para o HelpDesk aqui); alvo Administrador não tem
+        // essa restrição.
+        var tecnicoAlvoNoDepartamento = perfilAlvo == Perfis.Tecnico
+            && await EstaNoDepartamentoAsync(tecnico!.Id, chamado.DepartamentoId);
+
         var alvoValido = tecnico is not null
             && tecnico.Ativo
             && (chamadorEhAdministrador
-                ? (perfilAlvo == Perfis.Tecnico || perfilAlvo == Perfis.Administrador)
-                : perfilAlvo == Perfis.Tecnico);
+                ? (perfilAlvo == Perfis.Administrador || tecnicoAlvoNoDepartamento)
+                : tecnicoAlvoNoDepartamento);
 
         if (!alvoValido)
         {
@@ -592,6 +626,11 @@ public class ChamadosController : ControllerBase
             return NotFound(ErrorResponse.Create(404, "Chamado não encontrado."));
         }
 
+        if (!await EstaNoDepartamentoAsync(usuarioId.Value, chamado.DepartamentoId))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, ErrorResponse.Create(403, "Apenas técnicos do departamento responsável podem assumir este chamado."));
+        }
+
         if (chamado.Status.Final)
         {
             return UnprocessableEntity(new ErrorResponse
@@ -647,7 +686,7 @@ public class ChamadosController : ControllerBase
             return NotFound(ErrorResponse.Create(404, "Chamado não encontrado."));
         }
 
-        if (!PodeAcessar(chamado, usuarioId.Value))
+        if (!await PodeAcessarAsync(chamado, usuarioId.Value))
         {
             return StatusCode(StatusCodes.Status403Forbidden, ErrorResponse.Create(403, "Sem permissão para reabrir este chamado."));
         }
@@ -692,6 +731,188 @@ public class ChamadosController : ControllerBase
                 Tipo = TipoNotificacao.ChamadoReaberto,
                 Mensagem = mensagem
             });
+        }
+
+        await _dbContext.SaveChangesAsync();
+        await BroadcastChamadoAtualizadoAsync(chamado.Id);
+
+        var chamadoAtualizado = await ChamadosComIncludes().FirstAsync(c => c.Id == chamado.Id);
+        return Ok(ChamadoDto.FromEntity(chamadoAtualizado, usuarioId.Value, User.IsInRole(Perfis.Administrador)));
+    }
+
+    [HttpPost("{id:long}/encaminhar")]
+    public async Task<ActionResult<ChamadoDto>> Encaminhar(long id, [FromBody] EncaminharDepartamentoRequest request)
+    {
+        var usuarioId = ObterUsuarioId();
+        if (usuarioId is null)
+        {
+            return Unauthorized();
+        }
+
+        var chamado = await ChamadosComIncludes().FirstOrDefaultAsync(c => c.Id == id);
+        if (chamado is null)
+        {
+            return NotFound(ErrorResponse.Create(404, "Chamado não encontrado."));
+        }
+
+        var podeEncaminhar = User.IsInRole(Perfis.Administrador)
+            || (User.IsInRole(Perfis.Tecnico) && await EstaNoDepartamentoAsync(usuarioId.Value, DepartamentoHelpDeskId));
+
+        if (!podeEncaminhar)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, ErrorResponse.Create(403, "Apenas administradores ou técnicos do HelpDesk podem encaminhar chamados entre departamentos."));
+        }
+
+        if (chamado.Status.Final)
+        {
+            return UnprocessableEntity(new ErrorResponse
+            {
+                Status = 422,
+                Title = "Falha de validação",
+                Errors = new Dictionary<string, string[]> { ["status"] = new[] { "Chamado está em status final e não pode ser encaminhado." } }
+            });
+        }
+
+        var novoDepartamento = await _dbContext.Departamentos.FirstOrDefaultAsync(d => d.Id == request.IdDepartamento);
+        if (novoDepartamento is null || !novoDepartamento.Ativo)
+        {
+            return UnprocessableEntity(new ErrorResponse
+            {
+                Status = 422,
+                Title = "Falha de validação",
+                Errors = new Dictionary<string, string[]> { ["idDepartamento"] = new[] { "Departamento não encontrado ou inativo." } }
+            });
+        }
+
+        if (novoDepartamento.Id == chamado.DepartamentoId)
+        {
+            return UnprocessableEntity(new ErrorResponse
+            {
+                Status = 422,
+                Title = "Falha de validação",
+                Errors = new Dictionary<string, string[]> { ["idDepartamento"] = new[] { "Chamado já está no departamento informado." } }
+            });
+        }
+
+        var departamentoAnteriorId = chamado.DepartamentoId;
+        var tecnicoAnteriorId = chamado.TecnicoId;
+
+        chamado.StatusId = StatusAbertoId;
+        chamado.TecnicoId = null;
+        chamado.DepartamentoId = novoDepartamento.Id;
+        chamado.AtualizadoEm = DateTimeOffset.UtcNow;
+        await _dbContext.SaveChangesAsync();
+        await BroadcastChamadoAtualizadoAsync(chamado.Id);
+
+        _dbContext.Historicos.Add(new Historico
+        {
+            ChamadoId = chamado.Id,
+            AutorId = usuarioId.Value,
+            DepartamentoAnteriorId = departamentoAnteriorId,
+            DepartamentoNovoId = novoDepartamento.Id,
+            Acao = "Departamento alterado"
+        });
+
+        var mensagem = $"Chamado #{chamado.Id} — {chamado.Titulo}: encaminhado para o departamento {novoDepartamento.Nome}.";
+        await NotificarInteressadosAsync(chamado, usuarioId.Value, mensagem, TipoNotificacao.MudancaStatus, notificarTecnico: false);
+
+        // TecnicoId já foi zerado acima — o técnico removido não é mais alcançado
+        // por NotificarInteressadosAsync (que lê chamado.TecnicoId atual), então é
+        // notificado manualmente aqui, mesmo padrão do bloco de Reabrir.
+        if (tecnicoAnteriorId.HasValue && tecnicoAnteriorId.Value != usuarioId.Value)
+        {
+            _dbContext.Notificacoes.Add(new Notificacao
+            {
+                DestinatarioId = tecnicoAnteriorId.Value,
+                ChamadoId = chamado.Id,
+                Tipo = TipoNotificacao.MudancaStatus,
+                Mensagem = mensagem
+            });
+            await _hubContext.Clients.Group($"user-{tecnicoAnteriorId.Value}").SendAsync("NotificacaoRecebida");
+        }
+
+        await _dbContext.SaveChangesAsync();
+        await BroadcastChamadoAtualizadoAsync(chamado.Id);
+
+        var chamadoAtualizado = await ChamadosComIncludes().FirstAsync(c => c.Id == chamado.Id);
+        return Ok(ChamadoDto.FromEntity(chamadoAtualizado, usuarioId.Value, User.IsInRole(Perfis.Administrador)));
+    }
+
+    [HttpPost("{id:long}/devolver-helpdesk")]
+    public async Task<ActionResult<ChamadoDto>> DevolverAoHelpDesk(long id)
+    {
+        var usuarioId = ObterUsuarioId();
+        if (usuarioId is null)
+        {
+            return Unauthorized();
+        }
+
+        var chamado = await ChamadosComIncludes().FirstOrDefaultAsync(c => c.Id == id);
+        if (chamado is null)
+        {
+            return NotFound(ErrorResponse.Create(404, "Chamado não encontrado."));
+        }
+
+        var podeDevolver = User.IsInRole(Perfis.Administrador)
+            || (User.IsInRole(Perfis.Tecnico) && await EstaNoDepartamentoAsync(usuarioId.Value, chamado.DepartamentoId));
+
+        if (!podeDevolver)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, ErrorResponse.Create(403, "Apenas administradores ou técnicos do departamento atual podem devolver o chamado ao HelpDesk."));
+        }
+
+        if (chamado.DepartamentoId == DepartamentoHelpDeskId)
+        {
+            return UnprocessableEntity(new ErrorResponse
+            {
+                Status = 422,
+                Title = "Falha de validação",
+                Errors = new Dictionary<string, string[]> { ["departamento"] = new[] { "Chamado já está no HelpDesk." } }
+            });
+        }
+
+        if (chamado.Status.Final)
+        {
+            return UnprocessableEntity(new ErrorResponse
+            {
+                Status = 422,
+                Title = "Falha de validação",
+                Errors = new Dictionary<string, string[]> { ["status"] = new[] { "Chamado está em status final e não pode ser devolvido ao HelpDesk." } }
+            });
+        }
+
+        var departamentoAnteriorId = chamado.DepartamentoId;
+        var tecnicoAnteriorId = chamado.TecnicoId;
+
+        chamado.StatusId = StatusNovoId;
+        chamado.TecnicoId = null;
+        chamado.DepartamentoId = DepartamentoHelpDeskId;
+        chamado.AtualizadoEm = DateTimeOffset.UtcNow;
+        await _dbContext.SaveChangesAsync();
+        await BroadcastChamadoAtualizadoAsync(chamado.Id);
+
+        _dbContext.Historicos.Add(new Historico
+        {
+            ChamadoId = chamado.Id,
+            AutorId = usuarioId.Value,
+            DepartamentoAnteriorId = departamentoAnteriorId,
+            DepartamentoNovoId = DepartamentoHelpDeskId,
+            Acao = "Devolvido ao HelpDesk"
+        });
+
+        var mensagem = $"Chamado #{chamado.Id} — {chamado.Titulo}: devolvido ao HelpDesk para nova triagem.";
+        await NotificarInteressadosAsync(chamado, usuarioId.Value, mensagem, TipoNotificacao.MudancaStatus, notificarTecnico: false);
+
+        if (tecnicoAnteriorId.HasValue && tecnicoAnteriorId.Value != usuarioId.Value)
+        {
+            _dbContext.Notificacoes.Add(new Notificacao
+            {
+                DestinatarioId = tecnicoAnteriorId.Value,
+                ChamadoId = chamado.Id,
+                Tipo = TipoNotificacao.MudancaStatus,
+                Mensagem = mensagem
+            });
+            await _hubContext.Clients.Group($"user-{tecnicoAnteriorId.Value}").SendAsync("NotificacaoRecebida");
         }
 
         await _dbContext.SaveChangesAsync();
@@ -928,7 +1149,7 @@ public class ChamadosController : ControllerBase
             return NotFound(ErrorResponse.Create(404, "Chamado não encontrado."));
         }
 
-        if (!PodeAcessar(chamado, usuarioId.Value))
+        if (!await PodeAcessarAsync(chamado, usuarioId.Value))
         {
             return StatusCode(StatusCodes.Status403Forbidden, ErrorResponse.Create(403, "Sem permissão para acessar este chamado."));
         }
@@ -936,8 +1157,11 @@ public class ChamadosController : ControllerBase
         var historico = await _dbContext.Historicos
             .Where(h => h.ChamadoId == id)
             .Include(h => h.Autor).ThenInclude(u => u.Perfil)
+            .Include(h => h.Autor).ThenInclude(u => u.Departamentos)
             .Include(h => h.StatusAnterior)
             .Include(h => h.StatusNovo)
+            .Include(h => h.DepartamentoAnterior)
+            .Include(h => h.DepartamentoNovo)
             .OrderByDescending(h => h.CriadoEm)
             .ToListAsync();
 
@@ -969,7 +1193,7 @@ public class ChamadosController : ControllerBase
             return NotFound(ErrorResponse.Create(404, "Chamado não encontrado."));
         }
 
-        if (!PodeAcessar(chamado, usuarioId.Value))
+        if (!await PodeAcessarAsync(chamado, usuarioId.Value))
         {
             return StatusCode(StatusCodes.Status403Forbidden, ErrorResponse.Create(403, "Sem permissão para acessar este chamado."));
         }
@@ -1231,7 +1455,7 @@ public class ChamadosController : ControllerBase
             return NotFound(ErrorResponse.Create(404, "Chamado não encontrado."));
         }
 
-        if (!PodeAcessar(chamado, usuarioId.Value))
+        if (!await PodeAcessarAsync(chamado, usuarioId.Value))
         {
             return StatusCode(StatusCodes.Status403Forbidden, ErrorResponse.Create(403, "Sem permissão para acessar este chamado."));
         }
@@ -1268,7 +1492,7 @@ public class ChamadosController : ControllerBase
             return NotFound(ErrorResponse.Create(404, "Chamado não encontrado."));
         }
 
-        if (!PodeAcessar(chamado, usuarioId.Value))
+        if (!await PodeAcessarAsync(chamado, usuarioId.Value))
         {
             return StatusCode(StatusCodes.Status403Forbidden, ErrorResponse.Create(403, "Sem permissão para comentar neste chamado."));
         }
@@ -1348,7 +1572,7 @@ public class ChamadosController : ControllerBase
             return NotFound(ErrorResponse.Create(404, "Chamado não encontrado."));
         }
 
-        if (!PodeAcessar(chamado, usuarioId.Value))
+        if (!await PodeAcessarAsync(chamado, usuarioId.Value))
         {
             return StatusCode(StatusCodes.Status403Forbidden, ErrorResponse.Create(403, "Sem permissão para acessar este chamado."));
         }
@@ -1392,7 +1616,7 @@ public class ChamadosController : ControllerBase
             return NotFound(ErrorResponse.Create(404, "Chamado não encontrado."));
         }
 
-        if (!PodeAcessar(chamado, usuarioId.Value))
+        if (!await PodeAcessarAsync(chamado, usuarioId.Value))
         {
             return StatusCode(StatusCodes.Status403Forbidden, ErrorResponse.Create(403, "Sem permissão para acessar este chamado."));
         }
@@ -1435,7 +1659,7 @@ public class ChamadosController : ControllerBase
             return NotFound(ErrorResponse.Create(404, "Chamado não encontrado."));
         }
 
-        if (!PodeAcessar(chamado, usuarioId.Value))
+        if (!await PodeAcessarAsync(chamado, usuarioId.Value))
         {
             return StatusCode(StatusCodes.Status403Forbidden, ErrorResponse.Create(403, "Sem permissão para acessar este chamado."));
         }
@@ -1464,7 +1688,7 @@ public class ChamadosController : ControllerBase
             return NotFound(ErrorResponse.Create(404, "Chamado não encontrado."));
         }
 
-        if (!PodeAcessar(chamado, usuarioId.Value))
+        if (!await PodeAcessarAsync(chamado, usuarioId.Value))
         {
             return StatusCode(StatusCodes.Status403Forbidden, ErrorResponse.Create(403, "Sem permissão para enviar anexos neste chamado."));
         }
@@ -1508,7 +1732,7 @@ public class ChamadosController : ControllerBase
             return NotFound(ErrorResponse.Create(404, "Chamado não encontrado."));
         }
 
-        if (!PodeAcessar(chamado, usuarioId.Value))
+        if (!await PodeAcessarAsync(chamado, usuarioId.Value))
         {
             return StatusCode(StatusCodes.Status403Forbidden, ErrorResponse.Create(403, "Sem permissão para acessar este chamado."));
         }
@@ -1585,7 +1809,7 @@ public class ChamadosController : ControllerBase
             return NotFound(ErrorResponse.Create(404, "Chamado não encontrado."));
         }
 
-        if (!PodeAcessar(chamado, usuarioId.Value))
+        if (!await PodeAcessarAsync(chamado, usuarioId.Value))
         {
             return StatusCode(StatusCodes.Status403Forbidden, ErrorResponse.Create(403, "Sem permissão para acessar este chamado."));
         }
@@ -1649,18 +1873,40 @@ public class ChamadosController : ControllerBase
     private IQueryable<Chamado> ChamadosComIncludes() =>
         _dbContext.Chamados
             .Include(c => c.Solicitante).ThenInclude(u => u.Perfil)
+            .Include(c => c.Solicitante).ThenInclude(u => u.Departamentos)
             .Include(c => c.Tecnico!).ThenInclude(u => u.Perfil)
+            .Include(c => c.Tecnico!).ThenInclude(u => u.Departamentos)
             .Include(c => c.Status)
             .Include(c => c.Categoria)
-            .Include(c => c.Prioridade);
+            .Include(c => c.Prioridade)
+            .Include(c => c.Departamento);
 
-    private bool PodeAcessar(Chamado chamado, long usuarioId)
+    private async Task<bool> PodeAcessarAsync(Chamado chamado, long usuarioId)
     {
         if (User.IsInRole(Perfis.Administrador)) return true;
-        if (User.IsInRole(Perfis.Tecnico)) return chamado.TecnicoId == usuarioId || chamado.TecnicoId is null;
+        if (User.IsInRole(Perfis.Tecnico))
+        {
+            // HelpDesk tem visão ampla (faz a triagem inicial de qualquer chamado);
+            // os demais departamentos só acessam os chamados que estão sob sua responsabilidade.
+            if (await EstaNoDepartamentoAsync(usuarioId, DepartamentoHelpDeskId)) return true;
+            return await EstaNoDepartamentoAsync(usuarioId, chamado.DepartamentoId);
+        }
         if (User.IsInRole(Perfis.Cliente)) return chamado.SolicitanteId == usuarioId;
         return false;
     }
+
+    private async Task<bool> EstaNoDepartamentoAsync(long usuarioId, long idDepartamento) =>
+        await _dbContext.Usuarios
+            .Where(u => u.Id == usuarioId)
+            .SelectMany(u => u.Departamentos)
+            .AnyAsync(d => d.Id == idDepartamento);
+
+    private async Task<List<long>> IdsDepartamentosDoUsuarioAsync(long usuarioId) =>
+        await _dbContext.Usuarios
+            .Where(u => u.Id == usuarioId)
+            .SelectMany(u => u.Departamentos)
+            .Select(d => d.Id)
+            .ToListAsync();
 
     private long? ObterUsuarioId()
     {

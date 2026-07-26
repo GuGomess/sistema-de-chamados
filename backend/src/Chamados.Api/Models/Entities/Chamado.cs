@@ -28,6 +28,10 @@ public class Chamado
 
     public Prioridade Prioridade { get; set; } = null!;
 
+    public long DepartamentoId { get; set; }
+
+    public Departamento Departamento { get; set; } = null!;
+
     public DateTimeOffset CriadoEm { get; set; }
 
     public DateTimeOffset AtualizadoEm { get; set; }

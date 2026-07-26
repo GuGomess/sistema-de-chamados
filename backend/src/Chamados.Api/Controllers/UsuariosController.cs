@@ -31,6 +31,7 @@ public class UsuariosController : ControllerBase
 
         var usuarios = await _dbContext.Usuarios
             .Include(u => u.Perfil)
+            .Include(u => u.Departamentos)
             .OrderBy(u => u.Nome)
             .ToListAsync();
 
@@ -100,6 +101,7 @@ public class UsuariosController : ControllerBase
     {
         var usuarios = await _dbContext.Usuarios
             .Include(u => u.Perfil)
+            .Include(u => u.Departamentos)
             .Where(u => u.Ativo)
             .OrderBy(u => u.Nome)
             .ToListAsync();
@@ -113,10 +115,11 @@ public class UsuariosController : ControllerBase
     }
 
     [HttpGet("atribuiveis")]
-    public async Task<ActionResult<List<UsuarioDto>>> ListarAtribuiveis()
+    public async Task<ActionResult<List<UsuarioDto>>> ListarAtribuiveis([FromQuery] long? idDepartamento = null)
     {
         var usuarios = await _dbContext.Usuarios
             .Include(u => u.Perfil)
+            .Include(u => u.Departamentos)
             .Where(u => u.Ativo)
             .OrderBy(u => u.Nome)
             .ToListAsync();
@@ -127,6 +130,57 @@ public class UsuariosController : ControllerBase
             ? dtos.Where(u => u.Perfil == Perfis.Tecnico || u.Perfil == Perfis.Administrador)
             : dtos.Where(u => u.Perfil == Perfis.Tecnico);
 
+        // Um técnico só é elegível pra assumir a atribuição se pertencer ao
+        // departamento responsável do chamado; administradores continuam
+        // elegíveis pra qualquer departamento (não são escopados por depto).
+        if (idDepartamento.HasValue)
+        {
+            atribuiveis = atribuiveis.Where(u => u.Perfil == Perfis.Administrador || u.Departamentos.Any(d => d.Id == idDepartamento.Value));
+        }
+
         return Ok(atribuiveis.ToList());
+    }
+
+    [HttpPut("{id:long}/departamentos")]
+    public async Task<ActionResult<UsuarioDto>> AtualizarDepartamentos(long id, UsuarioDepartamentosRequest request)
+    {
+        if (!User.IsInRole(Perfis.Administrador))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, ErrorResponse.Create(403, "Apenas administradores podem alterar departamentos de usuários."));
+        }
+
+        var usuario = await _dbContext.Usuarios
+            .Include(u => u.Perfil)
+            .Include(u => u.Departamentos)
+            .FirstOrDefaultAsync(u => u.Id == id);
+
+        if (usuario is null)
+        {
+            return NotFound(ErrorResponse.Create(404, "Usuário não encontrado."));
+        }
+
+        if (Perfis.NormalizarCodigo(usuario.Perfil.Nome) != Perfis.Tecnico)
+        {
+            return UnprocessableEntity(new ErrorResponse { Status = 422, Title = "Falha de validação", Errors = new Dictionary<string, string[]> { ["id"] = new[] { "Somente usuários com perfil Técnico podem ter departamentos vinculados." } } });
+        }
+
+        var departamentos = await _dbContext.Departamentos
+            .Where(d => request.IdsDepartamentos.Contains(d.Id))
+            .ToListAsync();
+
+        if (departamentos.Count != request.IdsDepartamentos.Distinct().Count())
+        {
+            return UnprocessableEntity(new ErrorResponse { Status = 422, Title = "Falha de validação", Errors = new Dictionary<string, string[]> { ["idsDepartamentos"] = new[] { "Um ou mais departamentos informados não foram encontrados." } } });
+        }
+
+        usuario.Departamentos.Clear();
+        foreach (var departamento in departamentos)
+        {
+            usuario.Departamentos.Add(departamento);
+        }
+
+        await _dbContext.SaveChangesAsync();
+
+        return Ok(UsuarioDto.FromEntity(usuario));
     }
 }

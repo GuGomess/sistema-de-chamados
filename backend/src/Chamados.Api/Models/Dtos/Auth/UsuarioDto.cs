@@ -1,4 +1,5 @@
 using Chamados.Api.Constants;
+using Chamados.Api.Models.Dtos.Departamentos;
 using Chamados.Api.Models.Entities;
 
 namespace Chamados.Api.Models.Dtos.Auth;
@@ -17,6 +18,8 @@ public class UsuarioDto
 
     public DateTimeOffset CriadoEm { get; set; }
 
+    public List<DepartamentoDto> Departamentos { get; set; } = new();
+
     public static UsuarioDto FromEntity(Usuario usuario) => new()
     {
         Id = usuario.Id,
@@ -24,6 +27,7 @@ public class UsuarioDto
         Email = usuario.Email,
         Perfil = Perfis.NormalizarCodigo(usuario.Perfil.Nome),
         Ativo = usuario.Ativo,
-        CriadoEm = usuario.CriadoEm
+        CriadoEm = usuario.CriadoEm,
+        Departamentos = usuario.Departamentos.Select(DepartamentoDto.FromEntity).ToList()
     };
 }

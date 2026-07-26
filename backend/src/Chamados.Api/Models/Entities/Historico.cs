@@ -20,6 +20,14 @@ public class Historico
 
     public Status? StatusNovo { get; set; }
 
+    public long? DepartamentoAnteriorId { get; set; }
+
+    public Departamento? DepartamentoAnterior { get; set; }
+
+    public long? DepartamentoNovoId { get; set; }
+
+    public Departamento? DepartamentoNovo { get; set; }
+
     public string Acao { get; set; } = string.Empty;
 
     public string? Detalhe { get; set; }

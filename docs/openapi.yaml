@@ -25,6 +25,8 @@ tags:
     description: Trilha de auditoria do chamado
   - name: Usuários
     description: Gestão de usuários (Administrador)
+  - name: Departamentos
+    description: Segmentação de técnicos por área de atendimento (Administrador)
   - name: Domínios
     description: Tabelas configuráveis — status, categorias, prioridades, SLA (Administrador)
   - name: Notificações
@@ -92,11 +94,14 @@ paths:
       tags: [Chamados]
       summary: Lista chamados (com filtros e paginação)
       description: >
-        O escopo é aplicado pelo perfil: Cliente vê apenas os próprios chamados;
-        Técnico vê os atribuídos a ele e os ainda sem técnico (pool disponível
-        para assumir); Administrador vê todos. Com `meus=true`, Técnico ou
-        Administrador veem só os chamados assumidos por ele ou abertos por ele
-        mesmo (substitui o escopo padrão do perfil só nessa chamada).
+        O escopo é aplicado pelo perfil: Cliente vê apenas os próprios
+        chamados; Administrador vê todos. Técnico do departamento HelpDesk
+        tem visão ampla (todos os chamados, de qualquer departamento, para
+        fazer a triagem inicial); técnico de outro departamento só vê os
+        chamados cujo departamento responsável seja um dos departamentos aos
+        quais pertence. Com `meus=true`, Técnico ou Administrador veem só os
+        chamados assumidos por ele ou abertos por ele mesmo (substitui o
+        escopo por departamento/perfil só nessa chamada).
       parameters:
         - { $ref: '#/components/parameters/Page' }
         - { $ref: '#/components/parameters/PageSize' }
@@ -111,6 +116,9 @@ paths:
           in: query
           schema: { type: integer, format: int64 }
         - name: idTecnico
+          in: query
+          schema: { type: integer, format: int64 }
+        - name: idDepartamento
           in: query
           schema: { type: integer, format: int64 }
         - name: q
@@ -266,12 +274,14 @@ paths:
       summary: Atribui o chamado a um técnico ou administrador
       description: >
         Administrador pode atribuir a qualquer momento; Técnico só pode
-        atribuir um chamado ao qual já tem acesso (atribuído a ele mesmo ou
-        ainda sem técnico — mesma regra de `GET /chamados/{id}`). O usuário
-        alvo (`idTecnico`) precisa estar ativo; se quem atribui é
-        Administrador, o alvo pode ter perfil Técnico ou Administrador; se é
-        Técnico, o alvo só pode ter perfil Técnico. O chamado não pode estar
-        em status final.
+        atribuir um chamado ao qual já tem acesso (mesma regra de
+        `GET /chamados/{id}`: técnico do HelpDesk, ou técnico do departamento
+        responsável pelo chamado). O usuário alvo (`idTecnico`) precisa estar
+        ativo; se o alvo tiver perfil Técnico, ele precisa pertencer ao
+        departamento responsável pelo chamado (sem exceção para o HelpDesk);
+        se quem atribui é Administrador, o alvo também pode ter perfil
+        Administrador, sem restrição de departamento nesse caso. O chamado
+        não pode estar em status final.
       requestBody:
         required: true
         content:
@@ -294,8 +304,10 @@ paths:
       tags: [Chamados]
       summary: Técnico assume um chamado sem técnico atribuído
       description: >
-        O técnico autenticado se autoatribui ao chamado. Falha com 409 se o
-        chamado já tiver um técnico e com 422 se estiver em status final.
+        O técnico autenticado se autoatribui ao chamado. Exige pertencer ao
+        departamento responsável pelo chamado (403 caso contrário, sem
+        exceção para o HelpDesk). Falha com 409 se o chamado já tiver um
+        técnico e com 422 se estiver em status final.
       responses:
         '200':
           description: Chamado assumido
@@ -325,6 +337,61 @@ paths:
       responses:
         '200':
           description: Chamado reaberto
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Chamado' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  /chamados/{id}/encaminhar:
+    parameters:
+      - { $ref: '#/components/parameters/IdPath' }
+    post:
+      tags: [Chamados]
+      summary: Encaminha o chamado para outro departamento
+      description: >
+        Só Administrador ou Técnico do departamento HelpDesk pode encaminhar
+        livremente entre departamentos (MVP: os demais departamentos só
+        devolvem ao HelpDesk via `/devolver-helpdesk`). Ao encaminhar, o
+        sistema define o status como "Aberto", remove o técnico responsável
+        atual (se houver) e atualiza o departamento responsável; o chamado
+        fica disponível para um técnico do novo departamento assumir. Gera um
+        evento "Departamento alterado" em `/historico` com o departamento de
+        origem e de destino. Falha com 422 se o chamado estiver em status
+        final ou se o departamento de destino não existir/estiver inativo.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EncaminharDepartamentoRequest' }
+      responses:
+        '200':
+          description: Chamado encaminhado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Chamado' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  /chamados/{id}/devolver-helpdesk:
+    parameters:
+      - { $ref: '#/components/parameters/IdPath' }
+    post:
+      tags: [Chamados]
+      summary: Devolve o chamado ao HelpDesk para nova triagem
+      description: >
+        Administrador ou Técnico pertencente ao departamento responsável
+        atual do chamado pode devolvê-lo ao HelpDesk (ex.: encaminhamento
+        anterior incorreto). Define o status como "Novo", remove o técnico
+        responsável atual (se houver) e atualiza o departamento responsável
+        para HelpDesk. Gera um evento "Devolvido ao HelpDesk" em
+        `/historico`. Falha com 422 se o chamado já estiver no HelpDesk ou
+        estiver em status final.
+      responses:
+        '200':
+          description: Chamado devolvido ao HelpDesk
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Chamado' }
@@ -661,6 +728,109 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+  /usuarios/{id}/departamentos:
+    parameters:
+      - { $ref: '#/components/parameters/IdPath' }
+    put:
+      tags: [Usuários]
+      summary: Substitui os departamentos de um usuário (Administrador)
+      description: >
+        Substitui integralmente o vínculo N:N do usuário com departamentos
+        (não é incremental — os `idsDepartamentos` enviados passam a ser a
+        lista completa). Falha com 422 se algum id não corresponder a um
+        departamento existente.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UsuarioDepartamentosRequest' }
+      responses:
+        '200':
+          description: Usuário com departamentos atualizados
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Usuario' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+
+  # ---------------------------------------------------------------- Departamentos (admin)
+  /departamentos:
+    get:
+      tags: [Departamentos]
+      summary: Lista departamentos
+      parameters:
+        - name: apenasAtivos
+          in: query
+          schema: { type: boolean, default: false }
+      responses:
+        '200':
+          description: Lista de departamentos
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Departamento' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [Departamentos]
+      summary: Cria um departamento (Administrador)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DepartamentoCreate' }
+      responses:
+        '201':
+          description: Departamento criado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Departamento' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  /departamentos/{id}:
+    parameters:
+      - { $ref: '#/components/parameters/IdPath' }
+    patch:
+      tags: [Departamentos]
+      summary: Atualiza nome/descrição de um departamento (Administrador)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DepartamentoUpdate' }
+      responses:
+        '200':
+          description: Departamento atualizado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Departamento' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  /departamentos/{id}/status:
+    parameters:
+      - { $ref: '#/components/parameters/IdPath' }
+    patch:
+      tags: [Departamentos]
+      summary: Ativa ou inativa um departamento (Administrador)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DepartamentoStatusRequest' }
+      responses:
+        '200':
+          description: Departamento com status atualizado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Departamento' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
 
   # ---------------------------------------------------------------- Domínios (admin)
   /categorias:
@@ -991,6 +1161,10 @@ components:
         perfil: { $ref: '#/components/schemas/Perfil' }
         ativo: { type: boolean }
         criadoEm: { type: string, format: date-time }
+        departamentos:
+          type: array
+          items: { $ref: '#/components/schemas/Departamento' }
+          description: Departamentos aos quais o usuário pertence (relevante para perfil Técnico)
     UsuarioCreate:
       type: object
       required: [nome, email, senha, perfil]
@@ -1012,10 +1186,48 @@ components:
           type: array
           items: { $ref: '#/components/schemas/Usuario' }
         meta: { $ref: '#/components/schemas/PageMeta' }
+    UsuarioDepartamentosRequest:
+      type: object
+      required: [idsDepartamentos]
+      properties:
+        idsDepartamentos:
+          type: array
+          items: { type: integer, format: int64 }
+
+    # ----- Departamentos -----
+    Departamento:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        nome: { type: string }
+        descricao: { type: string }
+        ativo: { type: boolean }
+        criadoEm: { type: string, format: date-time }
+    DepartamentoCreate:
+      type: object
+      required: [nome]
+      properties:
+        nome: { type: string, maxLength: 80 }
+        descricao: { type: string, maxLength: 255 }
+    DepartamentoUpdate:
+      type: object
+      properties:
+        nome: { type: string, maxLength: 80 }
+        descricao: { type: string, maxLength: 255 }
+    DepartamentoStatusRequest:
+      type: object
+      required: [ativo]
+      properties:
+        ativo: { type: boolean }
 
     # ----- Domínios -----
     Status:
       type: object
+      description: >
+        Estado do chamado. Registros predefinidos, em ordem: "Novo" (aberto
+        pelo cliente, ainda em triagem no HelpDesk), "Aberto" (departamento
+        responsável já definido), "Em Atendimento", "Aguardando Cliente",
+        "Resolvido", "Fechado".
       properties:
         id: { type: integer, format: int64 }
         nome: { type: string }
@@ -1086,6 +1298,13 @@ components:
         status: { $ref: '#/components/schemas/Status' }
         categoria: { $ref: '#/components/schemas/Categoria' }
         prioridade: { $ref: '#/components/schemas/Prioridade' }
+        departamento:
+          allOf:
+            - { $ref: '#/components/schemas/Departamento' }
+          description: >
+            Departamento responsável atual pelo atendimento. Todo chamado
+            nasce no HelpDesk (status "Novo") e passa a apontar para o
+            departamento definido em `/encaminhar` quando triado.
         criadoEm: { type: string, format: date-time }
         atualizadoEm: { type: string, format: date-time }
         prazoResposta: { type: string, format: date-time, nullable: true }
@@ -1110,7 +1329,9 @@ components:
         idCategoria/idPrioridade são obrigatórios para Técnico/Administrador,
         mas ignorados para Cliente: o servidor sempre aplica os defaults de
         triagem (categoria "A Triar", prioridade "Média") nesse caso, mesmo
-        que os campos sejam enviados no corpo.
+        que os campos sejam enviados no corpo. Todo chamado é criado com
+        status "Novo" e departamento HelpDesk, independentemente do perfil de
+        quem abre — não há campo para escolher status/departamento na criação.
       properties:
         titulo: { type: string, maxLength: 160 }
         descricao: { type: string }
@@ -1128,6 +1349,11 @@ components:
       required: [idTecnico]
       properties:
         idTecnico: { type: integer, format: int64 }
+    EncaminharDepartamentoRequest:
+      type: object
+      required: [idDepartamento]
+      properties:
+        idDepartamento: { type: integer, format: int64 }
     PrazoResolucaoUpdateRequest:
       type: object
       required: [prazoResolucao, justificativa]
@@ -1195,6 +1421,16 @@ components:
           oneOf:
             - { $ref: '#/components/schemas/Status' }
             - { type: 'null' }
+        departamentoAnterior:
+          oneOf:
+            - { $ref: '#/components/schemas/Departamento' }
+            - { type: 'null' }
+          description: Preenchido apenas em eventos de encaminhamento entre departamentos
+        departamentoNovo:
+          oneOf:
+            - { $ref: '#/components/schemas/Departamento' }
+            - { type: 'null' }
+          description: Preenchido apenas em eventos de encaminhamento entre departamentos
         acao: { type: string, example: 'Mudança de status' }
         detalhe: { type: string }
         criadoEm: { type: string, format: date-time }

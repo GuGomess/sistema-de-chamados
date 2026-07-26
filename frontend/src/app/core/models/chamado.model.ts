@@ -1,4 +1,5 @@
 import { PerfilCodigo } from './auth.model';
+import { Departamento } from './departamento.model';
 
 export interface Categoria {
   id: number;
@@ -75,6 +76,7 @@ export interface Chamado {
   status: Status;
   categoria: Categoria;
   prioridade: Prioridade;
+  departamento: Departamento;
   criadoEm: string;
   atualizadoEm: string;
   prazoResposta: string | null;
@@ -110,6 +112,7 @@ export interface ChamadoFiltros {
   idCategoria?: number | null;
   idPrioridade?: number | null;
   idTecnico?: number | null;
+  idDepartamento?: number | null;
   dataInicio?: string | null;
   dataFim?: string | null;
   situacaoSla?: SituacaoSla | null;
@@ -184,9 +187,15 @@ export interface Historico {
   autor: UsuarioResumo;
   statusAnterior: Status | null;
   statusNovo: Status | null;
+  departamentoAnterior: Departamento | null;
+  departamentoNovo: Departamento | null;
   acao: string;
   detalhe: string | null;
   criadoEm: string;
+}
+
+export interface EncaminharDepartamentoRequest {
+  idDepartamento: number;
 }
 
 export interface Anexo {

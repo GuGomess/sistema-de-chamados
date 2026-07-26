@@ -1,3 +1,5 @@
+import { Departamento } from './departamento.model';
+
 export interface LoginRequest {
   email: string;
   senha: string;
@@ -12,6 +14,7 @@ export interface Usuario {
   perfil: PerfilCodigo;
   ativo: boolean;
   criadoEm: string;
+  departamentos: Departamento[];
 }
 
 export interface AuthResponse {

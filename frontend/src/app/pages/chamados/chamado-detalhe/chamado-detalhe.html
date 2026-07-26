@@ -27,6 +27,10 @@
           <span class="v">{{ chamado.categoria.nome }}</span>
         </div>
         <div class="sla-i">
+          <span class="l">Departamento</span>
+          <span class="v">{{ chamado.departamento.nome }}</span>
+        </div>
+        <div class="sla-i">
           <span class="l">Prazo resposta</span>
           <span class="v">
             {{ chamado.prazoResposta ? (chamado.prazoResposta | date: 'dd/MM/yyyy HH:mm') : '—' }}
@@ -151,7 +155,7 @@
         </p>
       </div>
 
-      @if (podeAssumir() || podeReabrir() || podeAlterarStatus() || podeAjustarPrazo() || podeFecharComoCliente()) {
+      @if (podeAssumir() || podeReabrir() || podeAlterarStatus() || podeAjustarPrazo() || podeFecharComoCliente() || podeEncaminhar() || podeDevolverHelpDesk()) {
         <aside class="acoes">
           <h2>Ações</h2>
 
@@ -190,7 +194,7 @@
               <label>
                 Alterar status
                 <select formControlName="idStatus" [disabled]="salvando()" (change)="salvarAlteracoes()">
-                  @for (s of statusList(); track s.id) {
+                  @for (s of statusEditavel(); track s.id) {
                     <option [ngValue]="s.id" [disabled]="s.nome === 'Resolvido' && statusResolvidoBloqueado()">
                       {{ s.nome }}
                     </option>
@@ -226,6 +230,24 @@
               <button type="submit" [disabled]="salvando()">Fechar chamado</button>
             </form>
           }
+
+          @if (podeEncaminhar()) {
+            <form [formGroup]="encaminharForm" novalidate class="prazo-form">
+              <label>
+                Encaminhar para departamento
+                <select formControlName="idDepartamento" [disabled]="salvando()" (change)="encaminharDepartamento()">
+                  <option [ngValue]="null">Selecione um departamento</option>
+                  @for (departamento of departamentos(); track departamento.id) {
+                    <option [ngValue]="departamento.id">{{ departamento.nome }}</option>
+                  }
+                </select>
+              </label>
+            </form>
+          }
+
+          @if (podeDevolverHelpDesk()) {
+            <button type="button" [disabled]="salvando()" (click)="devolverAoHelpDesk()">Devolver ao HelpDesk</button>
+          }
         </aside>
       }
     </div>
@@ -246,6 +268,11 @@
                 <span class="data">{{ evento.criadoEm | date: 'dd/MM/yyyy HH:mm' }}</span>
               </div>
               <p class="meta">{{ evento.autor.nome }}</p>
+              @if (evento.acao === 'Departamento alterado' || evento.acao === 'Devolvido ao HelpDesk') {
+                <p class="detalhe">
+                  {{ evento.departamentoAnterior?.nome ?? '—' }} → {{ evento.departamentoNovo?.nome ?? '—' }}
+                </p>
+              }
               @if (evento.detalhe) {
                 <p class="detalhe">{{ evento.detalhe }}</p>
               }

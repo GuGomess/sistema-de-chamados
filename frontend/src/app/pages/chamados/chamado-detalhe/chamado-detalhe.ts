@@ -1,6 +1,6 @@
 import { DatePipe } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, inject, OnDestroy, OnInit, signal } from '@angular/core';
+import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { DomSanitizer, SafeResourceUrl, SafeUrl } from '@angular/platform-browser';
 import { ActivatedRoute } from '@angular/router';
@@ -8,6 +8,7 @@ import { Observable } from 'rxjs';
 
 import { AuthService } from '../../../core/services/auth.service';
 import { ChamadoService } from '../../../core/services/chamado.service';
+import { DepartamentoService } from '../../../core/services/departamento.service';
 import { RealtimeService } from '../../../core/services/realtime.service';
 import {
   Anexo,
@@ -29,6 +30,7 @@ import {
   Status,
   UsuarioResumo,
 } from '../../../core/models/chamado.model';
+import { Departamento } from '../../../core/models/departamento.model';
 
 interface ErrorResponse {
   errors?: Record<string, string[]>;
@@ -52,20 +54,31 @@ interface AnexoPreview {
 export class ChamadoDetalhe implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly chamadoService = inject(ChamadoService);
+  private readonly departamentoService = inject(DepartamentoService);
   private readonly authService = inject(AuthService);
   private readonly realtimeService = inject(RealtimeService);
   private readonly formBuilder = inject(FormBuilder);
   private readonly sanitizer = inject(DomSanitizer);
 
+  // HelpDesk (Departamento Id = 1, ver ChamadosController.DepartamentoHelpDeskId).
+  private readonly HELPDESK_DEPARTAMENTO_ID = 1;
+
+  // Status "Novo" (Id = 6, ver ChamadosController.StatusNovoId) só é atingido
+  // via /devolver-helpdesk — fora do select manual de status.
+  private readonly STATUS_NOVO_ID = 6;
+
   private readonly id = Number(this.route.snapshot.paramMap.get('id'));
   private readonly perfil = this.authService.getPerfil();
   protected readonly usuarioId = this.authService.getUsuario()?.id ?? null;
+  private readonly usuarioDepartamentos = this.authService.getUsuario()?.departamentos ?? [];
 
   protected readonly chamado = signal<Chamado | null>(null);
   protected readonly statusList = signal<Status[]>([]);
+  protected readonly statusEditavel = computed(() => this.statusList().filter((s) => s.id !== this.STATUS_NOVO_ID));
   protected readonly tecnicos = signal<UsuarioResumo[]>([]);
   protected readonly categorias = signal<Categoria[]>([]);
   protected readonly prioridades = signal<Prioridade[]>([]);
+  protected readonly departamentos = signal<Departamento[]>([]);
   protected readonly carregando = signal(true);
   protected readonly erro = signal<string | null>(null);
   protected readonly salvando = signal(false);
@@ -126,6 +139,10 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
     idTecnico: [null as number | null],
   });
 
+  protected readonly encaminharForm = this.formBuilder.nonNullable.group({
+    idDepartamento: [null as number | null],
+  });
+
   protected readonly fecharClienteForm = this.formBuilder.nonNullable.group({
     motivo: [''],
   });
@@ -179,8 +196,7 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
       this.chamadoService.listarCategorias().subscribe({ next: (categorias) => this.categorias.set(categorias) });
       this.chamadoService.listarPrioridades().subscribe({ next: (prioridades) => this.prioridades.set(prioridades) });
 
-      // Reatribuição: administrador vê técnicos e administradores; técnico só vê técnicos.
-      this.chamadoService.listarAtribuiveis().subscribe({ next: (atribuiveis) => this.tecnicos.set(atribuiveis) });
+      this.departamentoService.listar(true).subscribe({ next: (departamentos) => this.departamentos.set(departamentos) });
     }
 
     this.realtimeService.entrarChamado(this.id);
@@ -233,7 +249,13 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
 
   protected podeAssumir(): boolean {
     const chamado = this.chamado();
-    return this.ehTecnico() && !!chamado && !chamado.tecnico && !chamado.status.final;
+    return (
+      this.ehTecnico() &&
+      !!chamado &&
+      !chamado.tecnico &&
+      !chamado.status.final &&
+      this.pertenceAoDepartamento(chamado.departamento.id)
+    );
   }
 
   protected podeReabrir(): boolean {
@@ -258,6 +280,26 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
       return true;
     }
     return this.ehTecnico() && (!chamado.tecnico || chamado.tecnico.id === this.usuarioId);
+  }
+
+  private pertenceAoDepartamento(idDepartamento: number): boolean {
+    return this.usuarioDepartamentos.some((departamento) => departamento.id === idDepartamento);
+  }
+
+  protected podeEncaminhar(): boolean {
+    const chamado = this.chamado();
+    if (!chamado || chamado.status.final) {
+      return false;
+    }
+    return this.ehAdministrador() || (this.ehTecnico() && this.pertenceAoDepartamento(this.HELPDESK_DEPARTAMENTO_ID));
+  }
+
+  protected podeDevolverHelpDesk(): boolean {
+    const chamado = this.chamado();
+    if (!chamado || chamado.status.final || chamado.departamento.id === this.HELPDESK_DEPARTAMENTO_ID) {
+      return false;
+    }
+    return this.ehAdministrador() || (this.ehTecnico() && this.pertenceAoDepartamento(chamado.departamento.id));
   }
 
   // Cliente pode fechar o próprio chamado enquanto ainda estiver em andamento
@@ -831,6 +873,33 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
     this.executarAcao(this.chamadoService.atribuir(chamado.id, idTecnico));
   }
 
+  protected encaminharDepartamento(): void {
+    const chamado = this.chamado();
+    if (!chamado || this.salvando()) {
+      return;
+    }
+
+    const { idDepartamento } = this.encaminharForm.getRawValue();
+    if (idDepartamento === null || idDepartamento === chamado.departamento.id) {
+      return;
+    }
+
+    this.executarAcao(this.chamadoService.encaminharDepartamento(chamado.id, { idDepartamento }), () => {
+      this.encaminharForm.reset({ idDepartamento: null });
+    });
+  }
+
+  protected devolverAoHelpDesk(): void {
+    if (this.salvando()) {
+      return;
+    }
+    if (!window.confirm('Tem certeza que deseja devolver este chamado ao HelpDesk para nova triagem?')) {
+      return;
+    }
+
+    this.executarAcao(this.chamadoService.devolverAoHelpDesk(this.id));
+  }
+
   protected fecharComoCliente(): void {
     if (this.salvando()) {
       return;
@@ -1123,6 +1192,15 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
       { idTecnico: chamado.tecnico?.id ?? null },
       { emitEvent: false },
     );
+
+    if (this.ehAdministrador() || this.ehTecnico()) {
+      // Reatribuição: só técnicos do departamento responsável (ou administradores)
+      // são elegíveis — reconsultado a cada carregamento pra acompanhar o
+      // departamento atual do chamado (ex.: após um encaminhamento).
+      this.chamadoService
+        .listarAtribuiveis(chamado.departamento.id)
+        .subscribe({ next: (atribuiveis) => this.tecnicos.set(atribuiveis) });
+    }
   }
 
   // Só chamado no carregamento inicial e logo após um ajuste de prazo bem-

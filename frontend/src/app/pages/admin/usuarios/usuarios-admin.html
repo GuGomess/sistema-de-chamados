@@ -38,10 +38,32 @@
         {{ criando() ? 'Criando...' : 'Criar usuário' }}
       </button>
     </div>
+
+    @if (perfilCriacaoEhTecnico()) {
+      <div class="departamentos-select">
+        <span class="rotulo">Departamentos</span>
+        <div class="opcoes">
+          @for (departamento of departamentosAtivos(); track departamento.id) {
+            <label class="checkbox">
+              <input
+                type="checkbox"
+                [checked]="departamentoSelecionadoNaCriacao(departamento.id)"
+                (change)="alternarDepartamentoCriacao(departamento.id, $event)"
+              />
+              {{ departamento.nome }}
+            </label>
+          }
+        </div>
+      </div>
+    }
   </form>
 
   @if (erro()) {
     <p class="erro" role="alert">{{ erro() }}</p>
+  }
+
+  @if (erroDepartamentos()) {
+    <p class="erro" role="alert">{{ erroDepartamentos() }}</p>
   }
 
   @if (carregando()) {
@@ -57,22 +79,70 @@
             <th>E-mail</th>
             <th>Perfil</th>
             <th>Ativo</th>
+            <th>Departamentos</th>
             <th>Criado em</th>
+            <th>Ações</th>
           </tr>
         </thead>
         <tbody>
           @for (usuario of usuarios(); track usuario.id) {
-            <tr>
-              <td>{{ usuario.nome }}</td>
-              <td>{{ usuario.email }}</td>
-              <td>{{ usuario.perfil }}</td>
-              <td>
-                <span class="badge {{ usuario.ativo ? 'ativo' : 'inativo' }}">
-                  {{ usuario.ativo ? 'Sim' : 'Não' }}
-                </span>
-              </td>
-              <td>{{ usuario.criadoEm | date: 'dd/MM/yyyy HH:mm' }}</td>
-            </tr>
+            @if (gerenciandoDepartamentosId() === usuario.id) {
+              <tr>
+                <td colspan="7">
+                  <div class="gerenciar-departamentos">
+                    <span class="rotulo">Departamentos de {{ usuario.nome }}</span>
+                    <div class="opcoes">
+                      @for (departamento of departamentosAtivos(); track departamento.id) {
+                        <label class="checkbox">
+                          <input
+                            type="checkbox"
+                            [checked]="departamentoSelecionadoNoGerenciamento(departamento.id)"
+                            (change)="alternarDepartamentoGerenciamento(departamento.id, $event)"
+                          />
+                          {{ departamento.nome }}
+                        </label>
+                      }
+                    </div>
+                    <div class="botoes">
+                      <button type="button" (click)="salvarDepartamentos(usuario)" [disabled]="salvandoDepartamentos()">
+                        {{ salvandoDepartamentos() ? 'Salvando...' : 'Salvar' }}
+                      </button>
+                      <button type="button" (click)="cancelarGerenciarDepartamentos()" [disabled]="salvandoDepartamentos()">
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            } @else {
+              <tr>
+                <td>{{ usuario.nome }}</td>
+                <td>{{ usuario.email }}</td>
+                <td>{{ usuario.perfil }}</td>
+                <td>
+                  <span class="badge {{ usuario.ativo ? 'ativo' : 'inativo' }}">
+                    {{ usuario.ativo ? 'Sim' : 'Não' }}
+                  </span>
+                </td>
+                <td>
+                  @if (usuario.departamentos.length === 0) {
+                    —
+                  } @else {
+                    @for (departamento of usuario.departamentos; track departamento.id) {
+                      <span class="badge departamento">{{ departamento.nome }}</span>
+                    }
+                  }
+                </td>
+                <td>{{ usuario.criadoEm | date: 'dd/MM/yyyy HH:mm' }}</td>
+                <td>
+                  @if (usuario.perfil === 'TECNICO') {
+                    <button type="button" (click)="iniciarGerenciarDepartamentos(usuario)">
+                      Gerenciar departamentos
+                    </button>
+                  }
+                </td>
+              </tr>
+            }
           }
         </tbody>
       </table>

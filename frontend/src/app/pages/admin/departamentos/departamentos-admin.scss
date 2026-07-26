@@ -1,4 +1,4 @@
-.usuarios-admin-wrap {
+.departamentos-admin-wrap {
   max-width: 960px;
   margin: 2rem auto;
   display: flex;
@@ -51,8 +51,7 @@
       color: #555;
     }
 
-    input,
-    select {
+    input {
       padding: 0.4rem;
       font-size: 0.9rem;
       font-family: inherit;
@@ -68,71 +67,36 @@
         cursor: not-allowed;
       }
     }
-
-    .departamentos-select {
-      display: flex;
-      flex-direction: column;
-      gap: 0.35rem;
-
-      .rotulo {
-        font-size: 0.75rem;
-        color: #555;
-      }
-
-      .opcoes {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.75rem;
-      }
-
-      .checkbox {
-        display: flex;
-        align-items: center;
-        gap: 0.3rem;
-        font-size: 0.85rem;
-        color: inherit;
-      }
-    }
   }
 
-  .gerenciar-departamentos {
+  .form-editar {
     display: flex;
-    flex-direction: column;
+    flex-wrap: wrap;
     gap: 0.5rem;
-    padding: 0.5rem 0;
+    align-items: end;
 
-    .rotulo {
-      font-size: 0.8rem;
+    label {
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
+      font-size: 0.75rem;
       color: #555;
-      font-weight: 600;
     }
 
-    .opcoes {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.75rem;
+    input {
+      padding: 0.4rem;
+      font-size: 0.9rem;
+      font-family: inherit;
     }
 
-    .checkbox {
-      display: flex;
-      align-items: center;
-      gap: 0.3rem;
+    button {
+      padding: 0.4rem 0.8rem;
       font-size: 0.85rem;
-    }
+      cursor: pointer;
 
-    .botoes {
-      display: flex;
-      gap: 0.5rem;
-
-      button {
-        padding: 0.4rem 0.8rem;
-        font-size: 0.85rem;
-        cursor: pointer;
-
-        &:disabled {
-          opacity: 0.6;
-          cursor: not-allowed;
-        }
+      &:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
       }
     }
   }
@@ -153,6 +117,22 @@
       font-size: 0.9rem;
     }
 
+    .acoes {
+      display: flex;
+      gap: 0.4rem;
+
+      button {
+        padding: 0.3rem 0.6rem;
+        font-size: 0.8rem;
+        cursor: pointer;
+
+        &:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+        }
+      }
+    }
+
     .badge {
       display: inline-block;
       padding: 0.1rem 0.5rem;
@@ -168,12 +148,6 @@
       &.inativo {
         background: #fee2e2;
         color: #b91c1c;
-      }
-
-      &.departamento {
-        background: #e0e7ff;
-        color: #3730a3;
-        margin-right: 0.25rem;
       }
     }
   }

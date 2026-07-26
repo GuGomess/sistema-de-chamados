@@ -19,6 +19,7 @@ import {
   Comentario,
   ComentarioCreateRequest,
   ComentarioUpdateRequest,
+  EncaminharDepartamentoRequest,
   FecharClienteRequest,
   Historico,
   PrazoResolucaoUpdateRequest,
@@ -66,6 +67,14 @@ export class ChamadoService {
     return this.http.post<Chamado>(`${environment.apiBaseUrl}/v1/chamados/${id}/reabrir`, {});
   }
 
+  encaminharDepartamento(id: number, request: EncaminharDepartamentoRequest): Observable<Chamado> {
+    return this.http.post<Chamado>(`${environment.apiBaseUrl}/v1/chamados/${id}/encaminhar`, request);
+  }
+
+  devolverAoHelpDesk(id: number): Observable<Chamado> {
+    return this.http.post<Chamado>(`${environment.apiBaseUrl}/v1/chamados/${id}/devolver-helpdesk`, {});
+  }
+
   fecharComoCliente(id: number, motivo?: string): Observable<Chamado> {
     const request: FecharClienteRequest = { motivo };
     return this.http.post<Chamado>(`${environment.apiBaseUrl}/v1/chamados/${id}/fechar-cliente`, request);
@@ -106,8 +115,9 @@ export class ChamadoService {
     return this.http.get<UsuarioResumo[]>(`${environment.apiBaseUrl}/v1/usuarios/tecnicos`);
   }
 
-  listarAtribuiveis(): Observable<UsuarioResumo[]> {
-    return this.http.get<UsuarioResumo[]>(`${environment.apiBaseUrl}/v1/usuarios/atribuiveis`);
+  listarAtribuiveis(idDepartamento?: number | null): Observable<UsuarioResumo[]> {
+    const params = idDepartamento ? { idDepartamento } : undefined;
+    return this.http.get<UsuarioResumo[]>(`${environment.apiBaseUrl}/v1/usuarios/atribuiveis`, { params });
   }
 
   resumoSla(): Observable<ResumoSla> {

@@ -52,6 +52,13 @@
             <option [ngValue]="prioridade.id">{{ prioridade.nome }}</option>
           }
         </select>
+
+        <select formControlName="idDepartamento">
+          <option [ngValue]="null">Departamento</option>
+          @for (departamento of departamentos(); track departamento.id) {
+            <option [ngValue]="departamento.id">{{ departamento.nome }}</option>
+          }
+        </select>
       }
 
       <select formControlName="idTecnico">
@@ -101,6 +108,7 @@
               <th class="ordenavel" (click)="ordenarPor('status')">Status{{ indicadorOrdenacao('status') }}</th>
               @if (ehStaff) {
                 <th class="ordenavel" (click)="ordenarPor('solicitante')">Aberto por{{ indicadorOrdenacao('solicitante') }}</th>
+                <th>Departamento</th>
                 <th class="ordenavel" (click)="ordenarPor('prioridade')">Prioridade{{ indicadorOrdenacao('prioridade') }}</th>
                 <th class="ordenavel" (click)="ordenarPor('sla')">SLA{{ indicadorOrdenacao('sla') }}</th>
               }
@@ -117,6 +125,7 @@
                 <td>{{ chamado.status.nome }}</td>
                 @if (ehStaff) {
                   <td>{{ chamado.solicitante.nome }}</td>
+                  <td>{{ chamado.departamento.nome }}</td>
                   <td>{{ chamado.prioridade.nome }}</td>
                   <td>
                     @if (chamado.status.final) {

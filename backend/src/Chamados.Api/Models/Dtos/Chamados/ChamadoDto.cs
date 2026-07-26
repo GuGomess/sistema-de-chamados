@@ -1,4 +1,5 @@
 using Chamados.Api.Models.Dtos.Auth;
+using Chamados.Api.Models.Dtos.Departamentos;
 using Chamados.Api.Models.Entities;
 
 namespace Chamados.Api.Models.Dtos.Chamados;
@@ -20,6 +21,8 @@ public class ChamadoDto
     public CategoriaDto Categoria { get; set; } = null!;
 
     public PrioridadeDto Prioridade { get; set; } = null!;
+
+    public DepartamentoDto Departamento { get; set; } = null!;
 
     public DateTimeOffset CriadoEm { get; set; }
 
@@ -57,6 +60,7 @@ public class ChamadoDto
             Status = StatusDto.FromEntity(chamado.Status),
             Categoria = CategoriaDto.FromEntity(chamado.Categoria),
             Prioridade = PrioridadeDto.FromEntity(chamado.Prioridade),
+            Departamento = DepartamentoDto.FromEntity(chamado.Departamento),
             CriadoEm = chamado.CriadoEm,
             AtualizadoEm = chamado.AtualizadoEm,
             PrazoResposta = chamado.PrazoResposta,

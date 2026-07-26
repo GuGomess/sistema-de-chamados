@@ -1,0 +1,104 @@
+<section class="departamentos-admin-wrap">
+  <div class="content-head">
+    <h1>Departamentos</h1>
+  </div>
+
+  <form class="form-criar" [formGroup]="form" (ngSubmit)="onSubmit()" novalidate>
+    <h2>Novo departamento</h2>
+
+    @if (erroCriacao()) {
+      <p class="erro" role="alert">{{ erroCriacao() }}</p>
+    }
+
+    <div class="campos">
+      <label>
+        Nome
+        <input type="text" formControlName="nome" />
+      </label>
+
+      <label>
+        Descrição
+        <input type="text" formControlName="descricao" />
+      </label>
+
+      <button type="submit" [disabled]="criando()">
+        {{ criando() ? 'Criando...' : 'Criar departamento' }}
+      </button>
+    </div>
+  </form>
+
+  @if (erro()) {
+    <p class="erro" role="alert">{{ erro() }}</p>
+  }
+
+  @if (erroEdicao()) {
+    <p class="erro" role="alert">{{ erroEdicao() }}</p>
+  }
+
+  @if (carregando()) {
+    <p>Carregando departamentos...</p>
+  } @else if (departamentos().length === 0) {
+    <p>Nenhum departamento cadastrado.</p>
+  } @else {
+    <div class="tabela-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Nome</th>
+            <th>Descrição</th>
+            <th>Status</th>
+            <th>Criado em</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (departamento of departamentos(); track departamento.id) {
+            @if (editandoId() === departamento.id) {
+              <tr>
+                <td colspan="5">
+                  <form class="form-editar" [formGroup]="editForm" (ngSubmit)="salvarEdicao(departamento)" novalidate>
+                    <label>
+                      Nome
+                      <input type="text" formControlName="nome" />
+                    </label>
+                    <label>
+                      Descrição
+                      <input type="text" formControlName="descricao" />
+                    </label>
+                    <button type="submit" [disabled]="salvandoEdicao()">
+                      {{ salvandoEdicao() ? 'Salvando...' : 'Salvar' }}
+                    </button>
+                    <button type="button" (click)="cancelarEdicao()" [disabled]="salvandoEdicao()">
+                      Cancelar
+                    </button>
+                  </form>
+                </td>
+              </tr>
+            } @else {
+              <tr>
+                <td>{{ departamento.nome }}</td>
+                <td>{{ departamento.descricao || '—' }}</td>
+                <td>
+                  <span class="badge {{ departamento.ativo ? 'ativo' : 'inativo' }}">
+                    {{ departamento.ativo ? 'Ativo' : 'Inativo' }}
+                  </span>
+                </td>
+                <td>{{ departamento.criadoEm | date: 'dd/MM/yyyy HH:mm' }}</td>
+                <td class="acoes">
+                  <button type="button" (click)="iniciarEdicao(departamento)">Editar</button>
+                  <button
+                    type="button"
+                    (click)="alternarStatus(departamento)"
+                    [disabled]="alterandoStatusId() === departamento.id"
+                  >
+                    {{ departamento.ativo ? 'Inativar' : 'Ativar' }}
+                  </button>
+                </td>
+              </tr>
+            }
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</section>

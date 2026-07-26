@@ -33,6 +33,8 @@ public class ChamadosDbContext : DbContext
 
     public DbSet<Avaliacao> Avaliacoes => Set<Avaliacao>();
 
+    public DbSet<Departamento> Departamentos => Set<Departamento>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Perfil>(entity =>
@@ -84,7 +86,9 @@ public class ChamadosDbContext : DbContext
                 new Status { Id = 2, Nome = "Em Atendimento", Ordem = 2, Final = false },
                 new Status { Id = 3, Nome = "Aguardando Cliente", Ordem = 3, Final = false },
                 new Status { Id = 4, Nome = "Resolvido", Ordem = 4, Final = true },
-                new Status { Id = 5, Nome = "Fechado", Ordem = 5, Final = true }
+                new Status { Id = 5, Nome = "Fechado", Ordem = 5, Final = true },
+                // Chamado recém-criado, aguardando triagem do HelpDesk (distinto de "Aberto").
+                new Status { Id = 6, Nome = "Novo", Ordem = 0, Final = false }
             );
         });
 
@@ -161,6 +165,9 @@ public class ChamadosDbContext : DbContext
             entity.Property(c => c.StatusId).HasColumnName("id_status");
             entity.Property(c => c.CategoriaId).HasColumnName("id_categoria");
             entity.Property(c => c.PrioridadeId).HasColumnName("id_prioridade");
+            // Default garante retrocompatibilidade de chamados já existentes no banco,
+            // associando-os ao HelpDesk (ver Departamento, Id = 1).
+            entity.Property(c => c.DepartamentoId).HasColumnName("id_departamento").HasDefaultValue(1L);
             entity.Property(c => c.CriadoEm).HasColumnName("criado_em").HasDefaultValueSql("now()");
             entity.Property(c => c.AtualizadoEm).HasColumnName("atualizado_em").HasDefaultValueSql("now()");
             entity.Property(c => c.PrazoResposta).HasColumnName("prazo_resposta");
@@ -205,6 +212,13 @@ public class ChamadosDbContext : DbContext
                 .WithMany(p => p.Chamados)
                 .HasForeignKey(c => c.PrioridadeId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasIndex(c => c.DepartamentoId);
+
+            entity.HasOne(c => c.Departamento)
+                .WithMany()
+                .HasForeignKey(c => c.DepartamentoId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<Historico>(entity =>
@@ -215,6 +229,8 @@ public class ChamadosDbContext : DbContext
             entity.Property(h => h.AutorId).HasColumnName("id_autor");
             entity.Property(h => h.StatusAnteriorId).HasColumnName("id_status_anterior");
             entity.Property(h => h.StatusNovoId).HasColumnName("id_status_novo");
+            entity.Property(h => h.DepartamentoAnteriorId).HasColumnName("id_departamento_anterior");
+            entity.Property(h => h.DepartamentoNovoId).HasColumnName("id_departamento_novo");
             entity.Property(h => h.Acao).HasColumnName("acao").HasMaxLength(80).IsRequired();
             entity.Property(h => h.Detalhe).HasColumnName("detalhe");
             entity.Property(h => h.CriadoEm).HasColumnName("criado_em").HasDefaultValueSql("now()");
@@ -237,6 +253,16 @@ public class ChamadosDbContext : DbContext
             entity.HasOne(h => h.StatusNovo)
                 .WithMany()
                 .HasForeignKey(h => h.StatusNovoId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(h => h.DepartamentoAnterior)
+                .WithMany()
+                .HasForeignKey(h => h.DepartamentoAnteriorId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(h => h.DepartamentoNovo)
+                .WithMany()
+                .HasForeignKey(h => h.DepartamentoNovoId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
@@ -348,5 +374,28 @@ public class ChamadosDbContext : DbContext
                 .HasForeignKey(a => a.AutorId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
+
+        modelBuilder.Entity<Departamento>(entity =>
+        {
+            entity.ToTable("departamento");
+            entity.Property(d => d.Id).HasColumnName("id");
+            entity.Property(d => d.Nome).HasColumnName("nome").HasMaxLength(80).IsRequired();
+            entity.Property(d => d.Descricao).HasColumnName("descricao").HasMaxLength(255);
+            entity.Property(d => d.Ativo).HasColumnName("ativo").HasDefaultValue(true);
+            entity.Property(d => d.CriadoEm).HasColumnName("criado_em").HasDefaultValueSql("now()");
+
+            entity.HasIndex(d => d.Nome).IsUnique();
+
+            entity.HasData(
+                new Departamento { Id = 1, Nome = "HelpDesk", Ativo = true },
+                new Departamento { Id = 2, Nome = "Desenvolvimento", Ativo = true },
+                new Departamento { Id = 3, Nome = "Infraestrutura", Ativo = true }
+            );
+        });
+
+        modelBuilder.Entity<Usuario>()
+            .HasMany(u => u.Departamentos)
+            .WithMany(d => d.Tecnicos)
+            .UsingEntity(j => j.ToTable("usuario_departamento"));
     }
 }

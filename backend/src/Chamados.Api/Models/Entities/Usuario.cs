@@ -21,4 +21,6 @@ public class Usuario
     public ICollection<Chamado> ChamadosSolicitados { get; set; } = new List<Chamado>();
 
     public ICollection<Chamado> ChamadosAtendidos { get; set; } = new List<Chamado>();
+
+    public ICollection<Departamento> Departamentos { get; set; } = new List<Departamento>();
 }

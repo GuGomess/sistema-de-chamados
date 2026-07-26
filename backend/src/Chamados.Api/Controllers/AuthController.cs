@@ -30,6 +30,7 @@ public class AuthController : ControllerBase
     {
         var usuario = await _dbContext.Usuarios
             .Include(u => u.Perfil)
+            .Include(u => u.Departamentos)
             .SingleOrDefaultAsync(u => u.Email.ToLower() == request.Email.ToLower());
 
         if (usuario is null || !usuario.Ativo)
