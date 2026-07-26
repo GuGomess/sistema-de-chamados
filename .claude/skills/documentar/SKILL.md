@@ -25,8 +25,10 @@ pessoa abre com duplo clique no navegador. Ele tem **duas responsabilidades**:
    **incremental**: a cada execução você **acrescenta** uma nova entrada na aba pertinente,
    **preservando todas as anteriores**.
 
-> O `documentacao.html` é um artefato **pessoal do desenvolvedor**, não faz parte do
-> código do projeto → deve ficar **no `.gitignore`** (ver passo 6). Nunca o versione.
+> O `documentacao.html` é versionado no repositório (a pedido explícito do usuário em
+> 25/07/2026, revertendo a convenção original de artefato local/gitignorado). Trate-o como
+> qualquer outro arquivo de documentação: pode e deve ser commitado junto com as mudanças
+> que documenta.
 
 ## Princípios-guia
 
@@ -82,11 +84,10 @@ Fontes: `README.md` (raiz), `frontend/README.md` + `frontend/package.json`,
   (`@media (prefers-color-scheme: dark)`), badges de status por área e cor de destaque
   própria por segmento da stack. Idioma: **português (pt-BR)**.
 
-### 7) Garantir o `.gitignore`
-- Confirme que a raiz do `.gitignore` ignora `documentacao.html` (seção "Artefatos locais
-  do desenvolvedor"). Verifique com `git check-ignore documentacao.html`.
+### 7) Commitar
+- `documentacao.html` é versionado — inclua-o no commit (junto com as demais mudanças que
+  ele documenta, ou em commit próprio de docs) e dê push conforme pedido pelo usuário.
 
 ### 8) Fechar
-- Informe o caminho do arquivo e que basta abri-lo no navegador (duplo clique).
+- Informe o caminho do arquivo e que basta abri-lo no navegador (duplo clique) para conferir.
 - Resuma quais entradas foram **acrescentadas** e em quais abas.
-- Não faça commit (o arquivo é ignorado por design).
