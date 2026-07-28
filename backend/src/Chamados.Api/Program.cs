@@ -1,3 +1,5 @@
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -73,6 +75,34 @@ builder.Services
                     context.Token = accessToken;
                 }
                 return Task.CompletedTask;
+            },
+
+            // Sem isso, um usuário desativado continuaria autenticado em toda
+            // requisição HTTP até o token expirar (JwtOptions.ExpiresMinutes) —
+            // o broadcast "ContaDesativada" (ver UsuariosController.AlterarAtivo)
+            // cobre quem está com a tela aberta, mas isso aqui é o que de fato
+            // barra o token em qualquer requisição/reconexão futura.
+            OnTokenValidated = async context =>
+            {
+                var claim = context.Principal?.FindFirst(JwtRegisteredClaimNames.Sub)
+                    ?? context.Principal?.FindFirst(ClaimTypes.NameIdentifier);
+
+                if (claim is null || !long.TryParse(claim.Value, out var usuarioId))
+                {
+                    context.Fail("Token inválido.");
+                    return;
+                }
+
+                var dbContext = context.HttpContext.RequestServices.GetRequiredService<ChamadosDbContext>();
+                var ativo = await dbContext.Usuarios
+                    .Where(u => u.Id == usuarioId)
+                    .Select(u => u.Ativo)
+                    .FirstOrDefaultAsync();
+
+                if (!ativo)
+                {
+                    context.Fail("Conta desativada.");
+                }
             }
         };
     });

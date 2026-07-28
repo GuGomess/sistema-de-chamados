@@ -3,7 +3,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { DomSanitizer, SafeResourceUrl, SafeUrl } from '@angular/platform-browser';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { Observable } from 'rxjs';
 
 import { AuthService } from '../../../core/services/auth.service';
@@ -53,6 +53,7 @@ interface AnexoPreview {
 })
 export class ChamadoDetalhe implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   private readonly chamadoService = inject(ChamadoService);
   private readonly departamentoService = inject(DepartamentoService);
   private readonly authService = inject(AuthService);
@@ -129,6 +130,11 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
   // até clicar em Editar" usado para o prazo, ver toggleEdicaoPrazoResolucao.
   protected readonly editandoConteudo = signal(false);
 
+  // Mesmo padrão de "fica oculto até clicar" — devolver ao HelpDesk exige uma
+  // justificativa escrita (aparece no histórico), então também usa uma
+  // pequena revelação em vez do antigo window.confirm.
+  protected readonly devolvendoHelpDesk = signal(false);
+
   protected readonly form = this.formBuilder.nonNullable.group({
     idStatus: [null as number | null],
     idCategoria: [null as number | null],
@@ -141,6 +147,10 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
 
   protected readonly encaminharForm = this.formBuilder.nonNullable.group({
     idDepartamento: [null as number | null],
+  });
+
+  protected readonly devolverHelpDeskForm = this.formBuilder.nonNullable.group({
+    justificativa: [''],
   });
 
   protected readonly fecharClienteForm = this.formBuilder.nonNullable.group({
@@ -202,11 +212,15 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
     this.realtimeService.entrarChamado(this.id);
     this.realtimeService.on<number>('ChamadoAtualizado', (chamadoId) => {
       if (chamadoId === this.id) {
-        this.carregarChamado();
-        this.carregarComentarios();
-        this.carregarAnexos();
-        this.carregarAvaliacoes();
-        this.carregarHistorico();
+        // Silencioso: evita alternar `carregando()` e desmontar a página inteira
+        // a cada evento em tempo real — isso encolhia a tela e resetava o scroll
+        // pro topo (mesmo ajuste feito em ChamadosLista.buscar).
+        const silencioso = { silencioso: true };
+        this.carregarChamado(silencioso);
+        this.carregarComentarios(silencioso);
+        this.carregarAnexos(silencioso);
+        this.carregarAvaliacoes(silencioso);
+        this.carregarHistorico(silencioso);
       }
     });
   }
@@ -487,8 +501,10 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
     return 'Não foi possível enviar o comentário. Tente novamente.';
   }
 
-  private carregarComentarios(): void {
-    this.carregandoComentarios.set(true);
+  private carregarComentarios(opcoes: { silencioso?: boolean } = {}): void {
+    if (!opcoes.silencioso) {
+      this.carregandoComentarios.set(true);
+    }
 
     this.chamadoService.listarComentarios(this.id).subscribe({
       next: (comentarios) => {
@@ -502,8 +518,10 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
     });
   }
 
-  private carregarAnexos(): void {
-    this.carregandoAnexos.set(true);
+  private carregarAnexos(opcoes: { silencioso?: boolean } = {}): void {
+    if (!opcoes.silencioso) {
+      this.carregandoAnexos.set(true);
+    }
 
     this.chamadoService.listarAnexos(this.id).subscribe({
       next: (anexos) => {
@@ -517,8 +535,10 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
     });
   }
 
-  private carregarAvaliacoes(): void {
-    this.carregandoAvaliacao.set(true);
+  private carregarAvaliacoes(opcoes: { silencioso?: boolean } = {}): void {
+    if (!opcoes.silencioso) {
+      this.carregandoAvaliacao.set(true);
+    }
 
     this.chamadoService.listarAvaliacoes(this.id).subscribe({
       next: (avaliacoes) => {
@@ -531,8 +551,10 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
     });
   }
 
-  private carregarHistorico(): void {
-    this.carregandoHistorico.set(true);
+  private carregarHistorico(opcoes: { silencioso?: boolean } = {}): void {
+    if (!opcoes.silencioso) {
+      this.carregandoHistorico.set(true);
+    }
 
     this.chamadoService.listarHistorico(this.id).subscribe({
       next: (historico) => {
@@ -889,15 +911,39 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
     });
   }
 
+  protected toggleDevolverHelpDesk(): void {
+    if (this.devolvendoHelpDesk()) {
+      this.cancelarDevolverHelpDesk();
+      return;
+    }
+
+    this.acaoErro.set(null);
+    this.devolverHelpDeskForm.reset({ justificativa: '' });
+    this.devolvendoHelpDesk.set(true);
+  }
+
+  protected cancelarDevolverHelpDesk(): void {
+    this.devolvendoHelpDesk.set(false);
+  }
+
   protected devolverAoHelpDesk(): void {
     if (this.salvando()) {
       return;
     }
-    if (!window.confirm('Tem certeza que deseja devolver este chamado ao HelpDesk para nova triagem?')) {
+
+    const { justificativa } = this.devolverHelpDeskForm.getRawValue();
+    if (!justificativa.trim()) {
+      this.acaoErro.set('Informe a justificativa para devolver o chamado ao HelpDesk.');
       return;
     }
 
-    this.executarAcao(this.chamadoService.devolverAoHelpDesk(this.id));
+    this.executarAcao(this.chamadoService.devolverAoHelpDesk(this.id, { justificativa }), () => {
+      // Quem devolveu o chamado normalmente deixa de ter permissão pra
+      // acessá-lo (departamento/técnico mudam) — melhor UX é já sair pra
+      // lista em vez de deixar a tela cair em "sem permissão" no próximo
+      // refresh (inclusive o disparado pelo próprio broadcast em tempo real).
+      this.router.navigate(['/chamados']);
+    });
   }
 
   protected fecharComoCliente(): void {
@@ -1161,8 +1207,10 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
     });
   }
 
-  private carregarChamado(): void {
-    this.carregando.set(true);
+  private carregarChamado(opcoes: { silencioso?: boolean } = {}): void {
+    if (!opcoes.silencioso) {
+      this.carregando.set(true);
+    }
     this.erro.set(null);
 
     this.chamadoService.detalhar(this.id).subscribe({

@@ -5,6 +5,7 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 
 import { PerfilCodigo, Usuario } from '../../../core/models/auth.model';
 import { Departamento } from '../../../core/models/departamento.model';
+import { AuthService } from '../../../core/services/auth.service';
 import { DepartamentoService } from '../../../core/services/departamento.service';
 import { UsuarioService } from '../../../core/services/usuario.service';
 
@@ -18,6 +19,9 @@ export class UsuariosAdmin implements OnInit {
   private readonly formBuilder = inject(FormBuilder);
   private readonly usuarioService = inject(UsuarioService);
   private readonly departamentoService = inject(DepartamentoService);
+  private readonly authService = inject(AuthService);
+
+  protected readonly usuarioAtualId = this.authService.getUsuario()?.id ?? null;
 
   protected readonly usuarios = signal<Usuario[]>([]);
   protected readonly carregando = signal(false);
@@ -33,6 +37,16 @@ export class UsuariosAdmin implements OnInit {
   protected readonly departamentosSelecionadosGerenciar = signal<number[]>([]);
   protected readonly salvandoDepartamentos = signal(false);
   protected readonly erroDepartamentos = signal<string | null>(null);
+
+  protected readonly alterandoAtivoId = signal<number | null>(null);
+
+  protected readonly alterandoSenhaId = signal<number | null>(null);
+  protected readonly salvandoSenha = signal(false);
+  protected readonly erroSenha = signal<string | null>(null);
+
+  protected readonly senhaForm = this.formBuilder.nonNullable.group({
+    novaSenha: ['', [Validators.required, Validators.minLength(6)]],
+  });
 
   protected readonly form = this.formBuilder.nonNullable.group({
     nome: ['', [Validators.required]],
@@ -139,6 +153,61 @@ export class UsuariosAdmin implements OnInit {
       error: () => {
         this.salvandoDepartamentos.set(false);
         this.erroDepartamentos.set('Não foi possível salvar os departamentos. Tente novamente.');
+      },
+    });
+  }
+
+  protected alternarAtivo(usuario: Usuario): void {
+    if (this.alterandoAtivoId()) {
+      return;
+    }
+
+    const acao = usuario.ativo ? 'desativar' : 'ativar';
+    if (!window.confirm(`Tem certeza que deseja ${acao} o usuário ${usuario.nome}?`)) {
+      return;
+    }
+
+    this.alterandoAtivoId.set(usuario.id);
+    this.usuarioService.alterarAtivo(usuario.id, !usuario.ativo).subscribe({
+      next: () => {
+        this.alterandoAtivoId.set(null);
+        this.carregar();
+      },
+      error: () => {
+        this.alterandoAtivoId.set(null);
+        this.erro.set(`Não foi possível ${acao} o usuário. Tente novamente.`);
+      },
+    });
+  }
+
+  protected iniciarAlterarSenha(usuario: Usuario): void {
+    this.erroSenha.set(null);
+    this.senhaForm.reset({ novaSenha: '' });
+    this.alterandoSenhaId.set(usuario.id);
+  }
+
+  protected cancelarAlterarSenha(): void {
+    this.alterandoSenhaId.set(null);
+  }
+
+  protected salvarSenha(usuario: Usuario): void {
+    if (this.senhaForm.invalid || this.salvandoSenha()) {
+      this.senhaForm.markAllAsTouched();
+      return;
+    }
+
+    this.salvandoSenha.set(true);
+    this.erroSenha.set(null);
+
+    const { novaSenha } = this.senhaForm.getRawValue();
+    this.usuarioService.alterarSenha(usuario.id, novaSenha).subscribe({
+      next: () => {
+        this.salvandoSenha.set(false);
+        this.alterandoSenhaId.set(null);
+      },
+      error: () => {
+        this.salvandoSenha.set(false);
+        this.erroSenha.set('Não foi possível alterar a senha. Tente novamente.');
       },
     });
   }

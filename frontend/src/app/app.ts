@@ -4,6 +4,7 @@ import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/rou
 import { Notificacao } from './core/models/notificacao.model';
 import { AuthService } from './core/services/auth.service';
 import { NotificacaoService } from './core/services/notificacao.service';
+import { RealtimeService } from './core/services/realtime.service';
 
 @Component({
   selector: 'app-root',
@@ -14,6 +15,7 @@ import { NotificacaoService } from './core/services/notificacao.service';
 export class App {
   protected readonly authService = inject(AuthService);
   protected readonly notificacaoService = inject(NotificacaoService);
+  private readonly realtimeService = inject(RealtimeService);
   private readonly router = inject(Router);
   private readonly elementRef = inject(ElementRef<HTMLElement>);
 
@@ -22,6 +24,13 @@ export class App {
   protected readonly notificacoesAbertas = signal(false);
   protected readonly notificacoes = signal<Notificacao[]>([]);
   protected readonly carregandoNotificacoes = signal(false);
+
+  constructor() {
+    // App é o componente raiz (sobrevive a login/logout na mesma aba) — ponto
+    // certo pra reagir a um evento que pode chegar em qualquer tela, não só
+    // dentro de uma página específica.
+    this.realtimeService.on('ContaDesativada', () => this.aoContaDesativada());
+  }
 
   // Métodos (não campos fixados no construtor): o componente raiz não é
   // recriado entre login/logout na mesma sessão de SPA, então precisam ler o
@@ -87,6 +96,13 @@ export class App {
     this.authService.logout();
     this.notificacoesAbertas.set(false);
     this.router.navigateByUrl('/login');
+  }
+
+  private aoContaDesativada(): void {
+    this.authService.logout();
+    this.notificacoesAbertas.set(false);
+    this.router.navigateByUrl('/login');
+    window.alert('Sua conta foi desativada por um administrador.');
   }
 
   private carregarNotificacoes(): void {

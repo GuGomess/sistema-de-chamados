@@ -35,6 +35,18 @@ export class AuthService {
     this._usuario.set(null);
   }
 
+  // Chamado após o usuário editar o próprio nome/e-mail (tela "Perfil") — sem
+  // isso, a sessão armazenada (e o cabeçalho "Logado como") ficaria com os
+  // dados antigos até o próximo login.
+  atualizarUsuarioLocal(usuario: Usuario): void {
+    const sessao = this.getSessao();
+    if (!sessao) {
+      return;
+    }
+    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ ...sessao, usuario }));
+    this._usuario.set(usuario);
+  }
+
   isAutenticado(): boolean {
     return this.getToken() !== null;
   }

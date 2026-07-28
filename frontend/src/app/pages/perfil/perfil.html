@@ -1,0 +1,55 @@
+<section class="perfil-wrap">
+  <div class="content-head">
+    <h1>Perfil</h1>
+  </div>
+
+  <form class="form-secao" [formGroup]="dadosForm" (ngSubmit)="salvarDados()" novalidate>
+    <h2>Dados pessoais</h2>
+
+    @if (erroDados()) {
+      <p class="erro" role="alert">{{ erroDados() }}</p>
+    }
+    @if (sucessoDados()) {
+      <p class="sucesso" role="status">Dados atualizados com sucesso.</p>
+    }
+
+    <label>
+      Nome
+      <input type="text" formControlName="nome" />
+    </label>
+
+    <label>
+      E-mail
+      <input type="email" formControlName="email" />
+    </label>
+
+    <button type="submit" [disabled]="salvandoDados()">
+      {{ salvandoDados() ? 'Salvando...' : 'Salvar dados' }}
+    </button>
+  </form>
+
+  <form class="form-secao" [formGroup]="senhaForm" (ngSubmit)="salvarSenha()" novalidate>
+    <h2>Alterar senha</h2>
+
+    @if (erroSenha()) {
+      <p class="erro" role="alert">{{ erroSenha() }}</p>
+    }
+    @if (sucessoSenha()) {
+      <p class="sucesso" role="status">Senha alterada com sucesso.</p>
+    }
+
+    <label>
+      Senha atual
+      <input type="password" formControlName="senhaAtual" autocomplete="current-password" />
+    </label>
+
+    <label>
+      Nova senha
+      <input type="password" formControlName="novaSenha" autocomplete="new-password" />
+    </label>
+
+    <button type="submit" [disabled]="salvandoSenha()">
+      {{ salvandoSenha() ? 'Salvando...' : 'Alterar senha' }}
+    </button>
+  </form>
+</section>

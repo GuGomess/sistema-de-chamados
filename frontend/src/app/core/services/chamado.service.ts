@@ -10,6 +10,7 @@ import {
   AvaliacaoCreateRequest,
   AvaliacaoUpdateRequest,
   Categoria,
+  CategoriaCreateRequest,
   Chamado,
   ChamadoConteudoUpdateRequest,
   ChamadoCreateRequest,
@@ -19,6 +20,7 @@ import {
   Comentario,
   ComentarioCreateRequest,
   ComentarioUpdateRequest,
+  DevolverHelpDeskRequest,
   EncaminharDepartamentoRequest,
   FecharClienteRequest,
   Historico,
@@ -71,8 +73,8 @@ export class ChamadoService {
     return this.http.post<Chamado>(`${environment.apiBaseUrl}/v1/chamados/${id}/encaminhar`, request);
   }
 
-  devolverAoHelpDesk(id: number): Observable<Chamado> {
-    return this.http.post<Chamado>(`${environment.apiBaseUrl}/v1/chamados/${id}/devolver-helpdesk`, {});
+  devolverAoHelpDesk(id: number, request: DevolverHelpDeskRequest): Observable<Chamado> {
+    return this.http.post<Chamado>(`${environment.apiBaseUrl}/v1/chamados/${id}/devolver-helpdesk`, request);
   }
 
   fecharComoCliente(id: number, motivo?: string): Observable<Chamado> {
@@ -101,6 +103,10 @@ export class ChamadoService {
 
   listarCategorias(): Observable<Categoria[]> {
     return this.http.get<Categoria[]>(`${environment.apiBaseUrl}/v1/categorias`);
+  }
+
+  criarCategoria(request: CategoriaCreateRequest): Observable<Categoria> {
+    return this.http.post<Categoria>(`${environment.apiBaseUrl}/v1/categorias`, request);
   }
 
   listarPrioridades(): Observable<Prioridade[]> {

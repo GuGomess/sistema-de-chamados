@@ -22,4 +22,20 @@ export class UsuarioService {
       idsDepartamentos,
     });
   }
+
+  alterarAtivo(idUsuario: number, ativo: boolean): Observable<Usuario> {
+    return this.http.patch<Usuario>(`${environment.apiBaseUrl}/v1/usuarios/${idUsuario}/ativo`, { ativo });
+  }
+
+  alterarSenha(idUsuario: number, novaSenha: string): Observable<Usuario> {
+    return this.http.patch<Usuario>(`${environment.apiBaseUrl}/v1/usuarios/${idUsuario}/senha`, { novaSenha });
+  }
+
+  atualizarMeuPerfil(request: { nome: string; email: string }): Observable<Usuario> {
+    return this.http.patch<Usuario>(`${environment.apiBaseUrl}/v1/usuarios/me`, request);
+  }
+
+  alterarMinhaSenha(request: { senhaAtual: string; novaSenha: string }): Observable<void> {
+    return this.http.patch<void>(`${environment.apiBaseUrl}/v1/usuarios/me/senha`, request);
+  }
 }

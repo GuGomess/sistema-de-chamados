@@ -8,6 +8,11 @@ export interface Categoria {
   ativa: boolean;
 }
 
+export interface CategoriaCreateRequest {
+  nome: string;
+  descricao?: string;
+}
+
 export interface Prioridade {
   id: number;
   nome: string;
@@ -196,6 +201,10 @@ export interface Historico {
 
 export interface EncaminharDepartamentoRequest {
   idDepartamento: number;
+}
+
+export interface DevolverHelpDeskRequest {
+  justificativa: string;
 }
 
 export interface Anexo {

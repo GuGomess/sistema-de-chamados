@@ -532,10 +532,11 @@ public class ChamadosController : ControllerBase
             return NotFound(ErrorResponse.Create(404, "Chamado não encontrado."));
         }
 
-        // Mesma regra de Assumir (sem exceção para o HelpDesk): quem atribui
-        // precisa pertencer ao departamento responsável pelo chamado — o
-        // HelpDesk move chamados entre departamentos via /encaminhar, não
-        // atribuindo diretamente técnicos de outros departamentos.
+        // Mesma regra de Assumir: quem atribui precisa pertencer ao
+        // departamento responsável pelo chamado no momento da ação — isso é o
+        // que faz o HelpDesk (dono da triagem inicial) ser quem normalmente
+        // exerce essa ação; o alvo da atribuição é que pode ser de qualquer
+        // departamento nesse caso (ver tecnicoAlvoElegivel abaixo).
         var podeAtribuir = User.IsInRole(Perfis.Administrador)
             || (User.IsInRole(Perfis.Tecnico) && await EstaNoDepartamentoAsync(usuarioId.Value, chamado.DepartamentoId));
 
@@ -554,21 +555,27 @@ public class ChamadosController : ControllerBase
             });
         }
 
-        var tecnico = await _dbContext.Usuarios.Include(u => u.Perfil).FirstOrDefaultAsync(u => u.Id == request.IdTecnico);
+        var tecnico = await _dbContext.Usuarios
+            .Include(u => u.Perfil)
+            .Include(u => u.Departamentos)
+            .FirstOrDefaultAsync(u => u.Id == request.IdTecnico);
         var perfilAlvo = tecnico is null ? null : Perfis.NormalizarCodigo(tecnico.Perfil.Nome);
         var chamadorEhAdministrador = User.IsInRole(Perfis.Administrador);
+        var chamadorEhHelpDesk = User.IsInRole(Perfis.Tecnico) && await EstaNoDepartamentoAsync(usuarioId.Value, DepartamentoHelpDeskId);
 
-        // Alvo Técnico só é válido se pertencer ao departamento responsável pelo
-        // chamado (sem excecão para o HelpDesk aqui); alvo Administrador não tem
-        // essa restrição.
-        var tecnicoAlvoNoDepartamento = perfilAlvo == Perfis.Tecnico
-            && await EstaNoDepartamentoAsync(tecnico!.Id, chamado.DepartamentoId);
+        // HelpDesk faz a triagem inicial e pode atribuir a qualquer técnico
+        // ativo, de qualquer departamento (exceto administradores — ver ramo
+        // abaixo); administradores têm a mesma liberdade. Técnicos de outros
+        // departamentos seguem restritos a colegas do próprio departamento
+        // (mesma regra de Assumir).
+        var tecnicoAlvoElegivel = perfilAlvo == Perfis.Tecnico
+            && (chamadorEhAdministrador || chamadorEhHelpDesk || tecnico!.Departamentos.Any(d => d.Id == chamado.DepartamentoId));
 
         var alvoValido = tecnico is not null
             && tecnico.Ativo
             && (chamadorEhAdministrador
-                ? (perfilAlvo == Perfis.Administrador || tecnicoAlvoNoDepartamento)
-                : tecnicoAlvoNoDepartamento);
+                ? (perfilAlvo == Perfis.Administrador || tecnicoAlvoElegivel)
+                : tecnicoAlvoElegivel);
 
         if (!alvoValido)
         {
@@ -580,7 +587,20 @@ public class ChamadosController : ControllerBase
             });
         }
 
+        // Atribuição direta a um técnico de outro departamento (triagem do
+        // HelpDesk) também move o chamado pro departamento dele — sem isso o
+        // técnico recém-atribuído não conseguiria nem acessar o próprio
+        // chamado (PodeAcessarAsync escopa o acesso por departamento).
+        var departamentoDoTecnico = perfilAlvo == Perfis.Tecnico
+            ? tecnico!.Departamentos.FirstOrDefault(d => d.Id == chamado.DepartamentoId) ?? tecnico.Departamentos.FirstOrDefault()
+            : null;
+        var departamentoAlterado = departamentoDoTecnico is not null && departamentoDoTecnico.Id != chamado.DepartamentoId;
+
         chamado.TecnicoId = tecnico!.Id;
+        if (departamentoAlterado)
+        {
+            chamado.DepartamentoId = departamentoDoTecnico!.Id;
+        }
         chamado.AtualizadoEm = DateTimeOffset.UtcNow;
         await _dbContext.SaveChangesAsync();
         await BroadcastChamadoAtualizadoAsync(chamado.Id);
@@ -590,7 +610,9 @@ public class ChamadosController : ControllerBase
             ChamadoId = chamado.Id,
             AutorId = usuarioId.Value,
             Acao = "Atribuição",
-            Detalhe = $"Atribuído a {tecnico.Nome}."
+            Detalhe = departamentoAlterado
+                ? $"Atribuído a {tecnico.Nome}. Chamado movido para o departamento {departamentoDoTecnico!.Nome}."
+                : $"Atribuído a {tecnico.Nome}."
         });
 
         // Notifica o técnico recém-atribuído (ele passa a estar "vinculado" ao
@@ -839,7 +861,7 @@ public class ChamadosController : ControllerBase
     }
 
     [HttpPost("{id:long}/devolver-helpdesk")]
-    public async Task<ActionResult<ChamadoDto>> DevolverAoHelpDesk(long id)
+    public async Task<ActionResult<ChamadoDto>> DevolverAoHelpDesk(long id, [FromBody] DevolverHelpDeskRequest request)
     {
         var usuarioId = ObterUsuarioId();
         if (usuarioId is null)
@@ -881,6 +903,16 @@ public class ChamadosController : ControllerBase
             });
         }
 
+        if (string.IsNullOrWhiteSpace(request.Justificativa))
+        {
+            return UnprocessableEntity(new ErrorResponse
+            {
+                Status = 422,
+                Title = "Falha de validação",
+                Errors = new Dictionary<string, string[]> { ["justificativa"] = new[] { "Justificativa é obrigatória." } }
+            });
+        }
+
         var departamentoAnteriorId = chamado.DepartamentoId;
         var tecnicoAnteriorId = chamado.TecnicoId;
 
@@ -897,10 +929,11 @@ public class ChamadosController : ControllerBase
             AutorId = usuarioId.Value,
             DepartamentoAnteriorId = departamentoAnteriorId,
             DepartamentoNovoId = DepartamentoHelpDeskId,
-            Acao = "Devolvido ao HelpDesk"
+            Acao = "Devolvido ao HelpDesk",
+            Detalhe = $"Justificativa: {request.Justificativa}"
         });
 
-        var mensagem = $"Chamado #{chamado.Id} — {chamado.Titulo}: devolvido ao HelpDesk para nova triagem.";
+        var mensagem = $"Chamado #{chamado.Id} — {chamado.Titulo}: devolvido ao HelpDesk para nova triagem. Justificativa: {request.Justificativa}";
         await NotificarInteressadosAsync(chamado, usuarioId.Value, mensagem, TipoNotificacao.MudancaStatus, notificarTecnico: false);
 
         if (tecnicoAnteriorId.HasValue && tecnicoAnteriorId.Value != usuarioId.Value)

@@ -114,6 +114,29 @@
                   </div>
                 </td>
               </tr>
+            } @else if (alterandoSenhaId() === usuario.id) {
+              <tr>
+                <td colspan="7">
+                  <form class="gerenciar-departamentos" [formGroup]="senhaForm" (ngSubmit)="salvarSenha(usuario)" novalidate>
+                    <span class="rotulo">Nova senha para {{ usuario.nome }}</span>
+                    @if (erroSenha()) {
+                      <p class="erro" role="alert">{{ erroSenha() }}</p>
+                    }
+                    <label>
+                      Nova senha
+                      <input type="password" formControlName="novaSenha" autocomplete="new-password" />
+                    </label>
+                    <div class="botoes">
+                      <button type="submit" [disabled]="salvandoSenha()">
+                        {{ salvandoSenha() ? 'Salvando...' : 'Salvar' }}
+                      </button>
+                      <button type="button" (click)="cancelarAlterarSenha()" [disabled]="salvandoSenha()">
+                        Cancelar
+                      </button>
+                    </div>
+                  </form>
+                </td>
+              </tr>
             } @else {
               <tr>
                 <td>{{ usuario.nome }}</td>
@@ -134,12 +157,21 @@
                   }
                 </td>
                 <td>{{ usuario.criadoEm | date: 'dd/MM/yyyy HH:mm' }}</td>
-                <td>
+                <td class="acoes">
                   @if (usuario.perfil === 'TECNICO') {
                     <button type="button" (click)="iniciarGerenciarDepartamentos(usuario)">
                       Gerenciar departamentos
                     </button>
                   }
+                  <button type="button" (click)="iniciarAlterarSenha(usuario)">Alterar senha</button>
+                  <button
+                    type="button"
+                    (click)="alternarAtivo(usuario)"
+                    [disabled]="alterandoAtivoId() === usuario.id || usuario.id === usuarioAtualId"
+                    [title]="usuario.id === usuarioAtualId ? 'Não é possível desativar a própria conta' : ''"
+                  >
+                    {{ usuario.ativo ? 'Desativar' : 'Ativar' }}
+                  </button>
                 </td>
               </tr>
             }

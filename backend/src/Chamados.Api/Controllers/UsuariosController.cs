@@ -1,10 +1,14 @@
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using Chamados.Api.Constants;
 using Chamados.Api.Data;
+using Chamados.Api.Hubs;
 using Chamados.Api.Models.Dtos;
 using Chamados.Api.Models.Dtos.Auth;
 using Chamados.Api.Models.Entities;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 
 namespace Chamados.Api.Controllers;
@@ -13,12 +17,18 @@ namespace Chamados.Api.Controllers;
 [Route("api/v1/usuarios")]
 public class UsuariosController : ControllerBase
 {
+    // Departamento "HelpDesk" (ver ChamadosController.DepartamentoHelpDeskId) —
+    // usado só para saber se quem pede a lista de atribuíveis é do HelpDesk.
+    private const long DepartamentoHelpDeskId = 1;
+
     private readonly ChamadosDbContext _dbContext;
+    private readonly IHubContext<ChamadosHub> _hubContext;
     private readonly PasswordHasher<Usuario> _passwordHasher = new();
 
-    public UsuariosController(ChamadosDbContext dbContext)
+    public UsuariosController(ChamadosDbContext dbContext, IHubContext<ChamadosHub> hubContext)
     {
         _dbContext = dbContext;
+        _hubContext = hubContext;
     }
 
     [HttpGet]
@@ -117,6 +127,8 @@ public class UsuariosController : ControllerBase
     [HttpGet("atribuiveis")]
     public async Task<ActionResult<List<UsuarioDto>>> ListarAtribuiveis([FromQuery] long? idDepartamento = null)
     {
+        var usuarioId = ObterUsuarioId();
+
         var usuarios = await _dbContext.Usuarios
             .Include(u => u.Perfil)
             .Include(u => u.Departamentos)
@@ -130,12 +142,18 @@ public class UsuariosController : ControllerBase
             ? dtos.Where(u => u.Perfil == Perfis.Tecnico || u.Perfil == Perfis.Administrador)
             : dtos.Where(u => u.Perfil == Perfis.Tecnico);
 
-        // Um técnico só é elegível pra assumir a atribuição se pertencer ao
-        // departamento responsável do chamado; administradores continuam
-        // elegíveis pra qualquer departamento (não são escopados por depto).
-        if (idDepartamento.HasValue)
+        // HelpDesk faz a triagem inicial e pode atribuir a qualquer técnico ativo,
+        // de qualquer departamento (o chamado migra pro departamento do técnico
+        // escolhido — ver ChamadosController.Atribuir); administradores têm a
+        // mesma liberdade. Só técnicos de outros departamentos seguem restritos a
+        // colegas do próprio departamento (mesma regra de Assumir).
+        var chamadorEhHelpDesk = usuarioId.HasValue
+            && User.IsInRole(Perfis.Tecnico)
+            && await EstaNoDepartamentoAsync(usuarioId.Value, DepartamentoHelpDeskId);
+
+        if (idDepartamento.HasValue && !User.IsInRole(Perfis.Administrador) && !chamadorEhHelpDesk)
         {
-            atribuiveis = atribuiveis.Where(u => u.Perfil == Perfis.Administrador || u.Departamentos.Any(d => d.Id == idDepartamento.Value));
+            atribuiveis = atribuiveis.Where(u => u.Departamentos.Any(d => d.Id == idDepartamento.Value));
         }
 
         return Ok(atribuiveis.ToList());
@@ -182,5 +200,194 @@ public class UsuariosController : ControllerBase
         await _dbContext.SaveChangesAsync();
 
         return Ok(UsuarioDto.FromEntity(usuario));
+    }
+
+    [HttpPatch("{id:long}/ativo")]
+    public async Task<ActionResult<UsuarioDto>> AlterarAtivo(long id, UsuarioAtivoRequest request)
+    {
+        if (!User.IsInRole(Perfis.Administrador))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, ErrorResponse.Create(403, "Apenas administradores podem ativar ou desativar usuários."));
+        }
+
+        // Impede que o administrador desative a própria conta (isso o deixaria
+        // sem acesso pra reverter, já que login exige Usuario.Ativo).
+        if (!request.Ativo && ObterUsuarioId() == id)
+        {
+            return UnprocessableEntity(new ErrorResponse
+            {
+                Status = 422,
+                Title = "Falha de validação",
+                Errors = new Dictionary<string, string[]> { ["id"] = new[] { "Você não pode desativar a própria conta." } }
+            });
+        }
+
+        var usuario = await _dbContext.Usuarios
+            .Include(u => u.Perfil)
+            .Include(u => u.Departamentos)
+            .FirstOrDefaultAsync(u => u.Id == id);
+
+        if (usuario is null)
+        {
+            return NotFound(ErrorResponse.Create(404, "Usuário não encontrado."));
+        }
+
+        usuario.Ativo = request.Ativo;
+        await _dbContext.SaveChangesAsync();
+
+        // Desconecta imediatamente qualquer sessão em tempo real do usuário
+        // desativado — sem isso, o JWT dele continua valendo (ver OnTokenValidated
+        // em Program.cs) e a UI continuaria normalmente até a próxima requisição.
+        if (!request.Ativo)
+        {
+            await _hubContext.Clients.Group($"user-{id}").SendAsync("ContaDesativada");
+        }
+
+        return Ok(UsuarioDto.FromEntity(usuario));
+    }
+
+    [HttpPatch("{id:long}/senha")]
+    public async Task<ActionResult<UsuarioDto>> AlterarSenha(long id, UsuarioSenhaRequest request)
+    {
+        if (!User.IsInRole(Perfis.Administrador))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, ErrorResponse.Create(403, "Apenas administradores podem alterar a senha de usuários."));
+        }
+
+        if (string.IsNullOrWhiteSpace(request.NovaSenha) || request.NovaSenha.Length < 6)
+        {
+            return UnprocessableEntity(new ErrorResponse
+            {
+                Status = 422,
+                Title = "Falha de validação",
+                Errors = new Dictionary<string, string[]> { ["novaSenha"] = new[] { "Senha deve ter no mínimo 6 caracteres." } }
+            });
+        }
+
+        var usuario = await _dbContext.Usuarios
+            .Include(u => u.Perfil)
+            .Include(u => u.Departamentos)
+            .FirstOrDefaultAsync(u => u.Id == id);
+
+        if (usuario is null)
+        {
+            return NotFound(ErrorResponse.Create(404, "Usuário não encontrado."));
+        }
+
+        usuario.SenhaHash = _passwordHasher.HashPassword(usuario, request.NovaSenha);
+        await _dbContext.SaveChangesAsync();
+
+        return Ok(UsuarioDto.FromEntity(usuario));
+    }
+
+    // Autoatendimento: qualquer usuário autenticado (cliente, técnico ou
+    // administrador) pode editar os próprios nome/e-mail — sem exigir papel
+    // algum, diferente dos endpoints acima que são restritos a administrador.
+    [HttpPatch("me")]
+    public async Task<ActionResult<UsuarioDto>> AtualizarMeuPerfil(MeuPerfilUpdateRequest request)
+    {
+        var usuarioId = ObterUsuarioId();
+        if (usuarioId is null)
+        {
+            return Unauthorized();
+        }
+
+        var usuario = await _dbContext.Usuarios
+            .Include(u => u.Perfil)
+            .Include(u => u.Departamentos)
+            .FirstOrDefaultAsync(u => u.Id == usuarioId.Value);
+
+        if (usuario is null)
+        {
+            return Unauthorized();
+        }
+
+        var erros = new Dictionary<string, string[]>();
+
+        if (string.IsNullOrWhiteSpace(request.Nome))
+        {
+            erros["nome"] = new[] { "Nome é obrigatório." };
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Email))
+        {
+            erros["email"] = new[] { "E-mail é obrigatório." };
+        }
+        else
+        {
+            var emailExiste = await _dbContext.Usuarios
+                .AnyAsync(u => u.Id != usuario.Id && u.Email.ToLower() == request.Email.Trim().ToLower());
+            if (emailExiste)
+            {
+                erros["email"] = new[] { "Já existe um usuário cadastrado com este e-mail." };
+            }
+        }
+
+        if (erros.Count > 0)
+        {
+            return UnprocessableEntity(new ErrorResponse { Status = 422, Title = "Falha de validação", Errors = erros });
+        }
+
+        usuario.Nome = request.Nome.Trim();
+        usuario.Email = request.Email.Trim();
+        await _dbContext.SaveChangesAsync();
+
+        return Ok(UsuarioDto.FromEntity(usuario));
+    }
+
+    // Diferente de AlterarSenha (admin alterando a senha de terceiros sem
+    // precisar da senha atual), autoatendimento exige a senha atual — sem
+    // isso, uma sessão aberta esquecida em outro computador poderia trocar a
+    // senha (e travar o dono de fora) sem nenhuma confirmação.
+    [HttpPatch("me/senha")]
+    public async Task<IActionResult> AlterarMinhaSenha(AlterarMinhaSenhaRequest request)
+    {
+        var usuarioId = ObterUsuarioId();
+        if (usuarioId is null)
+        {
+            return Unauthorized();
+        }
+
+        var usuario = await _dbContext.Usuarios.FirstOrDefaultAsync(u => u.Id == usuarioId.Value);
+        if (usuario is null)
+        {
+            return Unauthorized();
+        }
+
+        var erros = new Dictionary<string, string[]>();
+
+        var senhaAtualConfere = !string.IsNullOrWhiteSpace(request.SenhaAtual)
+            && _passwordHasher.VerifyHashedPassword(usuario, usuario.SenhaHash, request.SenhaAtual) != PasswordVerificationResult.Failed;
+        if (!senhaAtualConfere)
+        {
+            erros["senhaAtual"] = new[] { "Senha atual incorreta." };
+        }
+
+        if (string.IsNullOrWhiteSpace(request.NovaSenha) || request.NovaSenha.Length < 6)
+        {
+            erros["novaSenha"] = new[] { "Senha deve ter no mínimo 6 caracteres." };
+        }
+
+        if (erros.Count > 0)
+        {
+            return UnprocessableEntity(new ErrorResponse { Status = 422, Title = "Falha de validação", Errors = erros });
+        }
+
+        usuario.SenhaHash = _passwordHasher.HashPassword(usuario, request.NovaSenha);
+        await _dbContext.SaveChangesAsync();
+
+        return NoContent();
+    }
+
+    private async Task<bool> EstaNoDepartamentoAsync(long usuarioId, long idDepartamento) =>
+        await _dbContext.Usuarios
+            .Where(u => u.Id == usuarioId)
+            .SelectMany(u => u.Departamentos)
+            .AnyAsync(d => d.Id == idDepartamento);
+
+    private long? ObterUsuarioId()
+    {
+        var claim = User.FindFirst(JwtRegisteredClaimNames.Sub) ?? User.FindFirst(ClaimTypes.NameIdentifier);
+        return claim is not null && long.TryParse(claim.Value, out var id) ? id : null;
     }
 }

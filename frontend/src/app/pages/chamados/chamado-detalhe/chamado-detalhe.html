@@ -246,7 +246,23 @@
           }
 
           @if (podeDevolverHelpDesk()) {
-            <button type="button" [disabled]="salvando()" (click)="devolverAoHelpDesk()">Devolver ao HelpDesk</button>
+            <button type="button" [disabled]="salvando()" (click)="toggleDevolverHelpDesk()">
+              {{ devolvendoHelpDesk() ? 'Cancelar' : 'Devolver ao HelpDesk' }}
+            </button>
+            @if (devolvendoHelpDesk()) {
+              <form [formGroup]="devolverHelpDeskForm" (ngSubmit)="devolverAoHelpDesk()" novalidate class="prazo-form">
+                <label>
+                  Justificativa
+                  <textarea
+                    formControlName="justificativa"
+                    rows="2"
+                    placeholder="Descreva o motivo de devolver o chamado ao HelpDesk (obrigatório)"
+                    [disabled]="salvando()"
+                  ></textarea>
+                </label>
+                <button type="submit" [disabled]="salvando()">Confirmar</button>
+              </form>
+            }
           }
         </aside>
       }

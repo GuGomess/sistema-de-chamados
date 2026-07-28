@@ -57,6 +57,22 @@ export const routes: Routes = [
       import('./pages/admin/departamentos/departamentos-admin').then((m) => m.DepartamentosAdmin),
   },
   {
+    path: 'admin/categorias',
+    title: 'Categorias — Sistema de Chamados',
+    canActivate: [authGuard],
+    data: { roles: ['ADMINISTRADOR'] },
+    loadComponent: () =>
+      import('./pages/admin/categorias/categorias-admin').then((m) => m.CategoriasAdmin),
+  },
+  {
+    path: 'perfil',
+    title: 'Perfil — Sistema de Chamados',
+    canActivate: [authGuard],
+    // Sem restrição de papel: todo usuário autenticado (cliente, técnico ou
+    // administrador) pode editar os próprios dados aqui.
+    loadComponent: () => import('./pages/perfil/perfil').then((m) => m.Perfil),
+  },
+  {
     path: 'dashboard',
     title: 'Dashboard — Sistema de Chamados',
     canActivate: [authGuard],
