@@ -5,156 +5,160 @@
   </div>
 
   @if (ehStaff) {
-    <div class="abas" role="tablist">
-      <button type="button" role="tab" [attr.aria-selected]="!mostrarMeus()" [class.ativa]="!mostrarMeus()" (click)="selecionarAba(false)">
-        Chamados
-      </button>
-      <button type="button" role="tab" [attr.aria-selected]="mostrarMeus()" [class.ativa]="mostrarMeus()" (click)="selecionarAba(true)">
-        Meus chamados
-      </button>
-    </div>
+  <div class="abas" role="tablist">
+    <button type="button" role="tab" [attr.aria-selected]="!mostrarMeus()" [class.ativa]="!mostrarMeus()"
+      (click)="selecionarAba(false)">
+      Chamados
+    </button>
+    <button type="button" role="tab" [attr.aria-selected]="mostrarMeus()" [class.ativa]="mostrarMeus()"
+      (click)="selecionarAba(true)">
+      Meus chamados
+    </button>
+  </div>
   }
 
   @if (erro()) {
-    <p class="erro" role="alert">{{ erro() }}</p>
+  <p class="erro" role="alert">{{ erro() }}</p>
   }
 
   @if (carregandoOpcoes()) {
-    <p>Carregando filtros...</p>
+  <p>Carregando filtros...</p>
   } @else {
-    <form class="filtros" [formGroup]="form" (ngSubmit)="onFiltrar()" novalidate>
-      <input type="text" formControlName="q" placeholder="Buscar por título ou descrição" />
+  <form class="filtros" [formGroup]="form" (ngSubmit)="onFiltrar()" novalidate>
+    <input type="text" formControlName="q" placeholder="Buscar por título ou descrição" />
 
-      <input type="number" formControlName="id" placeholder="Nº do chamado" min="1" />
+    <input type="number" formControlName="id" placeholder="Nº do chamado" min="1" />
 
-      @if (ehStaff) {
-        <input type="text" formControlName="solicitante" placeholder="Solicitante" />
-      }
-
-      <select formControlName="idStatus">
-        <option [ngValue]="null">Status</option>
-        @for (s of status(); track s.id) {
-          <option [ngValue]="s.id">{{ s.nome }}</option>
-        }
-      </select>
-
-      @if (ehStaff) {
-        <select formControlName="idCategoria">
-          <option [ngValue]="null">Categoria</option>
-          @for (categoria of categorias(); track categoria.id) {
-            <option [ngValue]="categoria.id">{{ categoria.nome }}</option>
-          }
-        </select>
-
-        <select formControlName="idPrioridade">
-          <option [ngValue]="null">Prioridade</option>
-          @for (prioridade of prioridades(); track prioridade.id) {
-            <option [ngValue]="prioridade.id">{{ prioridade.nome }}</option>
-          }
-        </select>
-
-        <select formControlName="idDepartamento">
-          <option [ngValue]="null">Departamento</option>
-          @for (departamento of departamentos(); track departamento.id) {
-            <option [ngValue]="departamento.id">{{ departamento.nome }}</option>
-          }
-        </select>
-      }
-
-      <select formControlName="idTecnico">
-        <option [ngValue]="null">Técnico</option>
-        @for (tecnico of tecnicos(); track tecnico.id) {
-          <option [ngValue]="tecnico.id">{{ tecnico.nome }}</option>
-        }
-      </select>
-
-      @if (ehStaff) {
-        <select formControlName="situacaoSla">
-          <option [ngValue]="null">SLA</option>
-          <option [ngValue]="'EmRisco'">Em risco</option>
-          <option [ngValue]="'Vencido'">Vencido</option>
-        </select>
-      }
-
-      <label>
-        De
-        <input type="date" formControlName="dataInicio" />
-      </label>
-
-      <label>
-        Até
-        <input type="date" formControlName="dataFim" />
-      </label>
-
-      <label class="checkbox">
-        <input type="checkbox" formControlName="ocultarFinalizados" (change)="onFiltrar()" />
-        Esconder resolvidos
-      </label>
-
-      <button type="submit" [disabled]="carregando()">Filtrar</button>
-    </form>
-
-    @if (carregando()) {
-      <p>Carregando chamados...</p>
-    } @else if (chamados().length === 0) {
-      <p>Nenhum chamado encontrado com os filtros selecionados.</p>
-    } @else {
-      <div class="tabela-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th class="ordenavel" (click)="ordenarPor('id')">#{{ indicadorOrdenacao('id') }}</th>
-              <th class="ordenavel" (click)="ordenarPor('titulo')">Título{{ indicadorOrdenacao('titulo') }}</th>
-              <th class="ordenavel" (click)="ordenarPor('status')">Status{{ indicadorOrdenacao('status') }}</th>
-              @if (ehStaff) {
-                <th class="ordenavel" (click)="ordenarPor('solicitante')">Aberto por{{ indicadorOrdenacao('solicitante') }}</th>
-                <th>Departamento</th>
-                <th class="ordenavel" (click)="ordenarPor('prioridade')">Prioridade{{ indicadorOrdenacao('prioridade') }}</th>
-                <th class="ordenavel" (click)="ordenarPor('sla')">SLA{{ indicadorOrdenacao('sla') }}</th>
-              }
-              <th class="ordenavel" (click)="ordenarPor('tecnico')">Técnico{{ indicadorOrdenacao('tecnico') }}</th>
-              <th class="ordenavel" (click)="ordenarPor('criadoEm')">Aberto em{{ indicadorOrdenacao('criadoEm') }}</th>
-              <th class="ordenavel" (click)="ordenarPor('resolvidoEm')">Resolvido em{{ indicadorOrdenacao('resolvidoEm') }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (chamado of chamados(); track chamado.id) {
-              <tr (click)="abrirChamado(chamado)">
-                <td>#{{ chamado.id }}</td>
-                <td>{{ chamado.titulo }}</td>
-                <td>{{ chamado.status.nome }}</td>
-                @if (ehStaff) {
-                  <td>{{ chamado.solicitante.nome }}</td>
-                  <td>{{ chamado.departamento.nome }}</td>
-                  <td>{{ chamado.prioridade.nome }}</td>
-                  <td>
-                    @if (chamado.status.final) {
-                      <span class="badge">{{ chamado.status.nome }}</span>
-                    } @else if (situacaoSlaGeral(chamado); as situacao) {
-                      <span class="badge {{ 'sla-' + situacao.toLowerCase() }}">{{ situacaoSlaLabel(situacao) }}</span>
-                    }
-                  </td>
-                }
-                <td>{{ chamado.tecnico?.nome ?? '—' }}</td>
-                <td>{{ chamado.criadoEm | date: 'dd/MM/yyyy HH:mm' }}</td>
-                <td>{{ chamado.resolvidoEm ? (chamado.resolvidoEm | date: 'dd/MM/yyyy HH:mm') : '—' }}</td>
-              </tr>
-            }
-          </tbody>
-        </table>
-      </div>
-
-      @if (meta(); as m) {
-        <div class="paginacao">
-          <button type="button" [disabled]="m.page <= 1" (click)="irParaPagina(m.page - 1)">
-            Anterior
-          </button>
-          <span>Página {{ m.page }} de {{ m.totalPages }} ({{ m.totalItems }} chamados)</span>
-          <button type="button" [disabled]="m.page >= m.totalPages" (click)="irParaPagina(m.page + 1)">
-            Próxima
-          </button>
-        </div>
-      }
+    @if (ehStaff) {
+    <input type="text" formControlName="solicitante" placeholder="Solicitante" />
     }
+
+    <select formControlName="idStatus">
+      <option [ngValue]="null">Status</option>
+      @for (s of status(); track s.id) {
+      <option [ngValue]="s.id">{{ s.nome }}</option>
+      }
+    </select>
+
+    @if (ehStaff) {
+    <select formControlName="idCategoria">
+      <option [ngValue]="null">Categoria</option>
+      @for (categoria of categorias(); track categoria.id) {
+      <option [ngValue]="categoria.id">{{ categoria.nome }}</option>
+      }
+    </select>
+
+    <select formControlName="idPrioridade">
+      <option [ngValue]="null">Prioridade</option>
+      @for (prioridade of prioridades(); track prioridade.id) {
+      <option [ngValue]="prioridade.id">{{ prioridade.nome }}</option>
+      }
+    </select>
+
+    <select formControlName="idDepartamento">
+      <option [ngValue]="null">Departamento</option>
+      @for (departamento of departamentos(); track departamento.id) {
+      <option [ngValue]="departamento.id">{{ departamento.nome }}</option>
+      }
+    </select>
+    }
+
+    <select formControlName="idTecnico">
+      <option [ngValue]="null">Técnico</option>
+      @for (tecnico of tecnicos(); track tecnico.id) {
+      <option [ngValue]="tecnico.id">{{ tecnico.nome }}</option>
+      }
+    </select>
+
+    @if (ehStaff) {
+    <select formControlName="situacaoSla">
+      <option [ngValue]="null">SLA</option>
+      <option [ngValue]="'EmRisco'">Em risco</option>
+      <option [ngValue]="'Vencido'">Vencido</option>
+    </select>
+    }
+
+    <label>
+      De
+      <input type="date" formControlName="dataInicio" />
+    </label>
+
+    <label>
+      Até
+      <input type="date" formControlName="dataFim" />
+    </label>
+
+    <label class="checkbox">
+      <input type="checkbox" formControlName="ocultarFinalizados" (change)="onFiltrar()" />
+      Esconder resolvidos
+    </label>
+
+    <button type="submit" [disabled]="carregando()">Filtrar</button>
+  </form>
+
+  @if (carregando()) {
+  <p>Carregando chamados...</p>
+  } @else if (chamados().length === 0) {
+  <p>Nenhum chamado encontrado com os filtros selecionados.</p>
+  } @else {
+  <div class="tabela-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th class="ordenavel" (click)="ordenarPor('id')">#{{ indicadorOrdenacao('id') }}</th>
+          <th class="ordenavel" (click)="ordenarPor('titulo')">Título{{ indicadorOrdenacao('titulo') }}</th>
+          <th class="ordenavel" (click)="ordenarPor('status')">Status{{ indicadorOrdenacao('status') }}</th>
+          @if (ehStaff) {
+          <th class="ordenavel" (click)="ordenarPor('solicitante')">Aberto por{{ indicadorOrdenacao('solicitante') }}
+          </th>
+          <th>Departamento</th>
+          <th class="ordenavel" (click)="ordenarPor('prioridade')">Prioridade{{ indicadorOrdenacao('prioridade') }}</th>
+          <th class="ordenavel" (click)="ordenarPor('sla')">SLA{{ indicadorOrdenacao('sla') }}</th>
+          }
+          <th class="ordenavel" (click)="ordenarPor('tecnico')">Técnico{{ indicadorOrdenacao('tecnico') }}</th>
+          <th class="ordenavel" (click)="ordenarPor('criadoEm')">Aberto em{{ indicadorOrdenacao('criadoEm') }}</th>
+          <th class="ordenavel" (click)="ordenarPor('resolvidoEm')">Resolvido em{{ indicadorOrdenacao('resolvidoEm') }}
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (chamado of chamados(); track chamado.id) {
+        <tr (click)="abrirChamado(chamado)">
+          <td>#{{ chamado.id }}</td>
+          <td>{{ chamado.titulo }}</td>
+          <td>{{ chamado.status.nome }}</td>
+          @if (ehStaff) {
+          <td>{{ chamado.solicitante.nome }}</td>
+          <td>{{ chamado.departamento.nome }}</td>
+          <td>{{ chamado.prioridade.nome }}</td>
+          <td>
+            @if (chamado.status.final) {
+            <span class="badge">{{ chamado.status.nome }}</span>
+            } @else if (situacaoSlaGeral(chamado); as situacao) {
+            <span class="badge {{ 'sla-' + situacao.toLowerCase() }}">{{ situacaoSlaLabel(situacao) }}</span>
+            }
+          </td>
+          }
+          <td>{{ chamado.tecnico?.nome ?? '—' }}</td>
+          <td>{{ chamado.criadoEm | date: 'dd/MM/yyyy HH:mm' }}</td>
+          <td>{{ chamado.resolvidoEm ? (chamado.resolvidoEm | date: 'dd/MM/yyyy HH:mm') : '—' }}</td>
+        </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+
+  @if (meta(); as m) {
+  <div class="paginacao">
+    <button type="button" [disabled]="m.page <= 1" (click)="irParaPagina(m.page - 1)">
+      Anterior
+    </button>
+    <span>Página {{ m.page }} de {{ m.totalPages }} ({{ m.totalItems }} chamados)</span>
+    <button type="button" [disabled]="m.page >= m.totalPages" (click)="irParaPagina(m.page + 1)">
+      Próxima
+    </button>
+  </div>
+  }
+  }
   }
 </section>
