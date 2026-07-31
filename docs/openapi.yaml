@@ -1,38 +1,44 @@
 openapi: 3.1.0
 info:
   title: Sistema de Chamados — API REST
-  version: 1.0.0
+  version: 1.1.0
   description: >
     Contrato da API REST do Sistema de Chamados (help desk / service desk).
-    Define autenticação (JWT), ciclo de vida dos chamados, comentários, anexos,
-    histórico, gestão de domínios (status/categoria/prioridade/SLA), usuários e
-    dashboard. Este documento é a fonte da verdade do contrato; a implementação
-    (ASP.NET Core) e o schema físico (PostgreSQL via EF Core) seguem-no.
+    Define autenticação (JWT) e autocadastro, perfis/departamentos, ciclo de
+    vida completo dos chamados, comentários, anexos, avaliações, histórico,
+    gestão de domínios (status/categoria/prioridade/SLA), usuários (admin e
+    autoatendimento), notificações e métricas para dashboard. Este documento é
+    reconciliado manualmente com os controllers reais (ASP.NET Core) a cada
+    mudança relevante de contrato; o schema físico (PostgreSQL via EF Core)
+    também os segue. Em ambiente de desenvolvimento, o próprio backend expõe
+    um documento OpenAPI gerado (Swashbuckle) em `/swagger/v1/swagger.json` —
+    útil para conferência ponto a ponto, mas sem as descrições de negócio em
+    português mantidas aqui.
 servers:
   - url: /api/v1
     description: Base path da API
 
 tags:
   - name: Auth
-    description: Autenticação e sessão
+    description: Autenticação, sessão e autocadastro de cliente
   - name: Chamados
-    description: Ciclo de vida dos chamados
+    description: Ciclo de vida dos chamados, comentários, anexos, histórico e avaliações
   - name: Comentários
-    description: Mensagens dentro de um chamado
+    description: Mensagens dentro de um chamado (endpoints do ChamadosController)
   - name: Anexos
-    description: Arquivos anexados a um chamado
+    description: Arquivos anexados a um chamado ou a um comentário (endpoints do ChamadosController)
   - name: Histórico
-    description: Trilha de auditoria do chamado
+    description: Trilha de auditoria do chamado (endpoint do ChamadosController)
   - name: Usuários
-    description: Gestão de usuários (Administrador)
+    description: Gestão de usuários (Administrador) e autoatendimento de perfil (qualquer usuário autenticado)
   - name: Departamentos
     description: Segmentação de técnicos por área de atendimento (Administrador)
   - name: Domínios
-    description: Tabelas configuráveis — status, categorias, prioridades, SLA (Administrador)
+    description: Tabelas configuráveis — status, categorias, prioridades, SLA
   - name: Notificações
-    description: Alertas de SLA do usuário autenticado
-  - name: Dashboard
-    description: Indicadores e métricas
+    description: Alertas do usuário autenticado (SLA, atribuição, mudança de status, avaliação etc.)
+  - name: Métricas
+    description: Indicadores agregados para o dashboard (Administrador e Técnico)
 
 security:
   - bearerAuth: []
@@ -58,35 +64,27 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
-  /auth/refresh:
+  /auth/registrar:
     post:
       tags: [Auth]
-      summary: Gera um novo access token a partir do refresh token
+      summary: Autocadastro de um novo usuário com perfil Cliente
+      description: >
+        Único fluxo de criação de usuário sem exigir um Administrador — sempre
+        cria o usuário com perfil Cliente. Já retorna tokens (mesmo formato de
+        `/auth/login`), autenticando o usuário imediatamente após o cadastro.
       security: []
       requestBody:
         required: true
         content:
           application/json:
-            schema: { $ref: '#/components/schemas/RefreshRequest' }
+            schema: { $ref: '#/components/schemas/RegistrarClienteRequest' }
       responses:
-        '200':
-          description: Novo par de tokens
+        '201':
+          description: Usuário criado e autenticado
           content:
             application/json:
               schema: { $ref: '#/components/schemas/AuthResponse' }
-        '400': { $ref: '#/components/responses/BadRequest' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-  /auth/me:
-    get:
-      tags: [Auth]
-      summary: Retorna o usuário autenticado
-      responses:
-        '200':
-          description: Usuário atual
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Usuario' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
 
   # ---------------------------------------------------------------- Chamados
   /chamados:
@@ -123,8 +121,12 @@ paths:
           schema: { type: integer, format: int64 }
         - name: q
           in: query
-          description: Busca textual em título/descrição
-          schema: { type: string }
+          description: 'Busca textual em título/descrição (máx. 200 caracteres — 400 se exceder)'
+          schema: { type: string, maxLength: 200 }
+        - name: solicitante
+          in: query
+          description: 'Filtra por nome do solicitante, busca parcial case-insensitive (máx. 200 caracteres — 400 se exceder)'
+          schema: { type: string, maxLength: 200 }
         - name: dataInicio
           in: query
           description: Filtra chamados criados a partir desta data/hora (inclusive)
@@ -153,6 +155,11 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ChamadoPage' }
+        '400':
+          description: Filtro `q` ou `solicitante` excede 200 caracteres
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
         '401': { $ref: '#/components/responses/Unauthorized' }
     post:
       tags: [Chamados]
@@ -173,7 +180,6 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Chamado' }
-        '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
   /chamados/resumo-sla:
@@ -218,6 +224,14 @@ paths:
         usuário autenticado for Administrador, também inclui os
         administradores ativos. Distinto do CRUD administrativo em
         `/usuarios`.
+      parameters:
+        - name: idDepartamento
+          in: query
+          description: >
+            Filtra por técnicos do departamento informado. Só tem efeito para
+            um Técnico que não pertença ao HelpDesk (que, como o
+            Administrador, sempre vê todos os técnicos elegíveis).
+          schema: { type: integer, format: int64 }
       responses:
         '200':
           description: Lista de usuários atribuíveis
@@ -260,12 +274,59 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Chamado' }
-        '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
-        '409': { $ref: '#/components/responses/Conflict' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  /chamados/{id}/conteudo:
+    parameters:
+      - { $ref: '#/components/parameters/IdPath' }
+    patch:
+      tags: [Chamados]
+      summary: Edita título e/ou descrição do chamado
+      description: >
+        Campos opcionais; só os enviados (não vazios) são alterados. Marca
+        `conteudoEditado=true` na resposta. O Cliente solicitante não pode
+        editar depois que o chamado está em status final (Resolvido/Fechado);
+        Técnico/Administrador podem editar mesmo com o chamado finalizado.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ChamadoConteudoUpdateRequest' }
+      responses:
+        '200':
+          description: Conteúdo atualizado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Chamado' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  /chamados/{id}/ocultar-descricao:
+    parameters:
+      - { $ref: '#/components/parameters/IdPath' }
+    patch:
+      tags: [Chamados]
+      summary: Oculta ou reexibe a descrição do chamado (Administrador)
+      description: >
+        Usado para moderação de conteúdo impróprio na descrição original —
+        marca `descricaoOculta` sem apagar o conteúdo.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ChamadoOcultarDescricaoRequest' }
+      responses:
+        '200':
+          description: Chamado atualizado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Chamado' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
   /chamados/{id}/atribuir:
     parameters:
       - { $ref: '#/components/parameters/IdPath' }
@@ -389,6 +450,11 @@ paths:
         para HelpDesk. Gera um evento "Devolvido ao HelpDesk" em
         `/historico`. Falha com 422 se o chamado já estiver no HelpDesk ou
         estiver em status final.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DevolverHelpDeskRequest' }
       responses:
         '200':
           description: Chamado devolvido ao HelpDesk
@@ -478,38 +544,44 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
-  /chamados/{id}/avaliacao:
+  /chamados/{id}/avaliacoes:
     parameters:
       - { $ref: '#/components/parameters/IdPath' }
     get:
       tags: [Chamados]
-      summary: Obtém a avaliação do chamado
+      summary: Lista as avaliações do chamado
       description: >
-        Visibilidade por perfil: Administrador sempre vê; Cliente só vê se
-        for o autor da avaliação; Técnico só vê se a avaliação for pública
-        (`publica=true`) e ele tiver acesso ao chamado (mesma regra de
-        `GET /chamados/{id}`: atribuído a ele ou chamado sem técnico).
+        Um chamado pode acumular mais de uma avaliação ao longo do tempo: cada
+        ciclo de resolução (reabrir e resolver de novo) libera uma nova
+        avaliação, que se empilha sobre as anteriores — a lista vem ordenada
+        da mais recente para a mais antiga. Visibilidade por item, por perfil:
+        Administrador sempre vê todas; Cliente só vê as que ele mesmo
+        registrou; Técnico só vê as públicas (`publica=true`) e não ocultadas
+        (`oculta=false`).
       responses:
         '200':
-          description: Avaliação do chamado
+          description: Lista de avaliações (pode ser vazia)
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Avaliacao' }
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Avaliacao' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
-        '404':
-          description: Chamado não encontrado, ou chamado ainda sem avaliação
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /chamados/{id}/avaliacao:
+    parameters:
+      - { $ref: '#/components/parameters/IdPath' }
     post:
       tags: [Chamados]
-      summary: Registra a avaliação do chamado
+      summary: Registra uma avaliação do chamado
       description: >
-        Só o Cliente solicitante pode avaliar, e apenas um chamado já em
-        status final. Um chamado só pode ser avaliado uma vez (409 se já
-        existir avaliação). Se `publica=true`, o técnico atribuído também é
-        notificado; os administradores são sempre notificados.
+        Só o Cliente solicitante pode avaliar, e apenas um chamado no status
+        "Resolvido". Uma avaliação por ciclo de resolução (409 se o ciclo
+        atual — desde o `resolvidoEm` mais recente — já tiver sido avaliado);
+        reabrir e resolver de novo libera uma nova avaliação. Se `publica=true`,
+        o técnico atribuído também é notificado; os administradores são
+        sempre notificados.
       requestBody:
         required: true
         content:
@@ -518,6 +590,10 @@ paths:
       responses:
         '201':
           description: Avaliação registrada
+          headers:
+            Location:
+              description: URI de `GET /chamados/{id}/avaliacoes`
+              schema: { type: string }
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Avaliacao' }
@@ -525,6 +601,73 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  /chamados/{id}/avaliacoes/{avaliacaoId}:
+    parameters:
+      - { $ref: '#/components/parameters/IdPath' }
+      - name: avaliacaoId
+        in: path
+        required: true
+        schema: { type: integer, format: int64 }
+    patch:
+      tags: [Chamados]
+      summary: Edita a própria avaliação (nota, comentário, visibilidade)
+      description: >
+        Só o Cliente autor da avaliação pode editá-la — nem Administrador
+        edita o conteúdo escrito por outro usuário (só oculta, ver endpoint
+        `/ocultar`).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AvaliacaoUpdateRequest' }
+      responses:
+        '200':
+          description: Avaliação atualizada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Avaliacao' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+    delete:
+      tags: [Chamados]
+      summary: Remove a própria avaliação
+      description: Só o Cliente autor da avaliação pode apagá-la. Gera um evento em `/historico`.
+      responses:
+        '204': { description: Avaliação removida }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /chamados/{id}/avaliacoes/{avaliacaoId}/ocultar:
+    parameters:
+      - { $ref: '#/components/parameters/IdPath' }
+      - name: avaliacaoId
+        in: path
+        required: true
+        schema: { type: integer, format: int64 }
+    patch:
+      tags: [Chamados]
+      summary: Oculta ou reexibe uma avaliação pública (Administrador)
+      description: >
+        Só se aplica a avaliações públicas (`publica=true`) — uma avaliação
+        "só para administradores" já não é visível ao técnico, então ocultar
+        não teria efeito (422 nesse caso).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AvaliacaoOcultarRequest' }
+      responses:
+        '200':
+          description: Avaliação atualizada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Avaliacao' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
 
   # ---------------------------------------------------------------- Comentários
@@ -548,19 +691,96 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
     post:
       tags: [Comentários]
-      summary: Adiciona um comentário ao chamado
+      summary: Adiciona um comentário ao chamado (com anexos opcionais)
+      description: >
+        `multipart/form-data`, não JSON — permite anexar um ou mais arquivos
+        junto do próprio comentário (além de `POST /chamados/{id}/anexos`,
+        que anexa sem vincular a um comentário). Nomes de campo exatamente
+        como no schema (`Mensagem`, `Interno`, `Arquivos`), com a mesma
+        capitalização usada pelo model binding do ASP.NET Core. Se for o
+        primeiro comentário de um Técnico/Administrador no chamado, satisfaz o
+        SLA de resposta (`primeiraRespostaEm`).
       requestBody:
         required: true
         content:
-          application/json:
-            schema: { $ref: '#/components/schemas/ComentarioCreate' }
+          multipart/form-data:
+            schema:
+              type: object
+              required: [Mensagem]
+              properties:
+                Mensagem:
+                  type: string
+                Interno:
+                  type: boolean
+                  default: false
+                  description: Nota interna, visível apenas a Técnico/Administrador. Forçado para false se enviado por um Cliente.
+                Arquivos:
+                  type: array
+                  items: { type: string, format: binary }
       responses:
         '201':
           description: Comentário criado
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Comentario' }
-        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422':
+          description: Algum arquivo anexado é inválido (tipo não permitido ou tamanho excedido)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+  /chamados/{id}/comentarios/{comentarioId}:
+    parameters:
+      - { $ref: '#/components/parameters/IdPath' }
+      - name: comentarioId
+        in: path
+        required: true
+        schema: { type: integer, format: int64 }
+    patch:
+      tags: [Comentários]
+      summary: Edita a mensagem do próprio comentário
+      description: >
+        Só o autor original pode editar, sem janela de tempo — Administrador
+        não edita conteúdo de terceiros (só oculta, ver endpoint `/ocultar`).
+        Marca `editado=true` na resposta.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ComentarioUpdateRequest' }
+      responses:
+        '200':
+          description: Comentário atualizado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Comentario' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /chamados/{id}/comentarios/{comentarioId}/ocultar:
+    parameters:
+      - { $ref: '#/components/parameters/IdPath' }
+      - name: comentarioId
+        in: path
+        required: true
+        schema: { type: integer, format: int64 }
+    patch:
+      tags: [Comentários]
+      summary: Oculta ou reexibe um comentário de qualquer autor (Administrador)
+      description: Moderação de conteúdo — marca `oculta` sem apagar a mensagem.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ComentarioOcultarRequest' }
+      responses:
+        '200':
+          description: Comentário atualizado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Comentario' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
@@ -600,6 +820,47 @@ paths:
       responses:
         '201':
           description: Anexo criado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Anexo' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422':
+          description: Arquivo inválido (tipo não permitido ou tamanho excedido)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /chamados/{id}/anexos/{anexoId}:
+    parameters:
+      - { $ref: '#/components/parameters/IdPath' }
+      - name: anexoId
+        in: path
+        required: true
+        schema: { type: integer, format: int64 }
+    put:
+      tags: [Anexos]
+      summary: Substitui o arquivo de um anexo existente
+      description: >
+        Mantém o mesmo registro (mesmo `id`) — não cria um novo anexo; o
+        arquivo antigo é removido do armazenamento. Só o autor original do
+        upload ou um Administrador pode substituir. Marca `editado=true`.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [arquivo]
+              properties:
+                arquivo:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Anexo atualizado
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Anexo' }
@@ -657,20 +918,23 @@ paths:
     get:
       tags: [Usuários]
       summary: Lista usuários (Administrador)
-      parameters:
-        - { $ref: '#/components/parameters/Page' }
-        - { $ref: '#/components/parameters/PageSize' }
+      description: Sem paginação — retorna todos os usuários cadastrados (ativos e inativos).
       responses:
         '200':
-          description: Página de usuários
+          description: Lista de usuários
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/UsuarioPage' }
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Usuario' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
     post:
       tags: [Usuários]
-      summary: Cria um usuário (Administrador)
+      summary: Cria um usuário com perfil Técnico ou Administrador (Administrador)
+      description: >
+        Diferente de `/auth/registrar` (sempre Cliente), este endpoint só
+        aceita `perfil` igual a `TECNICO` ou `ADMINISTRADOR`.
       requestBody:
         required: true
         content:
@@ -682,52 +946,92 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Usuario' }
-        '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
-        '409': { $ref: '#/components/responses/Conflict' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
-  /usuarios/{id}:
+  /usuarios/{id}/ativo:
     parameters:
       - { $ref: '#/components/parameters/IdPath' }
-    get:
+    patch:
       tags: [Usuários]
-      summary: Detalha um usuário (Administrador)
-      responses:
-        '200':
-          description: Usuário
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Usuario' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
-    put:
-      tags: [Usuários]
-      summary: Atualiza um usuário (Administrador)
+      summary: Ativa ou desativa um usuário (Administrador)
+      description: >
+        Um Administrador não pode desativar a própria conta (422). Desativar
+        derruba imediatamente qualquer sessão em tempo real do usuário
+        (evento `ContaDesativada` no hub SignalR) e invalida o JWT dele na
+        próxima requisição/reconexão (`OnTokenValidated`, ver
+        `backend/README.md`).
       requestBody:
         required: true
         content:
           application/json:
-            schema: { $ref: '#/components/schemas/UsuarioUpdate' }
+            schema: { $ref: '#/components/schemas/UsuarioAtivoRequest' }
       responses:
         '200':
           description: Usuário atualizado
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Usuario' }
-        '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
-    delete:
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  /usuarios/{id}/senha:
+    parameters:
+      - { $ref: '#/components/parameters/IdPath' }
+    patch:
       tags: [Usuários]
-      summary: Desativa um usuário (soft delete, Administrador)
+      summary: Redefine a senha de um usuário (Administrador)
+      description: Não exige a senha atual — distinto de `/usuarios/me/senha` (autoatendimento).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UsuarioSenhaRequest' }
       responses:
-        '204': { description: Usuário desativado }
+        '200':
+          description: Usuário atualizado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Usuario' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  /usuarios/me:
+    patch:
+      tags: [Usuários]
+      summary: Autoatendimento — edita o próprio nome/e-mail
+      description: Qualquer usuário autenticado (Administrador, Técnico ou Cliente), sem exigir papel algum.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MeuPerfilUpdateRequest' }
+      responses:
+        '200':
+          description: Usuário atualizado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Usuario' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  /usuarios/me/senha:
+    patch:
+      tags: [Usuários]
+      summary: Autoatendimento — troca a própria senha
+      description: >
+        Diferente de `/usuarios/{id}/senha` (Administrador trocando a senha de
+        terceiros), aqui a senha atual é exigida e verificada.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AlterarMinhaSenhaRequest' }
+      responses:
+        '204': { description: Senha alterada }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
   /usuarios/{id}/departamentos:
     parameters:
       - { $ref: '#/components/parameters/IdPath' }
@@ -836,7 +1140,7 @@ paths:
   /categorias:
     get:
       tags: [Domínios]
-      summary: Lista categorias
+      summary: Lista categorias ativas
       responses:
         '200':
           description: Lista de categorias
@@ -849,6 +1153,9 @@ paths:
     post:
       tags: [Domínios]
       summary: Cria categoria (Administrador)
+      description: >
+        Não há endpoints de atualização/remoção de categoria — o cadastro é
+        somente-criação neste MVP.
       requestBody:
         required: true
         content:
@@ -860,39 +1167,17 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Categoria' }
-        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
-        '409': { $ref: '#/components/responses/Conflict' }
-  /categorias/{id}:
-    parameters:
-      - { $ref: '#/components/parameters/IdPath' }
-    put:
-      tags: [Domínios]
-      summary: Atualiza categoria (Administrador)
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/CategoriaInput' }
-      responses:
-        '200':
-          description: Categoria atualizada
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Categoria' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
-    delete:
-      tags: [Domínios]
-      summary: Desativa categoria (Administrador)
-      responses:
-        '204': { description: Categoria desativada }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
   /prioridades:
     get:
       tags: [Domínios]
       summary: Lista prioridades
+      description: >
+        Somente-leitura — prioridades (Baixa/Média/Alta/Urgente, conforme o
+        seed) não têm endpoint de criação; são pré-configuradas junto com o
+        SLA de cada uma em `/slas`.
       responses:
         '200':
           description: Lista de prioridades
@@ -902,22 +1187,6 @@ paths:
                 type: array
                 items: { $ref: '#/components/schemas/Prioridade' }
         '401': { $ref: '#/components/responses/Unauthorized' }
-    post:
-      tags: [Domínios]
-      summary: Cria prioridade (Administrador)
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/PrioridadeInput' }
-      responses:
-        '201':
-          description: Prioridade criada
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Prioridade' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '409': { $ref: '#/components/responses/Conflict' }
   /status:
     get:
       tags: [Domínios]
@@ -946,20 +1215,29 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
     post:
       tags: [Domínios]
-      summary: Cria/atualiza SLA de uma prioridade (Administrador)
+      summary: Cria ou atualiza o SLA de uma prioridade (Administrador)
+      description: >
+        Upsert por `idPrioridade`: se já existir um SLA para a prioridade,
+        atualiza-o (200); caso contrário, cria um novo (201).
       requestBody:
         required: true
         content:
           application/json:
             schema: { $ref: '#/components/schemas/SlaInput' }
       responses:
+        '200':
+          description: SLA atualizado (já existia um para a prioridade)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Sla' }
         '201':
           description: SLA criado
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Sla' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
-        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
 
   # ---------------------------------------------------------------- Notificações
   /notificacoes:
@@ -1017,20 +1295,63 @@ paths:
           description: Notificações marcadas como lidas
         '401': { $ref: '#/components/responses/Unauthorized' }
 
-  # ---------------------------------------------------------------- Dashboard
-  /dashboard/resumo:
+  # ---------------------------------------------------------------- Métricas
+  /metricas/chamados-por-status:
     get:
-      tags: [Dashboard]
-      summary: Indicadores agregados para o dashboard
+      tags: [Métricas]
+      summary: Distribuição de chamados por status
       description: >
-        Retorna contagens por status, chamados com SLA em risco/estourado e
-        produtividade por técnico. O escopo respeita o perfil do usuário.
+        Conta todos os chamados (abertos ou finalizados) agrupados por
+        status — diferente de `GET /chamados/resumo-sla`, que só olha
+        chamados em aberto. Alimenta o gráfico do dashboard. Escopo por
+        departamento igual a `GET /chamados`: Administrador e Técnico do
+        HelpDesk veem todos; Técnico de outro departamento só vê os chamados
+        do(s) departamento(s) a que pertence. Somente Administrador/Técnico
+        podem chamar.
+      parameters:
+        - name: dataInicio
+          in: query
+          description: Filtra chamados criados a partir desta data/hora (inclusive)
+          schema: { type: string, format: date-time }
+        - name: dataFim
+          in: query
+          description: Filtra chamados criados até esta data/hora (inclusive)
+          schema: { type: string, format: date-time }
       responses:
         '200':
-          description: Resumo de indicadores
+          description: Quantidade de chamados por status
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/DashboardResumo' }
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ChamadoPorStatus' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /metricas/produtividade-tecnicos:
+    get:
+      tags: [Métricas]
+      summary: Produtividade por técnico
+      description: >
+        Para cada técnico ativo (do escopo do chamador — ver acima), quantos
+        chamados foram atribuídos e resolvidos no período, e o tempo médio de
+        resolução em horas (`null` se nenhum foi resolvido no período). Um
+        Técnico (não Administrador) só enxerga a própria linha — produtividade
+        entre colegas é considerada dado sensível.
+      parameters:
+        - name: dataInicio
+          in: query
+          schema: { type: string, format: date-time }
+        - name: dataFim
+          in: query
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          description: Produtividade por técnico
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ProdutividadeTecnico' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
 
@@ -1133,17 +1454,23 @@ components:
       properties:
         email: { type: string, format: email }
         senha: { type: string, format: password, minLength: 6 }
-    RefreshRequest:
+    RegistrarClienteRequest:
       type: object
-      required: [refreshToken]
+      required: [nome, email, senha]
       properties:
-        refreshToken: { type: string }
+        nome: { type: string }
+        email: { type: string, format: email }
+        senha: { type: string, format: password, minLength: 6 }
     AuthResponse:
       type: object
       required: [accessToken, refreshToken, expiresIn, usuario]
       properties:
         accessToken: { type: string }
-        refreshToken: { type: string }
+        refreshToken:
+          type: string
+          description: >
+            Emitido junto do access token, mas ainda sem um endpoint
+            `/auth/refresh` para trocá-lo por um novo par — reservado para uso futuro.
         expiresIn: { type: integer, description: Segundos até expirar, example: 3600 }
         usuario: { $ref: '#/components/schemas/Usuario' }
 
@@ -1168,24 +1495,37 @@ components:
     UsuarioCreate:
       type: object
       required: [nome, email, senha, perfil]
+      description: >
+        Usado só por `POST /usuarios` (Administrador). `perfil` aceita apenas
+        `TECNICO` ou `ADMINISTRADOR` aqui — um Cliente só se cadastra via
+        `POST /auth/registrar`.
       properties:
         nome: { type: string, maxLength: 120 }
         email: { type: string, format: email, maxLength: 160 }
         senha: { type: string, format: password, minLength: 6 }
         perfil: { $ref: '#/components/schemas/Perfil' }
-    UsuarioUpdate:
+    UsuarioAtivoRequest:
       type: object
+      required: [ativo]
       properties:
-        nome: { type: string, maxLength: 120 }
-        perfil: { $ref: '#/components/schemas/Perfil' }
         ativo: { type: boolean }
-    UsuarioPage:
+    UsuarioSenhaRequest:
       type: object
+      required: [novaSenha]
       properties:
-        items:
-          type: array
-          items: { $ref: '#/components/schemas/Usuario' }
-        meta: { $ref: '#/components/schemas/PageMeta' }
+        novaSenha: { type: string, format: password, minLength: 6 }
+    MeuPerfilUpdateRequest:
+      type: object
+      required: [nome, email]
+      properties:
+        nome: { type: string }
+        email: { type: string, format: email }
+    AlterarMinhaSenhaRequest:
+      type: object
+      required: [senhaAtual, novaSenha]
+      properties:
+        senhaAtual: { type: string, format: password }
+        novaSenha: { type: string, format: password, minLength: 6 }
     UsuarioDepartamentosRequest:
       type: object
       required: [idsDepartamentos]
@@ -1243,6 +1583,7 @@ components:
     CategoriaInput:
       type: object
       required: [nome]
+      description: Usado só por `POST /categorias` — não há atualização/remoção.
       properties:
         nome: { type: string, maxLength: 80 }
         descricao: { type: string, maxLength: 255 }
@@ -1252,12 +1593,6 @@ components:
       properties:
         id: { type: integer, format: int64 }
         nome: { type: string }
-        nivel: { type: integer }
-    PrioridadeInput:
-      type: object
-      required: [nome, nivel]
-      properties:
-        nome: { type: string, maxLength: 50 }
         nivel: { type: integer }
     Sla:
       type: object
@@ -1322,6 +1657,12 @@ components:
         fechadoEm: { type: string, format: date-time, nullable: true }
         situacaoSlaResposta: { $ref: '#/components/schemas/SituacaoSla' }
         situacaoSlaResolucao: { $ref: '#/components/schemas/SituacaoSla' }
+        conteudoEditado:
+          type: boolean
+          description: true se título e/ou descrição já foram editados via `PATCH /chamados/{id}/conteudo`.
+        descricaoOculta:
+          type: boolean
+          description: true se a descrição original foi ocultada por um Administrador (moderação).
     ChamadoCreate:
       type: object
       required: [titulo, descricao]
@@ -1344,6 +1685,17 @@ components:
         idStatus: { type: integer, format: int64 }
         idCategoria: { type: integer, format: int64 }
         idPrioridade: { type: integer, format: int64 }
+    ChamadoConteudoUpdateRequest:
+      type: object
+      description: Campos opcionais; apenas os enviados (não vazios) são alterados.
+      properties:
+        titulo: { type: string, maxLength: 160 }
+        descricao: { type: string }
+    ChamadoOcultarDescricaoRequest:
+      type: object
+      required: [oculta]
+      properties:
+        oculta: { type: boolean }
     AtribuirTecnicoRequest:
       type: object
       required: [idTecnico]
@@ -1354,6 +1706,11 @@ components:
       required: [idDepartamento]
       properties:
         idDepartamento: { type: integer, format: int64 }
+    DevolverHelpDeskRequest:
+      type: object
+      required: [justificativa]
+      properties:
+        justificativa: { type: string, minLength: 1 }
     PrazoResolucaoUpdateRequest:
       type: object
       required: [prazoResolucao, justificativa]
@@ -1378,6 +1735,8 @@ components:
         meta: { $ref: '#/components/schemas/PageMeta' }
 
     # ----- Comentário / Anexo / Histórico -----
+    # Não há um schema "ComentarioCreate": o corpo de POST /chamados/{id}/comentarios
+    # é multipart/form-data (mensagem + anexos), descrito inline no path.
     Comentario:
       type: object
       properties:
@@ -1387,26 +1746,39 @@ components:
         mensagem: { type: string }
         interno: { type: boolean }
         criadoEm: { type: string, format: date-time }
-    ComentarioCreate:
+        editado: { type: boolean, description: 'true se editado via PATCH /chamados/{id}/comentarios/{comentarioId}.' }
+        oculta: { type: boolean, description: 'true se ocultado por um Administrador (moderação).' }
+        anexos:
+          type: array
+          items: { $ref: '#/components/schemas/Anexo' }
+          description: Anexos enviados junto deste comentário (via multipart, campo Arquivos).
+    ComentarioUpdateRequest:
       type: object
       required: [mensagem]
       properties:
         mensagem: { type: string }
-        interno:
-          type: boolean
-          default: false
-          description: Nota interna, visível apenas a Técnico/Administrador
+    ComentarioOcultarRequest:
+      type: object
+      required: [oculta]
+      properties:
+        oculta: { type: boolean }
     Anexo:
       type: object
       properties:
         id: { type: integer, format: int64 }
         idChamado: { type: integer, format: int64 }
+        idComentario:
+          type: integer
+          format: int64
+          nullable: true
+          description: Preenchido quando o anexo foi enviado junto de um comentário (`POST /chamados/{id}/comentarios`).
         autor: { $ref: '#/components/schemas/Usuario' }
         nomeArquivo: { type: string }
         tipoMime: { type: string }
         tamanhoBytes: { type: integer, format: int64 }
         url: { type: string, description: URL para download do anexo }
         criadoEm: { type: string, format: date-time }
+        editado: { type: boolean, description: 'true se o arquivo já foi substituído via PUT /chamados/{id}/anexos/{anexoId}.' }
     Historico:
       type: object
       properties:
@@ -1438,6 +1810,9 @@ components:
     # ----- Avaliação -----
     Avaliacao:
       type: object
+      description: >
+        Um chamado pode ter mais de uma (uma por ciclo de resolução) — ver
+        `GET /chamados/{id}/avaliacoes`.
       properties:
         id: { type: integer, format: int64 }
         idChamado: { type: integer, format: int64 }
@@ -1446,7 +1821,13 @@ components:
         comentario: { type: string }
         publica:
           type: boolean
-          description: Quando true, a avaliação também é visível ao técnico atribuído
+          description: Quando true, a avaliação também é visível ao técnico atribuído (se não estiver oculta)
+        oculta:
+          type: boolean
+          description: 'true se um Administrador ocultou esta avaliação pública (PATCH .../ocultar). Só se aplica a avaliações públicas.'
+        editado:
+          type: boolean
+          description: 'true se o autor já editou nota/comentário/visibilidade via PATCH /chamados/{id}/avaliacoes/{avaliacaoId}.'
         criadoEm: { type: string, format: date-time }
     AvaliacaoCreateRequest:
       type: object
@@ -1458,6 +1839,18 @@ components:
           type: boolean
           default: false
           description: Quando true, o técnico atribuído também é notificado da avaliação
+    AvaliacaoUpdateRequest:
+      type: object
+      required: [nota]
+      properties:
+        nota: { type: integer, minimum: 0, maximum: 5 }
+        comentario: { type: string }
+        publica: { type: boolean, default: false }
+    AvaliacaoOcultarRequest:
+      type: object
+      required: [oculta]
+      properties:
+        oculta: { type: boolean }
 
     # ----- Notificações -----
     TipoNotificacao:
@@ -1472,8 +1865,23 @@ components:
         é gerada para os administradores e o técnico atribuído quando o
         Cliente fecha o próprio chamado; "NovaAvaliacao" é gerada para os
         administradores (sempre) e para o técnico atribuído (só se a
-        avaliação for pública) quando um chamado é avaliado.
-      enum: [SlaEmRisco, SlaVencido, PrazoAjustado, ChamadoReaberto, FechadoPorCliente, NovaAvaliacao]
+        avaliação for pública) quando um chamado é avaliado; "NovoComentario"
+        é gerada para o solicitante (se o comentário não for interno) e para
+        o técnico atribuído; "MudancaStatus" é gerada em mudanças de status e
+        em encaminhamento/devolução entre departamentos; "TecnicoAtribuido" é
+        gerada quando um chamado é atribuído ou assumido por um técnico.
+      enum:
+        [
+          SlaEmRisco,
+          SlaVencido,
+          PrazoAjustado,
+          ChamadoReaberto,
+          FechadoPorCliente,
+          NovaAvaliacao,
+          NovoComentario,
+          MudancaStatus,
+          TecnicoAtribuido,
+        ]
     Notificacao:
       type: object
       properties:
@@ -1493,25 +1901,22 @@ components:
         emRisco: { type: integer, description: Chamados abertos com SLA de resposta ou resolução em risco }
         vencidos: { type: integer, description: Chamados abertos com SLA de resposta ou resolução vencido }
 
-    # ----- Dashboard -----
-    DashboardResumo:
+    # ----- Métricas -----
+    ChamadoPorStatus:
       type: object
       properties:
-        totalChamados: { type: integer }
-        porStatus:
-          type: array
-          items:
-            type: object
-            properties:
-              status: { type: string }
-              total: { type: integer }
-        slaEmRisco: { type: integer, description: Chamados abertos próximos do prazo }
-        slaEstourado: { type: integer, description: Chamados com prazo vencido }
-        produtividadeTecnicos:
-          type: array
-          items:
-            type: object
-            properties:
-              tecnico: { type: string }
-              resolvidos: { type: integer }
-              emAndamento: { type: integer }
+        statusId: { type: integer, format: int64 }
+        statusNome: { type: string }
+        quantidade: { type: integer, description: Total de chamados (abertos ou finalizados) neste status, no período filtrado }
+    ProdutividadeTecnico:
+      type: object
+      properties:
+        tecnicoId: { type: integer, format: int64 }
+        tecnicoNome: { type: string }
+        chamadosAtribuidos: { type: integer, description: Total de chamados já atribuídos a este técnico no período }
+        chamadosResolvidos: { type: integer, description: Quantos desses já foram resolvidos (resolvidoEm preenchido) }
+        tempoMedioResolucaoHoras:
+          type: number
+          format: double
+          nullable: true
+          description: Média, em horas, entre criadoEm e resolvidoEm dos chamados resolvidos. null se nenhum foi resolvido no período.
