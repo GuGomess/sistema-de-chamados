@@ -18,4 +18,61 @@
       </button>
     </div>
   }
+
+  <div class="metricas">
+    <div class="metricas__bloco">
+      <h2>Chamados por status</h2>
+
+      @if (erroChamadosPorStatus()) {
+        <p class="erro" role="alert">{{ erroChamadosPorStatus() }}</p>
+      } @else if (carregandoChamadosPorStatus()) {
+        <p>Carregando métricas...</p>
+      } @else if (chamadosPorStatus().length === 0) {
+        <p>Nenhum chamado no período.</p>
+      } @else {
+        <div class="metricas__grafico">
+          <canvas
+            baseChart
+            [data]="statusChartData()"
+            [type]="statusChartType"
+            [options]="statusChartOptions"
+          >
+          </canvas>
+        </div>
+      }
+    </div>
+
+    <div class="metricas__bloco">
+      <h2>Produtividade por técnico</h2>
+
+      @if (erroProdutividade()) {
+        <p class="erro" role="alert">{{ erroProdutividade() }}</p>
+      } @else if (carregandoProdutividade()) {
+        <p>Carregando métricas...</p>
+      } @else if (produtividadeTecnicos().length === 0) {
+        <p>Nenhum dado de produtividade disponível.</p>
+      } @else {
+        <table class="tabela-produtividade">
+          <thead>
+            <tr>
+              <th>Técnico</th>
+              <th>Atribuídos</th>
+              <th>Resolvidos</th>
+              <th>Tempo médio de resolução (h)</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (t of produtividadeTecnicos(); track t.tecnicoId) {
+              <tr>
+                <td>{{ t.tecnicoNome }}</td>
+                <td>{{ t.chamadosAtribuidos }}</td>
+                <td>{{ t.chamadosResolvidos }}</td>
+                <td>{{ formatarHoras(t.tempoMedioResolucaoHoras) }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      }
+    </div>
+  </div>
 </section>
