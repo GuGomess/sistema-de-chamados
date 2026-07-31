@@ -185,3 +185,8 @@ app.MapControllers();
 app.MapHub<ChamadosHub>("/hubs/chamados");
 
 app.Run();
+
+// Torna a classe Program (gerada implicitamente para top-level statements)
+// pública e parcial para que Chamados.Api.Tests consiga referenciá-la em
+// WebApplicationFactory<Program> (ver Chamados.Api.Tests/Integration).
+public partial class Program;

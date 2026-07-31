@@ -30,6 +30,12 @@ jobs:
       - name: Build
         run: dotnet build --configuration Release --no-restore
 
+      - name: Test
+        # Testcontainers.PostgreSql (Chamados.Api.Tests) precisa de um daemon
+        # Docker acessível para os testes de integração — runners ubuntu-latest
+        # do GitHub Actions já vêm com Docker nativo, sem configuração extra.
+        run: dotnet test --configuration Release --no-build
+
   frontend:
     name: Frontend (build + lint)
     runs-on: ubuntu-latest
