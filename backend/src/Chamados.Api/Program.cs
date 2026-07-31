@@ -28,6 +28,7 @@ builder.Services.AddDbContext<ChamadosDbContext>(options =>
 
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
 builder.Services.AddScoped<ITokenService, TokenService>();
+builder.Services.AddScoped<IEscopoChamadoService, EscopoChamadoService>();
 
 builder.Services.Configure<SlaMonitorOptions>(builder.Configuration.GetSection(SlaMonitorOptions.SectionName));
 builder.Services.AddHostedService<SlaMonitorService>();

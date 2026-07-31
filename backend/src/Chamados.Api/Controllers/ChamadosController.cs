@@ -1,5 +1,3 @@
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
 using Chamados.Api.Constants;
 using Chamados.Api.Data;
 using Chamados.Api.Hubs;
@@ -36,15 +34,27 @@ public class ChamadosController : ControllerBase
     private const long StatusNovoId = 6;
     private const long DepartamentoHelpDeskId = 1;
 
+    // Limite de tamanho para os filtros de texto livre "q" e "solicitante" em
+    // Listar — sem isso, EF.Functions.ILike (seguro contra SQL injection, pois
+    // o Npgsql parametriza o valor) ainda ficava exposto a abuso/exaustão de
+    // recursos via um padrão de busca patologicamente longo.
+    private const int FiltroTextoMaxLength = 200;
+
     private readonly ChamadosDbContext _dbContext;
     private readonly UploadOptions _uploadOptions;
     private readonly IHubContext<ChamadosHub> _hubContext;
+    private readonly IEscopoChamadoService _escopoChamadoService;
 
-    public ChamadosController(ChamadosDbContext dbContext, IOptions<UploadOptions> uploadOptions, IHubContext<ChamadosHub> hubContext)
+    public ChamadosController(
+        ChamadosDbContext dbContext,
+        IOptions<UploadOptions> uploadOptions,
+        IHubContext<ChamadosHub> hubContext,
+        IEscopoChamadoService escopoChamadoService)
     {
         _dbContext = dbContext;
         _uploadOptions = uploadOptions.Value;
         _hubContext = hubContext;
+        _escopoChamadoService = escopoChamadoService;
     }
 
     [HttpGet]
@@ -66,10 +76,24 @@ public class ChamadosController : ControllerBase
         [FromQuery] bool meus = false,
         [FromQuery] bool ocultarFinalizados = false)
     {
-        var usuarioId = ObterUsuarioId();
+        var usuarioId = _escopoChamadoService.ObterUsuarioId(User);
         if (usuarioId is null)
         {
             return Unauthorized();
+        }
+
+        var errosFiltro = new Dictionary<string, string[]>();
+        if (q is not null && q.Length > FiltroTextoMaxLength)
+        {
+            errosFiltro["q"] = new[] { $"Filtro de busca não pode exceder {FiltroTextoMaxLength} caracteres." };
+        }
+        if (solicitante is not null && solicitante.Length > FiltroTextoMaxLength)
+        {
+            errosFiltro["solicitante"] = new[] { $"Filtro de solicitante não pode exceder {FiltroTextoMaxLength} caracteres." };
+        }
+        if (errosFiltro.Count > 0)
+        {
+            return BadRequest(new ErrorResponse { Status = 400, Title = "Falha de validação", Errors = errosFiltro });
         }
 
         page = Math.Max(page, 1);
@@ -87,11 +111,11 @@ public class ChamadosController : ControllerBase
             // mesmo (ex.: administrador que abriu um chamado em nome próprio).
             query = query.Where(c => c.TecnicoId == usuarioId.Value || c.SolicitanteId == usuarioId.Value);
         }
-        else if (User.IsInRole(Perfis.Tecnico) && !meus && !await EstaNoDepartamentoAsync(usuarioId.Value, DepartamentoHelpDeskId))
+        else if (User.IsInRole(Perfis.Tecnico) && !meus && !await _escopoChamadoService.EstaNoDepartamentoAsync(usuarioId.Value, DepartamentoHelpDeskId))
         {
             // Fora do HelpDesk (que tem visão ampla para triagem), o técnico só vê
             // chamados dos departamentos aos quais pertence.
-            var idsDepartamentos = await IdsDepartamentosDoUsuarioAsync(usuarioId.Value);
+            var idsDepartamentos = await _escopoChamadoService.IdsDepartamentosDoUsuarioAsync(usuarioId.Value);
             query = query.Where(c => idsDepartamentos.Contains(c.DepartamentoId));
         }
 
@@ -175,7 +199,7 @@ public class ChamadosController : ControllerBase
     [HttpGet("resumo-sla")]
     public async Task<ActionResult<ResumoSlaDto>> ResumoSla()
     {
-        var usuarioId = ObterUsuarioId();
+        var usuarioId = _escopoChamadoService.ObterUsuarioId(User);
         if (usuarioId is null)
         {
             return Unauthorized();
@@ -191,9 +215,9 @@ public class ChamadosController : ControllerBase
         {
             query = query.Where(c => c.TecnicoId == usuarioId.Value || c.TecnicoId == null);
 
-            if (!await EstaNoDepartamentoAsync(usuarioId.Value, DepartamentoHelpDeskId))
+            if (!await _escopoChamadoService.EstaNoDepartamentoAsync(usuarioId.Value, DepartamentoHelpDeskId))
             {
-                var idsDepartamentos = await IdsDepartamentosDoUsuarioAsync(usuarioId.Value);
+                var idsDepartamentos = await _escopoChamadoService.IdsDepartamentosDoUsuarioAsync(usuarioId.Value);
                 query = query.Where(c => idsDepartamentos.Contains(c.DepartamentoId));
             }
         }
@@ -207,7 +231,7 @@ public class ChamadosController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<ChamadoDto>> Criar(ChamadoCreateRequest request)
     {
-        var usuarioId = ObterUsuarioId();
+        var usuarioId = _escopoChamadoService.ObterUsuarioId(User);
         if (usuarioId is null)
         {
             return Unauthorized();
@@ -289,7 +313,7 @@ public class ChamadosController : ControllerBase
     [HttpGet("{id:long}")]
     public async Task<ActionResult<ChamadoDto>> Detalhar(long id)
     {
-        var usuarioId = ObterUsuarioId();
+        var usuarioId = _escopoChamadoService.ObterUsuarioId(User);
         if (usuarioId is null)
         {
             return Unauthorized();
@@ -312,7 +336,7 @@ public class ChamadosController : ControllerBase
     [HttpPatch("{id:long}")]
     public async Task<ActionResult<ChamadoDto>> Atualizar(long id, [FromBody] ChamadoUpdateRequest request)
     {
-        var usuarioId = ObterUsuarioId();
+        var usuarioId = _escopoChamadoService.ObterUsuarioId(User);
         if (usuarioId is null)
         {
             return Unauthorized();
@@ -441,7 +465,7 @@ public class ChamadosController : ControllerBase
     [HttpPatch("{id:long}/conteudo")]
     public async Task<ActionResult<ChamadoDto>> AtualizarConteudo(long id, [FromBody] ChamadoConteudoUpdateRequest request)
     {
-        var usuarioId = ObterUsuarioId();
+        var usuarioId = _escopoChamadoService.ObterUsuarioId(User);
         if (usuarioId is null)
         {
             return Unauthorized();
@@ -493,7 +517,7 @@ public class ChamadosController : ControllerBase
     [HttpPatch("{id:long}/ocultar-descricao")]
     public async Task<ActionResult<ChamadoDto>> OcultarDescricao(long id, [FromBody] ChamadoOcultarDescricaoRequest request)
     {
-        var usuarioId = ObterUsuarioId();
+        var usuarioId = _escopoChamadoService.ObterUsuarioId(User);
         if (usuarioId is null)
         {
             return Unauthorized();
@@ -520,7 +544,7 @@ public class ChamadosController : ControllerBase
     [HttpPost("{id:long}/atribuir")]
     public async Task<ActionResult<ChamadoDto>> Atribuir(long id, [FromBody] AtribuirTecnicoRequest request)
     {
-        var usuarioId = ObterUsuarioId();
+        var usuarioId = _escopoChamadoService.ObterUsuarioId(User);
         if (usuarioId is null)
         {
             return Unauthorized();
@@ -538,7 +562,7 @@ public class ChamadosController : ControllerBase
         // exerce essa ação; o alvo da atribuição é que pode ser de qualquer
         // departamento nesse caso (ver tecnicoAlvoElegivel abaixo).
         var podeAtribuir = User.IsInRole(Perfis.Administrador)
-            || (User.IsInRole(Perfis.Tecnico) && await EstaNoDepartamentoAsync(usuarioId.Value, chamado.DepartamentoId));
+            || (User.IsInRole(Perfis.Tecnico) && await _escopoChamadoService.EstaNoDepartamentoAsync(usuarioId.Value, chamado.DepartamentoId));
 
         if (!podeAtribuir)
         {
@@ -561,7 +585,7 @@ public class ChamadosController : ControllerBase
             .FirstOrDefaultAsync(u => u.Id == request.IdTecnico);
         var perfilAlvo = tecnico is null ? null : Perfis.NormalizarCodigo(tecnico.Perfil.Nome);
         var chamadorEhAdministrador = User.IsInRole(Perfis.Administrador);
-        var chamadorEhHelpDesk = User.IsInRole(Perfis.Tecnico) && await EstaNoDepartamentoAsync(usuarioId.Value, DepartamentoHelpDeskId);
+        var chamadorEhHelpDesk = User.IsInRole(Perfis.Tecnico) && await _escopoChamadoService.EstaNoDepartamentoAsync(usuarioId.Value, DepartamentoHelpDeskId);
 
         // HelpDesk faz a triagem inicial e pode atribuir a qualquer técnico
         // ativo, de qualquer departamento (exceto administradores — ver ramo
@@ -631,7 +655,7 @@ public class ChamadosController : ControllerBase
     [HttpPost("{id:long}/assumir")]
     public async Task<ActionResult<ChamadoDto>> Assumir(long id)
     {
-        var usuarioId = ObterUsuarioId();
+        var usuarioId = _escopoChamadoService.ObterUsuarioId(User);
         if (usuarioId is null)
         {
             return Unauthorized();
@@ -648,7 +672,7 @@ public class ChamadosController : ControllerBase
             return NotFound(ErrorResponse.Create(404, "Chamado não encontrado."));
         }
 
-        if (!await EstaNoDepartamentoAsync(usuarioId.Value, chamado.DepartamentoId))
+        if (!await _escopoChamadoService.EstaNoDepartamentoAsync(usuarioId.Value, chamado.DepartamentoId))
         {
             return StatusCode(StatusCodes.Status403Forbidden, ErrorResponse.Create(403, "Apenas técnicos do departamento responsável podem assumir este chamado."));
         }
@@ -696,7 +720,7 @@ public class ChamadosController : ControllerBase
     [HttpPost("{id:long}/reabrir")]
     public async Task<ActionResult<ChamadoDto>> Reabrir(long id)
     {
-        var usuarioId = ObterUsuarioId();
+        var usuarioId = _escopoChamadoService.ObterUsuarioId(User);
         if (usuarioId is null)
         {
             return Unauthorized();
@@ -765,7 +789,7 @@ public class ChamadosController : ControllerBase
     [HttpPost("{id:long}/encaminhar")]
     public async Task<ActionResult<ChamadoDto>> Encaminhar(long id, [FromBody] EncaminharDepartamentoRequest request)
     {
-        var usuarioId = ObterUsuarioId();
+        var usuarioId = _escopoChamadoService.ObterUsuarioId(User);
         if (usuarioId is null)
         {
             return Unauthorized();
@@ -778,7 +802,7 @@ public class ChamadosController : ControllerBase
         }
 
         var podeEncaminhar = User.IsInRole(Perfis.Administrador)
-            || (User.IsInRole(Perfis.Tecnico) && await EstaNoDepartamentoAsync(usuarioId.Value, DepartamentoHelpDeskId));
+            || (User.IsInRole(Perfis.Tecnico) && await _escopoChamadoService.EstaNoDepartamentoAsync(usuarioId.Value, DepartamentoHelpDeskId));
 
         if (!podeEncaminhar)
         {
@@ -863,7 +887,7 @@ public class ChamadosController : ControllerBase
     [HttpPost("{id:long}/devolver-helpdesk")]
     public async Task<ActionResult<ChamadoDto>> DevolverAoHelpDesk(long id, [FromBody] DevolverHelpDeskRequest request)
     {
-        var usuarioId = ObterUsuarioId();
+        var usuarioId = _escopoChamadoService.ObterUsuarioId(User);
         if (usuarioId is null)
         {
             return Unauthorized();
@@ -876,7 +900,7 @@ public class ChamadosController : ControllerBase
         }
 
         var podeDevolver = User.IsInRole(Perfis.Administrador)
-            || (User.IsInRole(Perfis.Tecnico) && await EstaNoDepartamentoAsync(usuarioId.Value, chamado.DepartamentoId));
+            || (User.IsInRole(Perfis.Tecnico) && await _escopoChamadoService.EstaNoDepartamentoAsync(usuarioId.Value, chamado.DepartamentoId));
 
         if (!podeDevolver)
         {
@@ -958,7 +982,7 @@ public class ChamadosController : ControllerBase
     [HttpPost("{id:long}/fechar-cliente")]
     public async Task<ActionResult<ChamadoDto>> FecharComoCliente(long id, [FromBody] FecharClienteRequest request)
     {
-        var usuarioId = ObterUsuarioId();
+        var usuarioId = _escopoChamadoService.ObterUsuarioId(User);
         if (usuarioId is null)
         {
             return Unauthorized();
@@ -1032,7 +1056,7 @@ public class ChamadosController : ControllerBase
     [HttpPatch("{id:long}/prazo-resolucao")]
     public async Task<ActionResult<ChamadoDto>> AjustarPrazoResolucao(long id, [FromBody] PrazoResolucaoUpdateRequest request)
     {
-        var usuarioId = ObterUsuarioId();
+        var usuarioId = _escopoChamadoService.ObterUsuarioId(User);
         if (usuarioId is null)
         {
             return Unauthorized();
@@ -1106,7 +1130,7 @@ public class ChamadosController : ControllerBase
     [HttpPatch("{id:long}/prazo-resposta")]
     public async Task<ActionResult<ChamadoDto>> AjustarPrazoResposta(long id, [FromBody] PrazoRespostaUpdateRequest request)
     {
-        var usuarioId = ObterUsuarioId();
+        var usuarioId = _escopoChamadoService.ObterUsuarioId(User);
         if (usuarioId is null)
         {
             return Unauthorized();
@@ -1170,7 +1194,7 @@ public class ChamadosController : ControllerBase
     [HttpGet("{id:long}/historico")]
     public async Task<ActionResult<List<HistoricoDto>>> Historico(long id)
     {
-        var usuarioId = ObterUsuarioId();
+        var usuarioId = _escopoChamadoService.ObterUsuarioId(User);
         if (usuarioId is null)
         {
             return Unauthorized();
@@ -1214,7 +1238,7 @@ public class ChamadosController : ControllerBase
     [HttpGet("{id:long}/avaliacoes")]
     public async Task<ActionResult<List<AvaliacaoDto>>> ListarAvaliacoes(long id)
     {
-        var usuarioId = ObterUsuarioId();
+        var usuarioId = _escopoChamadoService.ObterUsuarioId(User);
         if (usuarioId is null)
         {
             return Unauthorized();
@@ -1253,7 +1277,7 @@ public class ChamadosController : ControllerBase
     [HttpPost("{id:long}/avaliacao")]
     public async Task<ActionResult<AvaliacaoDto>> CriarAvaliacao(long id, [FromBody] AvaliacaoCreateRequest request)
     {
-        var usuarioId = ObterUsuarioId();
+        var usuarioId = _escopoChamadoService.ObterUsuarioId(User);
         if (usuarioId is null)
         {
             return Unauthorized();
@@ -1352,7 +1376,7 @@ public class ChamadosController : ControllerBase
     [HttpPatch("{id:long}/avaliacoes/{avaliacaoId:long}")]
     public async Task<ActionResult<AvaliacaoDto>> AtualizarAvaliacao(long id, long avaliacaoId, [FromBody] AvaliacaoUpdateRequest request)
     {
-        var usuarioId = ObterUsuarioId();
+        var usuarioId = _escopoChamadoService.ObterUsuarioId(User);
         if (usuarioId is null)
         {
             return Unauthorized();
@@ -1397,7 +1421,7 @@ public class ChamadosController : ControllerBase
     [HttpPatch("{id:long}/avaliacoes/{avaliacaoId:long}/ocultar")]
     public async Task<ActionResult<AvaliacaoDto>> OcultarAvaliacao(long id, long avaliacaoId, [FromBody] AvaliacaoOcultarRequest request)
     {
-        var usuarioId = ObterUsuarioId();
+        var usuarioId = _escopoChamadoService.ObterUsuarioId(User);
         if (usuarioId is null)
         {
             return Unauthorized();
@@ -1439,7 +1463,7 @@ public class ChamadosController : ControllerBase
     [HttpDelete("{id:long}/avaliacoes/{avaliacaoId:long}")]
     public async Task<IActionResult> ApagarAvaliacao(long id, long avaliacaoId)
     {
-        var usuarioId = ObterUsuarioId();
+        var usuarioId = _escopoChamadoService.ObterUsuarioId(User);
         if (usuarioId is null)
         {
             return Unauthorized();
@@ -1476,7 +1500,7 @@ public class ChamadosController : ControllerBase
     [HttpGet("{id:long}/comentarios")]
     public async Task<ActionResult<List<ComentarioDto>>> ListarComentarios(long id)
     {
-        var usuarioId = ObterUsuarioId();
+        var usuarioId = _escopoChamadoService.ObterUsuarioId(User);
         if (usuarioId is null)
         {
             return Unauthorized();
@@ -1513,7 +1537,7 @@ public class ChamadosController : ControllerBase
     [Consumes("multipart/form-data")]
     public async Task<ActionResult<ComentarioDto>> CriarComentario(long id, [FromForm] ComentarioCreateRequest request)
     {
-        var usuarioId = ObterUsuarioId();
+        var usuarioId = _escopoChamadoService.ObterUsuarioId(User);
         if (usuarioId is null)
         {
             return Unauthorized();
@@ -1593,7 +1617,7 @@ public class ChamadosController : ControllerBase
     [HttpPatch("{id:long}/comentarios/{comentarioId:long}")]
     public async Task<ActionResult<ComentarioDto>> AtualizarComentario(long id, long comentarioId, [FromBody] ComentarioUpdateRequest request)
     {
-        var usuarioId = ObterUsuarioId();
+        var usuarioId = _escopoChamadoService.ObterUsuarioId(User);
         if (usuarioId is null)
         {
             return Unauthorized();
@@ -1637,7 +1661,7 @@ public class ChamadosController : ControllerBase
     [HttpPatch("{id:long}/comentarios/{comentarioId:long}/ocultar")]
     public async Task<ActionResult<ComentarioDto>> OcultarComentario(long id, long comentarioId, [FromBody] ComentarioOcultarRequest request)
     {
-        var usuarioId = ObterUsuarioId();
+        var usuarioId = _escopoChamadoService.ObterUsuarioId(User);
         if (usuarioId is null)
         {
             return Unauthorized();
@@ -1680,7 +1704,7 @@ public class ChamadosController : ControllerBase
     [HttpGet("{id:long}/anexos")]
     public async Task<ActionResult<List<AnexoDto>>> ListarAnexos(long id)
     {
-        var usuarioId = ObterUsuarioId();
+        var usuarioId = _escopoChamadoService.ObterUsuarioId(User);
         if (usuarioId is null)
         {
             return Unauthorized();
@@ -1709,7 +1733,7 @@ public class ChamadosController : ControllerBase
     [HttpPost("{id:long}/anexos")]
     public async Task<ActionResult<AnexoDto>> EnviarAnexo(long id, IFormFile? arquivo)
     {
-        var usuarioId = ObterUsuarioId();
+        var usuarioId = _escopoChamadoService.ObterUsuarioId(User);
         if (usuarioId is null)
         {
             return Unauthorized();
@@ -1753,7 +1777,7 @@ public class ChamadosController : ControllerBase
     [HttpPut("{id:long}/anexos/{anexoId:long}")]
     public async Task<ActionResult<AnexoDto>> SubstituirAnexo(long id, long anexoId, IFormFile? arquivo)
     {
-        var usuarioId = ObterUsuarioId();
+        var usuarioId = _escopoChamadoService.ObterUsuarioId(User);
         if (usuarioId is null)
         {
             return Unauthorized();
@@ -1830,7 +1854,7 @@ public class ChamadosController : ControllerBase
     [HttpGet("{id:long}/anexos/{anexoId:long}/download")]
     public async Task<IActionResult> BaixarAnexo(long id, long anexoId)
     {
-        var usuarioId = ObterUsuarioId();
+        var usuarioId = _escopoChamadoService.ObterUsuarioId(User);
         if (usuarioId is null)
         {
             return Unauthorized();
@@ -1921,30 +1945,11 @@ public class ChamadosController : ControllerBase
         {
             // HelpDesk tem visão ampla (faz a triagem inicial de qualquer chamado);
             // os demais departamentos só acessam os chamados que estão sob sua responsabilidade.
-            if (await EstaNoDepartamentoAsync(usuarioId, DepartamentoHelpDeskId)) return true;
-            return await EstaNoDepartamentoAsync(usuarioId, chamado.DepartamentoId);
+            if (await _escopoChamadoService.EstaNoDepartamentoAsync(usuarioId, DepartamentoHelpDeskId)) return true;
+            return await _escopoChamadoService.EstaNoDepartamentoAsync(usuarioId, chamado.DepartamentoId);
         }
         if (User.IsInRole(Perfis.Cliente)) return chamado.SolicitanteId == usuarioId;
         return false;
-    }
-
-    private async Task<bool> EstaNoDepartamentoAsync(long usuarioId, long idDepartamento) =>
-        await _dbContext.Usuarios
-            .Where(u => u.Id == usuarioId)
-            .SelectMany(u => u.Departamentos)
-            .AnyAsync(d => d.Id == idDepartamento);
-
-    private async Task<List<long>> IdsDepartamentosDoUsuarioAsync(long usuarioId) =>
-        await _dbContext.Usuarios
-            .Where(u => u.Id == usuarioId)
-            .SelectMany(u => u.Departamentos)
-            .Select(d => d.Id)
-            .ToListAsync();
-
-    private long? ObterUsuarioId()
-    {
-        var claim = User.FindFirst(JwtRegisteredClaimNames.Sub) ?? User.FindFirst(ClaimTypes.NameIdentifier);
-        return claim is not null && long.TryParse(claim.Value, out var id) ? id : null;
     }
 
     // Avisa quem está com a tela do chamado aberta ("chamado-{id}") e quem está
