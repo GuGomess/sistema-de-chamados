@@ -19,10 +19,11 @@ import {
   UsuarioResumo,
 } from '../../../core/models/chamado.model';
 import { Departamento } from '../../../core/models/departamento.model';
+import { Icon } from '../../../shared/icon/icon';
 
 @Component({
   selector: 'app-chamados-lista',
-  imports: [ReactiveFormsModule, RouterLink, DatePipe],
+  imports: [ReactiveFormsModule, RouterLink, DatePipe, Icon],
   templateUrl: './chamados-lista.html',
   styleUrl: './chamados-lista.scss',
 })

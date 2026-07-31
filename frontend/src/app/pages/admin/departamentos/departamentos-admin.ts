@@ -5,10 +5,11 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 
 import { Departamento } from '../../../core/models/departamento.model';
 import { DepartamentoService } from '../../../core/services/departamento.service';
+import { Icon } from '../../../shared/icon/icon';
 
 @Component({
   selector: 'app-departamentos-admin',
-  imports: [ReactiveFormsModule, DatePipe],
+  imports: [ReactiveFormsModule, DatePipe, Icon],
   templateUrl: './departamentos-admin.html',
   styleUrl: './departamentos-admin.scss',
 })

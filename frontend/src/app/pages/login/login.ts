@@ -5,10 +5,11 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 
 import { ROTA_POR_PERFIL } from '../../core/constants/rota-inicial';
 import { AuthService } from '../../core/services/auth.service';
+import { Icon } from '../../shared/icon/icon';
 
 @Component({
   selector: 'app-login',
-  imports: [ReactiveFormsModule, RouterLink],
+  imports: [ReactiveFormsModule, RouterLink, Icon],
   templateUrl: './login.html',
   styleUrl: './login.scss',
 })

@@ -3,7 +3,7 @@
     <h1>Categorias</h1>
   </div>
 
-  <form class="form-criar" [formGroup]="form" (ngSubmit)="onSubmit()" novalidate>
+  <form class="form-criar surface-card" [formGroup]="form" (ngSubmit)="onSubmit()" novalidate>
     <h2>Nova categoria</h2>
 
     @if (erroCriacao()) {
@@ -20,8 +20,10 @@
         Descrição
         <input type="text" formControlName="descricao" />
       </label>
+    </div>
 
-      <button type="submit" [disabled]="criando()">
+    <div class="form-acoes">
+      <button type="submit" class="btn btn--primary" [disabled]="criando()">
         {{ criando() ? 'Criando...' : 'Criar categoria' }}
       </button>
     </div>
@@ -32,9 +34,9 @@
   }
 
   @if (carregando()) {
-    <p>Carregando categorias...</p>
+    <p class="vazio">Carregando categorias...</p>
   } @else if (categorias().length === 0) {
-    <p>Nenhuma categoria cadastrada.</p>
+    <p class="vazio">Nenhuma categoria cadastrada.</p>
   } @else {
     <div class="tabela-wrap">
       <table>

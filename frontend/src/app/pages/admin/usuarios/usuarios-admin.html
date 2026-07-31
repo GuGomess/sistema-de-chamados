@@ -3,7 +3,7 @@
     <h1>Usuários</h1>
   </div>
 
-  <form class="form-criar" [formGroup]="form" (ngSubmit)="onSubmit()" novalidate>
+  <form class="form-criar surface-card" [formGroup]="form" (ngSubmit)="onSubmit()" novalidate>
     <h2>Novo usuário</h2>
 
     @if (erroCriacao()) {
@@ -33,18 +33,20 @@
           <option value="ADMINISTRADOR">Administrador</option>
         </select>
       </label>
-
-      <button type="submit" [disabled]="criando()">
-        {{ criando() ? 'Criando...' : 'Criar usuário' }}
-      </button>
     </div>
 
     @if (perfilCriacaoEhTecnico()) {
       <div class="departamentos-select">
-        <span class="rotulo">Departamentos</span>
+        <span class="rotulo">
+          <app-icon name="building" />
+          Departamentos
+        </span>
         <div class="opcoes">
           @for (departamento of departamentosAtivos(); track departamento.id) {
-            <label class="checkbox">
+            <label
+              class="checkbox chip-check"
+              [class.selecionado]="departamentoSelecionadoNaCriacao(departamento.id)"
+            >
               <input
                 type="checkbox"
                 [checked]="departamentoSelecionadoNaCriacao(departamento.id)"
@@ -56,6 +58,12 @@
         </div>
       </div>
     }
+
+    <div class="form-acoes">
+      <button type="submit" class="btn btn--primary" [disabled]="criando()">
+        {{ criando() ? 'Criando...' : 'Criar usuário' }}
+      </button>
+    </div>
   </form>
 
   @if (erro()) {
@@ -67,9 +75,9 @@
   }
 
   @if (carregando()) {
-    <p>Carregando usuários...</p>
+    <p class="vazio">Carregando usuários...</p>
   } @else if (usuarios().length === 0) {
-    <p>Nenhum usuário cadastrado.</p>
+    <p class="vazio">Nenhum usuário cadastrado.</p>
   } @else {
     <div class="tabela-wrap">
       <table>
@@ -87,13 +95,16 @@
         <tbody>
           @for (usuario of usuarios(); track usuario.id) {
             @if (gerenciandoDepartamentosId() === usuario.id) {
-              <tr>
+              <tr class="linha-edicao">
                 <td colspan="7">
-                  <div class="gerenciar-departamentos">
+                  <div class="painel-edicao">
                     <span class="rotulo">Departamentos de {{ usuario.nome }}</span>
                     <div class="opcoes">
                       @for (departamento of departamentosAtivos(); track departamento.id) {
-                        <label class="checkbox">
+                        <label
+                          class="checkbox chip-check"
+                          [class.selecionado]="departamentoSelecionadoNoGerenciamento(departamento.id)"
+                        >
                           <input
                             type="checkbox"
                             [checked]="departamentoSelecionadoNoGerenciamento(departamento.id)"
@@ -104,10 +115,20 @@
                       }
                     </div>
                     <div class="botoes">
-                      <button type="button" (click)="salvarDepartamentos(usuario)" [disabled]="salvandoDepartamentos()">
+                      <button
+                        type="button"
+                        class="btn btn--primary btn--sm"
+                        (click)="salvarDepartamentos(usuario)"
+                        [disabled]="salvandoDepartamentos()"
+                      >
                         {{ salvandoDepartamentos() ? 'Salvando...' : 'Salvar' }}
                       </button>
-                      <button type="button" (click)="cancelarGerenciarDepartamentos()" [disabled]="salvandoDepartamentos()">
+                      <button
+                        type="button"
+                        class="btn btn--ghost btn--sm"
+                        (click)="cancelarGerenciarDepartamentos()"
+                        [disabled]="salvandoDepartamentos()"
+                      >
                         Cancelar
                       </button>
                     </div>
@@ -115,9 +136,14 @@
                 </td>
               </tr>
             } @else if (alterandoSenhaId() === usuario.id) {
-              <tr>
+              <tr class="linha-edicao">
                 <td colspan="7">
-                  <form class="gerenciar-departamentos" [formGroup]="senhaForm" (ngSubmit)="salvarSenha(usuario)" novalidate>
+                  <form
+                    class="painel-edicao"
+                    [formGroup]="senhaForm"
+                    (ngSubmit)="salvarSenha(usuario)"
+                    novalidate
+                  >
                     <span class="rotulo">Nova senha para {{ usuario.nome }}</span>
                     @if (erroSenha()) {
                       <p class="erro" role="alert">{{ erroSenha() }}</p>
@@ -127,10 +153,15 @@
                       <input type="password" formControlName="novaSenha" autocomplete="new-password" />
                     </label>
                     <div class="botoes">
-                      <button type="submit" [disabled]="salvandoSenha()">
+                      <button type="submit" class="btn btn--primary btn--sm" [disabled]="salvandoSenha()">
                         {{ salvandoSenha() ? 'Salvando...' : 'Salvar' }}
                       </button>
-                      <button type="button" (click)="cancelarAlterarSenha()" [disabled]="salvandoSenha()">
+                      <button
+                        type="button"
+                        class="btn btn--ghost btn--sm"
+                        (click)="cancelarAlterarSenha()"
+                        [disabled]="salvandoSenha()"
+                      >
                         Cancelar
                       </button>
                     </div>
@@ -159,17 +190,27 @@
                 <td>{{ usuario.criadoEm | date: 'dd/MM/yyyy HH:mm' }}</td>
                 <td class="acoes">
                   @if (usuario.perfil === 'TECNICO') {
-                    <button type="button" (click)="iniciarGerenciarDepartamentos(usuario)">
+                    <button
+                      type="button"
+                      class="btn btn--ghost btn--sm"
+                      (click)="iniciarGerenciarDepartamentos(usuario)"
+                    >
+                      <app-icon name="building" />
                       Gerenciar departamentos
                     </button>
                   }
-                  <button type="button" (click)="iniciarAlterarSenha(usuario)">Alterar senha</button>
+                  <button type="button" class="btn btn--ghost btn--sm" (click)="iniciarAlterarSenha(usuario)">
+                    <app-icon name="pencil" />
+                    Alterar senha
+                  </button>
                   <button
                     type="button"
+                    class="btn btn--ghost btn--sm"
                     (click)="alternarAtivo(usuario)"
                     [disabled]="alterandoAtivoId() === usuario.id || usuario.id === usuarioAtualId"
                     [title]="usuario.id === usuarioAtualId ? 'Não é possível desativar a própria conta' : ''"
                   >
+                    <app-icon [name]="usuario.ativo ? 'x' : 'check'" />
                     {{ usuario.ativo ? 'Desativar' : 'Ativar' }}
                   </button>
                 </td>

@@ -1,34 +1,93 @@
-@if (authService.isAutenticado()) {
-  <header class="app-header">
-    <a class="app-header__brand" routerLink="/">{{ title() }}</a>
-    <nav class="app-header__nav">
-      @if (!ehCliente()) {
-        <a routerLink="/dashboard" routerLinkActive="is-active">Dashboard</a>
-      }
-      <a routerLink="/chamados" routerLinkActive="is-active" [routerLinkActiveOptions]="{ exact: true }">{{ labelChamados() }}</a>
-      <a routerLink="/chamados/novo" routerLinkActive="is-active">Novo chamado</a>
-      <a routerLink="/perfil" routerLinkActive="is-active">Perfil</a>
-      @if (ehAdministrador()) {
-        <a routerLink="/admin/usuarios" routerLinkActive="is-active">Usuários</a>
-        <a routerLink="/admin/departamentos" routerLinkActive="is-active">Departamentos</a>
-        <a routerLink="/admin/categorias" routerLinkActive="is-active">Categorias</a>
-      }
-    </nav>
+<a class="skip-link" href="#conteudo-principal">Pular para o conteúdo</a>
 
-    <div class="app-header__acoes">
+<div class="app-shell" [class.app-shell--sem-nav]="!authService.isAutenticado()">
+  @if (authService.isAutenticado()) {
+    @if (menuAberto()) {
+      <div class="sidebar-backdrop" (click)="fecharMenu()"></div>
+    }
+
+    <aside class="sidebar" [class.sidebar--aberta]="menuAberto()">
+      <a class="app-header__brand sidebar__brand" routerLink="/" (click)="fecharMenu()">
+        <span class="sidebar__logo"><app-icon name="inbox" /></span>
+        {{ title() }}
+      </a>
+
+      <nav class="sidebar__nav">
+        @if (!ehCliente()) {
+          <a routerLink="/dashboard" routerLinkActive="is-active" (click)="fecharMenu()">
+            <app-icon name="dashboard" /> Dashboard
+          </a>
+        }
+        <a
+          routerLink="/chamados"
+          routerLinkActive="is-active"
+          [routerLinkActiveOptions]="{ exact: true }"
+          (click)="fecharMenu()"
+        >
+          <app-icon name="inbox" /> {{ labelChamados() }}
+        </a>
+        <a routerLink="/chamados/novo" routerLinkActive="is-active" (click)="fecharMenu()">
+          <app-icon name="plus" /> Novo chamado
+        </a>
+        <a routerLink="/perfil" routerLinkActive="is-active" (click)="fecharMenu()">
+          <app-icon name="user" /> Perfil
+        </a>
+
+        @if (ehAdministrador()) {
+          <p class="sidebar__grupo">Administração</p>
+          <a routerLink="/admin/usuarios" routerLinkActive="is-active" (click)="fecharMenu()">
+            <app-icon name="user" /> Usuários
+          </a>
+          <a routerLink="/admin/departamentos" routerLinkActive="is-active" (click)="fecharMenu()">
+            <app-icon name="building" /> Departamentos
+          </a>
+          <a routerLink="/admin/categorias" routerLinkActive="is-active" (click)="fecharMenu()">
+            <app-icon name="tag" /> Categorias
+          </a>
+        }
+      </nav>
+
+      <div class="sidebar__footer">
+        @if (nomeUsuario(); as nome) {
+          <span class="sidebar__usuario" [title]="nome">
+            <span class="sidebar__avatar">{{ nome.charAt(0) }}</span>
+            <strong>{{ nome }}</strong>
+          </span>
+        }
+
+        <div class="sidebar__footer-acoes">
+          <button
+            type="button"
+            class="icon-btn"
+            (click)="themeService.alternar()"
+            [attr.aria-label]="themeService.ehEscuro() ? 'Usar tema claro' : 'Usar tema escuro'"
+          >
+            <app-icon [name]="themeService.ehEscuro() ? 'sun' : 'moon'" />
+          </button>
+
+          <button type="button" class="icon-btn" (click)="sair()" aria-label="Sair">
+            <app-icon name="logout" />
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <header class="topbar">
+      <button type="button" class="icon-btn topbar__menu" (click)="alternarMenu()" aria-label="Abrir menu">
+        <app-icon name="menu" />
+      </button>
+
+      <div class="topbar__spacer"></div>
+
       <div class="app-header__notificacoes">
         <button
           type="button"
-          class="sino"
+          class="sino icon-btn"
           (click)="alternarNotificacoes()"
           [attr.aria-expanded]="notificacoesAbertas()"
           aria-label="Notificações"
         >
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true">
-            <path
-              d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"
-            />
-          </svg>
+          <app-icon name="bell" />
           @if (naoLidas() > 0) {
             <span class="sino__badge">{{ naoLidas() }}</span>
           }
@@ -37,9 +96,9 @@
         @if (notificacoesAbertas()) {
           <div class="sino__dropdown">
             @if (carregandoNotificacoes()) {
-              <p>Carregando...</p>
+              <p class="vazio">Carregando...</p>
             } @else if (notificacoes().length === 0) {
-              <p>Nenhuma notificação.</p>
+              <p class="vazio">Nenhuma notificação.</p>
             } @else {
               <div class="sino__acoes">
                 <button type="button" class="marcar-todas" (click)="marcarTodasComoLidas()">
@@ -57,16 +116,12 @@
           </div>
         }
       </div>
+    </header>
+  }
 
-      @if (nomeUsuario(); as nome) {
-        <span class="app-header__usuario">Logado como <strong>{{ nome }}</strong></span>
-      }
+  <main id="conteudo-principal" class="app-main">
+    <router-outlet />
+  </main>
+</div>
 
-      <button type="button" class="botao-sair" (click)="sair()">Sair</button>
-    </div>
-  </header>
-}
-
-<main class="app-main">
-  <router-outlet />
-</main>
+<app-toast-host />

@@ -4,6 +4,7 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 
 import { AuthService } from '../../core/services/auth.service';
 import { UsuarioService } from '../../core/services/usuario.service';
+import { Icon } from '../../shared/icon/icon';
 
 interface ErrorResponse {
   errors?: Record<string, string[]>;
@@ -11,7 +12,7 @@ interface ErrorResponse {
 
 @Component({
   selector: 'app-perfil',
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, Icon],
   templateUrl: './perfil.html',
   styleUrl: './perfil.scss',
 })

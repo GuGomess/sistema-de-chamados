@@ -1,180 +1,102 @@
 .usuarios-admin-wrap {
-  max-width: 960px;
-  margin: 2rem auto;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: var(--space-6);
+}
 
-  .content-head {
+.form-criar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-5) var(--space-6);
+
+  h2 {
+    margin: 0;
+  }
+}
+
+.campos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-4);
+}
+
+.form-acoes {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.departamentos-select {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.rotulo {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.opcoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+
+  .chip-check {
+    padding: 0.4rem 0.85rem;
+    border-radius: var(--radius-full);
+    border: 1px solid var(--border-default);
+    background: var(--bg-surface);
+    font-size: var(--fs-sm);
+    transition:
+      background-color var(--transition-fast),
+      border-color var(--transition-fast),
+      color var(--transition-fast);
+
+    &:hover {
+      border-color: var(--accent-300);
+    }
+
+    &.selecionado {
+      background: var(--accent-soft);
+      border-color: var(--accent-300);
+      color: var(--accent-700);
+    }
+  }
+}
+
+// Linhas de edição inline (gerenciar departamentos / alterar senha) substituem
+// a linha normal via colspan — destacadas com tinta de acento pra ficar claro
+// que a tabela está em modo de edição.
+.linha-edicao td {
+  background: color-mix(in srgb, var(--accent) 6%, var(--bg-surface));
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.painel-edicao {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-2);
+
+  label {
+    max-width: 320px;
+  }
+
+  .botoes {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-
-    h1 {
-      margin: 0;
-    }
+    gap: var(--space-2);
   }
+}
 
-  .erro {
-    color: #b00020;
-    background: #fdecea;
-    padding: 0.5rem 0.75rem;
-    border-radius: 4px;
-    font-size: 0.9rem;
-  }
-
-  .form-criar {
-    border: 1px solid #e5e5e5;
-    border-radius: 6px;
-    padding: 1rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-
-    h2 {
-      margin: 0;
-      font-size: 1rem;
-    }
-
-    .campos {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.5rem;
-      align-items: end;
-    }
-
-    label {
-      display: flex;
-      flex-direction: column;
-      gap: 0.15rem;
-      font-size: 0.75rem;
-      color: #555;
-    }
-
-    input,
-    select {
-      padding: 0.4rem;
-      font-size: 0.9rem;
-      font-family: inherit;
-    }
-
-    button {
-      padding: 0.45rem 0.9rem;
-      font-size: 0.9rem;
-      cursor: pointer;
-
-      &:disabled {
-        opacity: 0.6;
-        cursor: not-allowed;
-      }
-    }
-
-    .departamentos-select {
-      display: flex;
-      flex-direction: column;
-      gap: 0.35rem;
-
-      .rotulo {
-        font-size: 0.75rem;
-        color: #555;
-      }
-
-      .opcoes {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.75rem;
-      }
-
-      .checkbox {
-        display: flex;
-        align-items: center;
-        gap: 0.3rem;
-        font-size: 0.85rem;
-        color: inherit;
-      }
-    }
-  }
-
-  .gerenciar-departamentos {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    padding: 0.5rem 0;
-
-    .rotulo {
-      font-size: 0.8rem;
-      color: #555;
-      font-weight: 600;
-    }
-
-    .opcoes {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.75rem;
-    }
-
-    .checkbox {
-      display: flex;
-      align-items: center;
-      gap: 0.3rem;
-      font-size: 0.85rem;
-    }
-
-    .botoes {
-      display: flex;
-      gap: 0.5rem;
-
-      button {
-        padding: 0.4rem 0.8rem;
-        font-size: 0.85rem;
-        cursor: pointer;
-
-        &:disabled {
-          opacity: 0.6;
-          cursor: not-allowed;
-        }
-      }
-    }
-  }
-
-  .tabela-wrap {
-    overflow-x: auto;
-  }
-
-  table {
-    width: 100%;
-    border-collapse: collapse;
-
-    th,
-    td {
-      text-align: left;
-      padding: 0.5rem 0.6rem;
-      border-bottom: 1px solid #e5e5e5;
-      font-size: 0.9rem;
-    }
-
-    .badge {
-      display: inline-block;
-      padding: 0.1rem 0.5rem;
-      border-radius: 999px;
-      font-size: 0.7rem;
-      font-weight: 600;
-
-      &.ativo {
-        background: #dcfce7;
-        color: #166534;
-      }
-
-      &.inativo {
-        background: #fee2e2;
-        color: #b91c1c;
-      }
-
-      &.departamento {
-        background: #e0e7ff;
-        color: #3730a3;
-        margin-right: 0.25rem;
-      }
-    }
-  }
+.acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
 }

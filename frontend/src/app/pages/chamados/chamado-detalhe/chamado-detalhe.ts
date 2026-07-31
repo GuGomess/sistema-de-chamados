@@ -3,13 +3,14 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { DomSanitizer, SafeResourceUrl, SafeUrl } from '@angular/platform-browser';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { Observable } from 'rxjs';
 
 import { AuthService } from '../../../core/services/auth.service';
 import { ChamadoService } from '../../../core/services/chamado.service';
 import { DepartamentoService } from '../../../core/services/departamento.service';
 import { RealtimeService } from '../../../core/services/realtime.service';
+import { Icon } from '../../../shared/icon/icon';
 import {
   Anexo,
   Avaliacao,
@@ -47,7 +48,7 @@ interface AnexoPreview {
 
 @Component({
   selector: 'app-chamado-detalhe',
-  imports: [ReactiveFormsModule, DatePipe],
+  imports: [ReactiveFormsModule, DatePipe, RouterLink, Icon],
   templateUrl: './chamado-detalhe.html',
   styleUrl: './chamado-detalhe.scss',
 })
@@ -119,6 +120,10 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
 
   protected readonly historico = signal<Historico[]>([]);
   protected readonly carregandoHistorico = signal(true);
+  // Recolhido por padrão: chamados antigos/movimentados podem acumular
+  // dezenas de eventos, e isso empurrava comentários/anexos pra muito longe
+  // do topo da página.
+  protected readonly historicoExpandido = signal(false);
 
   // Novo fluxo de alteração de prazo: fica oculto por padrão (só a label com a
   // data) e só revela o calendário + motivo quando o usuário clica em "Alterar
@@ -363,6 +368,10 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
   // novo pro mais antigo, então a primeira ocorrência já é a mais recente).
   protected reabertoEm(): string | null {
     return this.historico().find((evento) => evento.acao === 'Reabertura')?.criadoEm ?? null;
+  }
+
+  protected toggleHistorico(): void {
+    this.historicoExpandido.update((atual) => !atual);
   }
 
   protected enviarComentario(): void {

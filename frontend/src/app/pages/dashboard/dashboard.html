@@ -1,34 +1,43 @@
 <section class="dashboard-wrap">
-  <h1>Dashboard</h1>
+  <div class="content-head">
+    <div>
+      <h1>Dashboard</h1>
+      <p class="subtitle">Indicadores de SLA e desempenho da equipe</p>
+    </div>
+  </div>
 
   @if (erro()) {
     <p class="erro" role="alert">{{ erro() }}</p>
   } @else if (carregando()) {
-    <p>Carregando indicadores...</p>
+    <p class="vazio">Carregando indicadores...</p>
   } @else if (resumo(); as r) {
     <div class="cards-sla">
       <button type="button" class="card card--vencido" (click)="verVencidos()">
+        <span class="card__icon"><app-icon name="alert-triangle" /></span>
         <span class="card__valor">{{ r.vencidos }}</span>
         <span class="card__label">Chamados vencidos</span>
+        <span class="card__seta"><app-icon name="chevron-right" /></span>
       </button>
 
       <button type="button" class="card card--risco" (click)="verEmRisco()">
+        <span class="card__icon"><app-icon name="clock" /></span>
         <span class="card__valor">{{ r.emRisco }}</span>
         <span class="card__label">Chamados em risco</span>
+        <span class="card__seta"><app-icon name="chevron-right" /></span>
       </button>
     </div>
   }
 
   <div class="metricas">
-    <div class="metricas__bloco">
+    <div class="metricas__bloco surface-card">
       <h2>Chamados por status</h2>
 
       @if (erroChamadosPorStatus()) {
         <p class="erro" role="alert">{{ erroChamadosPorStatus() }}</p>
       } @else if (carregandoChamadosPorStatus()) {
-        <p>Carregando métricas...</p>
+        <p class="vazio">Carregando métricas...</p>
       } @else if (chamadosPorStatus().length === 0) {
-        <p>Nenhum chamado no período.</p>
+        <p class="vazio">Nenhum chamado no período.</p>
       } @else {
         <div class="metricas__grafico">
           <canvas
@@ -42,15 +51,15 @@
       }
     </div>
 
-    <div class="metricas__bloco">
+    <div class="metricas__bloco surface-card">
       <h2>Produtividade por técnico</h2>
 
       @if (erroProdutividade()) {
         <p class="erro" role="alert">{{ erroProdutividade() }}</p>
       } @else if (carregandoProdutividade()) {
-        <p>Carregando métricas...</p>
+        <p class="vazio">Carregando métricas...</p>
       } @else if (produtividadeTecnicos().length === 0) {
-        <p>Nenhum dado de produtividade disponível.</p>
+        <p class="vazio">Nenhum dado de produtividade disponível.</p>
       } @else {
         <table class="tabela-produtividade">
           <thead>

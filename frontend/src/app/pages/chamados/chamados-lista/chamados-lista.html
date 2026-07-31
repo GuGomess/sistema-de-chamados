@@ -1,7 +1,10 @@
 <section class="chamados-lista-wrap">
   <div class="content-head">
     <h1>{{ ehCliente ? 'Meus chamados' : (mostrarMeus() ? 'Meus chamados' : 'Chamados') }}</h1>
-    <a class="btn" routerLink="/chamados/novo">+ Novo</a>
+    <a class="btn btn--primary" routerLink="/chamados/novo">
+      <app-icon name="plus" />
+      Novo chamado
+    </a>
   </div>
 
   @if (ehStaff) {
@@ -22,10 +25,13 @@
   }
 
   @if (carregandoOpcoes()) {
-  <p>Carregando filtros...</p>
+  <p class="dica">Carregando filtros...</p>
   } @else {
-  <form class="filtros" [formGroup]="form" (ngSubmit)="onFiltrar()" novalidate>
-    <input type="text" formControlName="q" placeholder="Buscar por título ou descrição" />
+  <form class="filtros surface-card" [formGroup]="form" (ngSubmit)="onFiltrar()" novalidate>
+    <div class="campo-busca">
+      <span class="campo-busca__icone"><app-icon name="search" /></span>
+      <input type="text" formControlName="q" placeholder="Buscar por título ou descrição" />
+    </div>
 
     <input type="number" formControlName="id" placeholder="Nº do chamado" min="1" />
 
@@ -78,28 +84,35 @@
     </select>
     }
 
-    <label>
-      De
-      <input type="date" formControlName="dataInicio" />
-    </label>
+    <div class="intervalo-datas">
+      <label>
+        De
+        <input type="date" formControlName="dataInicio" />
+      </label>
 
-    <label>
-      Até
-      <input type="date" formControlName="dataFim" />
-    </label>
+      <label>
+        Até
+        <input type="date" formControlName="dataFim" />
+      </label>
+    </div>
 
-    <label class="checkbox">
-      <input type="checkbox" formControlName="ocultarFinalizados" (change)="onFiltrar()" />
-      Esconder resolvidos
-    </label>
+    <div class="filtros-acoes">
+      <label class="checkbox">
+        <input type="checkbox" formControlName="ocultarFinalizados" (change)="onFiltrar()" />
+        Esconder resolvidos
+      </label>
 
-    <button type="submit" [disabled]="carregando()">Filtrar</button>
+      <button type="submit" class="btn btn--secondary" [disabled]="carregando()">
+        <app-icon name="filter" />
+        Filtrar
+      </button>
+    </div>
   </form>
 
   @if (carregando()) {
-  <p>Carregando chamados...</p>
+  <p class="dica">Carregando chamados...</p>
   } @else if (chamados().length === 0) {
-  <p>Nenhum chamado encontrado com os filtros selecionados.</p>
+  <p class="vazio">Nenhum chamado encontrado com os filtros selecionados.</p>
   } @else {
   <div class="tabela-wrap">
     <table>
@@ -126,10 +139,10 @@
         <tr (click)="abrirChamado(chamado)">
           <td>#{{ chamado.id }}</td>
           <td>{{ chamado.titulo }}</td>
-          <td>{{ chamado.status.nome }}</td>
+          <td><span class="chip status">{{ chamado.status.nome }}</span></td>
           @if (ehStaff) {
           <td>{{ chamado.solicitante.nome }}</td>
-          <td>{{ chamado.departamento.nome }}</td>
+          <td><span class="badge departamento">{{ chamado.departamento.nome }}</span></td>
           <td>{{ chamado.prioridade.nome }}</td>
           <td>
             @if (chamado.status.final) {
@@ -150,12 +163,16 @@
 
   @if (meta(); as m) {
   <div class="paginacao">
-    <button type="button" [disabled]="m.page <= 1" (click)="irParaPagina(m.page - 1)">
+    <button type="button" class="btn btn--secondary btn--sm" [disabled]="m.page <= 1"
+      (click)="irParaPagina(m.page - 1)">
+      <app-icon name="chevron-left" />
       Anterior
     </button>
     <span>Página {{ m.page }} de {{ m.totalPages }} ({{ m.totalItems }} chamados)</span>
-    <button type="button" [disabled]="m.page >= m.totalPages" (click)="irParaPagina(m.page + 1)">
+    <button type="button" class="btn btn--secondary btn--sm" [disabled]="m.page >= m.totalPages"
+      (click)="irParaPagina(m.page + 1)">
       Próxima
+      <app-icon name="chevron-right" />
     </button>
   </div>
   }

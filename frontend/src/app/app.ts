@@ -5,16 +5,22 @@ import { Notificacao } from './core/models/notificacao.model';
 import { AuthService } from './core/services/auth.service';
 import { NotificacaoService } from './core/services/notificacao.service';
 import { RealtimeService } from './core/services/realtime.service';
+import { ThemeService } from './core/services/theme.service';
+import { ToastService } from './core/services/toast.service';
+import { Icon } from './shared/icon/icon';
+import { ToastHost } from './shared/toast/toast';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, Icon, ToastHost],
   templateUrl: './app.html',
   styleUrl: './app.scss',
 })
 export class App {
   protected readonly authService = inject(AuthService);
   protected readonly notificacaoService = inject(NotificacaoService);
+  protected readonly themeService = inject(ThemeService);
+  private readonly toastService = inject(ToastService);
   private readonly realtimeService = inject(RealtimeService);
   private readonly router = inject(Router);
   private readonly elementRef = inject(ElementRef<HTMLElement>);
@@ -24,6 +30,9 @@ export class App {
   protected readonly notificacoesAbertas = signal(false);
   protected readonly notificacoes = signal<Notificacao[]>([]);
   protected readonly carregandoNotificacoes = signal(false);
+  // Sidebar em telas estreitas começa fechada (overlay) — em telas largas ela
+  // é sempre visível via CSS, esse estado só importa abaixo do breakpoint.
+  protected readonly menuAberto = signal(false);
 
   constructor() {
     // App é o componente raiz (sobrevive a login/logout na mesma aba) — ponto
@@ -102,7 +111,15 @@ export class App {
     this.authService.logout();
     this.notificacoesAbertas.set(false);
     this.router.navigateByUrl('/login');
-    window.alert('Sua conta foi desativada por um administrador.');
+    this.toastService.mostrar('Sua conta foi desativada por um administrador.', 'erro');
+  }
+
+  protected alternarMenu(): void {
+    this.menuAberto.update((atual) => !atual);
+  }
+
+  protected fecharMenu(): void {
+    this.menuAberto.set(false);
   }
 
   private carregarNotificacoes(): void {

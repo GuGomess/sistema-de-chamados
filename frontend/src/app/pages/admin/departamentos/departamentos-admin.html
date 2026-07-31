@@ -3,7 +3,7 @@
     <h1>Departamentos</h1>
   </div>
 
-  <form class="form-criar" [formGroup]="form" (ngSubmit)="onSubmit()" novalidate>
+  <form class="form-criar surface-card" [formGroup]="form" (ngSubmit)="onSubmit()" novalidate>
     <h2>Novo departamento</h2>
 
     @if (erroCriacao()) {
@@ -20,8 +20,10 @@
         Descrição
         <input type="text" formControlName="descricao" />
       </label>
+    </div>
 
-      <button type="submit" [disabled]="criando()">
+    <div class="form-acoes">
+      <button type="submit" class="btn btn--primary" [disabled]="criando()">
         {{ criando() ? 'Criando...' : 'Criar departamento' }}
       </button>
     </div>
@@ -36,9 +38,9 @@
   }
 
   @if (carregando()) {
-    <p>Carregando departamentos...</p>
+    <p class="vazio">Carregando departamentos...</p>
   } @else if (departamentos().length === 0) {
-    <p>Nenhum departamento cadastrado.</p>
+    <p class="vazio">Nenhum departamento cadastrado.</p>
   } @else {
     <div class="tabela-wrap">
       <table>
@@ -54,23 +56,37 @@
         <tbody>
           @for (departamento of departamentos(); track departamento.id) {
             @if (editandoId() === departamento.id) {
-              <tr>
+              <tr class="linha-edicao">
                 <td colspan="5">
-                  <form class="form-editar" [formGroup]="editForm" (ngSubmit)="salvarEdicao(departamento)" novalidate>
-                    <label>
-                      Nome
-                      <input type="text" formControlName="nome" />
-                    </label>
-                    <label>
-                      Descrição
-                      <input type="text" formControlName="descricao" />
-                    </label>
-                    <button type="submit" [disabled]="salvandoEdicao()">
-                      {{ salvandoEdicao() ? 'Salvando...' : 'Salvar' }}
-                    </button>
-                    <button type="button" (click)="cancelarEdicao()" [disabled]="salvandoEdicao()">
-                      Cancelar
-                    </button>
+                  <form
+                    class="painel-edicao"
+                    [formGroup]="editForm"
+                    (ngSubmit)="salvarEdicao(departamento)"
+                    novalidate
+                  >
+                    <div class="campos">
+                      <label>
+                        Nome
+                        <input type="text" formControlName="nome" />
+                      </label>
+                      <label>
+                        Descrição
+                        <input type="text" formControlName="descricao" />
+                      </label>
+                    </div>
+                    <div class="botoes">
+                      <button type="submit" class="btn btn--primary btn--sm" [disabled]="salvandoEdicao()">
+                        {{ salvandoEdicao() ? 'Salvando...' : 'Salvar' }}
+                      </button>
+                      <button
+                        type="button"
+                        class="btn btn--ghost btn--sm"
+                        (click)="cancelarEdicao()"
+                        [disabled]="salvandoEdicao()"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
                   </form>
                 </td>
               </tr>
@@ -85,12 +101,17 @@
                 </td>
                 <td>{{ departamento.criadoEm | date: 'dd/MM/yyyy HH:mm' }}</td>
                 <td class="acoes">
-                  <button type="button" (click)="iniciarEdicao(departamento)">Editar</button>
+                  <button type="button" class="btn btn--ghost btn--sm" (click)="iniciarEdicao(departamento)">
+                    <app-icon name="pencil" />
+                    Editar
+                  </button>
                   <button
                     type="button"
+                    class="btn btn--ghost btn--sm"
                     (click)="alternarStatus(departamento)"
                     [disabled]="alterandoStatusId() === departamento.id"
                   >
+                    <app-icon [name]="departamento.ativo ? 'x' : 'check'" />
                     {{ departamento.ativo ? 'Inativar' : 'Ativar' }}
                   </button>
                 </td>

@@ -5,6 +5,7 @@ import { Router, RouterLink } from '@angular/router';
 
 import { ROTA_POR_PERFIL } from '../../core/constants/rota-inicial';
 import { AuthService } from '../../core/services/auth.service';
+import { Icon } from '../../shared/icon/icon';
 
 function senhasIguaisValidator(control: AbstractControl): ValidationErrors | null {
   const senha = control.get('senha')?.value;
@@ -14,7 +15,7 @@ function senhasIguaisValidator(control: AbstractControl): ValidationErrors | nul
 
 @Component({
   selector: 'app-registrar',
-  imports: [ReactiveFormsModule, RouterLink],
+  imports: [ReactiveFormsModule, RouterLink, Icon],
   templateUrl: './registrar.html',
   styleUrl: './registrar.scss',
 })

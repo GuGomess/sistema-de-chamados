@@ -8,10 +8,11 @@ import { Departamento } from '../../../core/models/departamento.model';
 import { AuthService } from '../../../core/services/auth.service';
 import { DepartamentoService } from '../../../core/services/departamento.service';
 import { UsuarioService } from '../../../core/services/usuario.service';
+import { Icon } from '../../../shared/icon/icon';
 
 @Component({
   selector: 'app-usuarios-admin',
-  imports: [ReactiveFormsModule, DatePipe],
+  imports: [ReactiveFormsModule, DatePipe, Icon],
   templateUrl: './usuarios-admin.html',
   styleUrl: './usuarios-admin.scss',
 })

@@ -1,14 +1,20 @@
 .chamado-novo-wrap {
-  max-width: 480px;
-  margin: 3rem auto;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
+  max-width: 640px;
+  margin: 0 auto;
+  padding-bottom: var(--space-8);
+}
 
-  .subtitle {
-    margin: 0 0 1rem;
-    color: #666;
+.chamado-novo-head {
+  margin-bottom: var(--space-5);
+  text-align: center;
+
+  h1 {
+    margin: 0;
   }
+}
+
+.chamado-novo-card {
+  padding: var(--space-6) var(--space-6) var(--space-8);
 
   form {
     display: flex;
@@ -16,81 +22,89 @@
     gap: 0.25rem;
   }
 
+  > .erro {
+    margin-bottom: var(--space-4);
+  }
+
   label {
-    margin-top: 0.75rem;
-    font-size: 0.9rem;
+    margin-top: var(--space-4);
   }
 
-  input,
-  select,
-  textarea {
-    padding: 0.5rem;
-    font-size: 1rem;
-    font-family: inherit;
+  label:first-child {
+    margin-top: 0;
+  }
+}
+
+.campo-duplo {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 var(--space-4);
+
+  @media (max-width: 480px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.anexos-label {
+  width: fit-content;
+  cursor: pointer;
+
+  .icon {
+    color: var(--text-tertiary);
   }
 
-  textarea {
-    resize: vertical;
+  // O input real fica escondido — o label (já estilizado como botão) é quem
+  // dispara o seletor de arquivos nativamente, sem precisar de JS pra isso.
+  input[type='file'] {
+    display: none;
   }
 
-  .campo-erro {
-    color: #b00020;
-    font-size: 0.8rem;
+  &:has(input:disabled) {
+    opacity: 0.55;
+    cursor: not-allowed;
   }
+}
 
-  .lista-arquivos-staged {
-    list-style: none;
-    margin: 0.4rem 0 0;
-    padding: 0;
+.lista-arquivos-staged {
+  list-style: none;
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+
+  li {
     display: flex;
-    flex-direction: column;
-    gap: 0.3rem;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    background: var(--bg-muted);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    font-size: var(--fs-sm);
+  }
 
-    li {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 0.5rem;
-      padding: 0.35rem 0.6rem;
-      background: #f5f7fa;
-      border-radius: 4px;
-      font-size: 0.85rem;
+  .arquivo-nome {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+    word-break: break-all;
+    color: var(--text-primary);
 
-      span {
-        word-break: break-all;
-      }
+    .icon {
+      flex-shrink: 0;
+      color: var(--text-tertiary);
+    }
 
-      button {
-        flex-shrink: 0;
-        padding: 0.25rem 0.6rem;
-        font-size: 0.8rem;
-        cursor: pointer;
-
-        &:disabled {
-          opacity: 0.6;
-          cursor: not-allowed;
-        }
-      }
+    small {
+      flex-shrink: 0;
+      color: var(--text-tertiary);
     }
   }
+}
 
-  .erro {
-    color: #b00020;
-    background: #fdecea;
-    padding: 0.5rem 0.75rem;
-    border-radius: 4px;
-    font-size: 0.9rem;
-  }
-
-  button {
-    margin-top: 1.25rem;
-    padding: 0.6rem;
-    font-size: 1rem;
-    cursor: pointer;
-
-    &:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-    }
-  }
+button[type='submit'] {
+  margin-top: var(--space-6);
 }

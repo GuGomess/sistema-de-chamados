@@ -1,60 +1,134 @@
-.login-wrap {
-  max-width: 320px;
-  margin: 4rem auto;
+// Página de login: renderiza fora do shell autenticado (sem sidebar/topbar),
+// ocupando a viewport inteira sozinha — ver .app-shell--sem-nav em app.scss.
+.auth-page {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100dvh;
+  padding: var(--space-6);
+  overflow: hidden;
+
+  // Toque de marca sutil: um brilho suave da cor de acento ao fundo da
+  // página, não um "gradiente roxo de IA" cobrindo tudo.
+  &::before {
+    content: '';
+    position: absolute;
+    top: -18%;
+    left: 50%;
+    width: min(60rem, 140vw);
+    height: 34rem;
+    transform: translateX(-50%);
+    background: radial-gradient(
+      50% 50% at 50% 50%,
+      color-mix(in srgb, var(--accent) 20%, transparent),
+      transparent 70%
+    );
+    pointer-events: none;
+  }
+}
+
+.auth-card {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 380px;
+  padding: var(--space-8) var(--space-6);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+  text-align: center;
+  animation: auth-card-in var(--transition-spring);
+}
+
+.auth-card__brand {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-5);
+}
+
+.auth-card__mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: var(--radius-lg);
+  background: var(--accent);
+  color: var(--on-accent);
+  box-shadow: var(--shadow-md);
+
+  .icon {
+    width: 1.4rem;
+    height: 1.4rem;
+  }
+}
+
+.auth-card__brand-name {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.auth-card {
+  h1 {
+    font-size: var(--fs-2xl);
+  }
 
   .subtitle {
-    margin: 0 0 1rem;
-    color: #666;
+    margin-bottom: var(--space-5);
+  }
+
+  .erro {
+    margin-bottom: var(--space-4);
+    text-align: left;
   }
 
   form {
     display: flex;
     flex-direction: column;
-    gap: 0.25rem;
+    gap: var(--space-4);
+    text-align: left;
   }
+}
 
-  label {
-    margin-top: 0.75rem;
-    font-size: 0.9rem;
-  }
+.campo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
 
-  input {
-    padding: 0.5rem;
-    font-size: 1rem;
-  }
+.auth-card__footer {
+  margin-top: var(--space-5);
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
 
-  .campo-erro {
-    color: #b00020;
-    font-size: 0.8rem;
-  }
+  a {
+    font-weight: 600;
+    text-decoration: none;
 
-  .erro {
-    color: #b00020;
-    background: #fdecea;
-    padding: 0.5rem 0.75rem;
-    border-radius: 4px;
-    font-size: 0.9rem;
-  }
-
-  button {
-    margin-top: 1.25rem;
-    padding: 0.6rem;
-    font-size: 1rem;
-    cursor: pointer;
-
-    &:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
+    &:hover {
+      text-decoration: underline;
     }
   }
+}
 
-  .link-registrar {
-    margin-top: 1rem;
-    font-size: 0.85rem;
-    text-align: center;
-    color: #1a56db;
+@keyframes auth-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 420px) {
+  .auth-card {
+    padding: var(--space-6) var(--space-4);
   }
 }

@@ -8,10 +8,11 @@ import { ChamadoPorStatus, ProdutividadeTecnico } from '../../core/models/metric
 import { ChamadoService } from '../../core/services/chamado.service';
 import { MetricaService } from '../../core/services/metrica.service';
 import { RealtimeService } from '../../core/services/realtime.service';
+import { Icon } from '../../shared/icon/icon';
 
 @Component({
   selector: 'app-dashboard',
-  imports: [BaseChartDirective],
+  imports: [BaseChartDirective, Icon],
   templateUrl: './dashboard.html',
   styleUrl: './dashboard.scss',
 })
@@ -33,18 +34,60 @@ export class Dashboard implements OnInit {
   protected readonly erroProdutividade = signal<string | null>(null);
 
   protected readonly statusChartType = 'doughnut' as const;
+
+  // Paleta categórica alinhada ao design system: acento + semânticas do
+  // styles.scss, lidas em tempo de execução (com fallback para o hex atual
+  // dos tokens) para acompanhar automaticamente o tema claro/escuro vigente
+  // no momento em que o gráfico é montado.
   protected readonly statusChartOptions: ChartConfiguration<'doughnut'>['options'] = {
     responsive: true,
+    maintainAspectRatio: false,
+    cutout: '68%',
+    plugins: {
+      legend: {
+        position: 'bottom',
+        labels: {
+          color: this.corTema('--text-secondary', '#565d78'),
+          usePointStyle: true,
+          pointStyle: 'circle',
+          boxWidth: 8,
+          boxHeight: 8,
+          padding: 16,
+          font: { family: 'Plus Jakarta Sans Variable, sans-serif', size: 12, weight: 600 },
+        },
+      },
+      tooltip: {
+        backgroundColor: this.corTema('--bg-surface', '#ffffff'),
+        titleColor: this.corTema('--text-primary', '#161a2b'),
+        bodyColor: this.corTema('--text-secondary', '#565d78'),
+        borderColor: this.corTema('--border-subtle', '#e4e7f0'),
+        borderWidth: 1,
+        padding: 10,
+        cornerRadius: 8,
+        displayColors: true,
+        boxPadding: 4,
+      },
+    },
   };
 
-  protected readonly statusChartData = computed<ChartData<'doughnut'>>(() => ({
-    labels: this.chamadosPorStatus().map((item) => item.statusNome),
-    datasets: [
-      {
-        data: this.chamadosPorStatus().map((item) => item.quantidade),
-      },
-    ],
-  }));
+  protected readonly statusChartData = computed<ChartData<'doughnut'>>(() => {
+    const dados = this.chamadosPorStatus();
+    const paleta = this.paletaCategorica();
+    const contorno = this.corTema('--bg-surface', '#ffffff');
+
+    return {
+      labels: dados.map((item) => item.statusNome),
+      datasets: [
+        {
+          data: dados.map((item) => item.quantidade),
+          backgroundColor: dados.map((_, i) => paleta[i % paleta.length]),
+          borderColor: contorno,
+          borderWidth: 2,
+          hoverOffset: 8,
+        },
+      ],
+    };
+  });
 
   ngOnInit(): void {
     this.carregarResumo();
@@ -109,5 +152,31 @@ export class Dashboard implements OnInit {
 
   protected formatarHoras(horas: number | null): string {
     return horas === null ? '—' : horas.toFixed(1);
+  }
+
+  // Lê uma CSS custom property do sistema de design em tempo de execução
+  // (acompanha o tema claro/escuro aplicado no momento), com fallback para o
+  // valor padrão do token — necessário em ambientes sem `document` (SSR) ou
+  // quando a folha global ainda não foi computada (ex.: testes).
+  private corTema(variavel: string, fallback: string): string {
+    if (typeof document === 'undefined') {
+      return fallback;
+    }
+    const valor = getComputedStyle(document.documentElement).getPropertyValue(variavel).trim();
+    return valor || fallback;
+  }
+
+  // Ordem fixa de cores categóricas para identidade de status — nunca por
+  // hex "cru": índigo (acento do produto) seguido das semânticas do design
+  // system, evitando as cores padrão do Chart.js.
+  private paletaCategorica(): string[] {
+    return [
+      this.corTema('--accent-500', '#6366f1'),
+      this.corTema('--info', '#0369a1'),
+      this.corTema('--warning', '#b45309'),
+      this.corTema('--success', '#15803d'),
+      this.corTema('--danger', '#dc2626'),
+      this.corTema('--accent-300', '#a5b4fc'),
+    ];
   }
 }

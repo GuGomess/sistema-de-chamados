@@ -3,8 +3,14 @@
     <h1>Perfil</h1>
   </div>
 
-  <form class="form-secao" [formGroup]="dadosForm" (ngSubmit)="salvarDados()" novalidate>
-    <h2>Dados pessoais</h2>
+  <form class="form-secao surface-card" [formGroup]="dadosForm" (ngSubmit)="salvarDados()" novalidate>
+    <div class="form-secao-head">
+      <span class="form-secao-icon"><app-icon name="user" /></span>
+      <div>
+        <h2>Dados pessoais</h2>
+        <p class="subtitle">Atualize seu nome e e-mail de contato</p>
+      </div>
+    </div>
 
     @if (erroDados()) {
       <p class="erro" role="alert">{{ erroDados() }}</p>
@@ -23,13 +29,19 @@
       <input type="email" formControlName="email" />
     </label>
 
-    <button type="submit" [disabled]="salvandoDados()">
+    <button type="submit" class="btn btn--primary" [disabled]="salvandoDados()">
       {{ salvandoDados() ? 'Salvando...' : 'Salvar dados' }}
     </button>
   </form>
 
-  <form class="form-secao" [formGroup]="senhaForm" (ngSubmit)="salvarSenha()" novalidate>
-    <h2>Alterar senha</h2>
+  <form class="form-secao surface-card" [formGroup]="senhaForm" (ngSubmit)="salvarSenha()" novalidate>
+    <div class="form-secao-head">
+      <span class="form-secao-icon"><app-icon name="settings" /></span>
+      <div>
+        <h2>Alterar senha</h2>
+        <p class="subtitle">Use uma senha com pelo menos 6 caracteres</p>
+      </div>
+    </div>
 
     @if (erroSenha()) {
       <p class="erro" role="alert">{{ erroSenha() }}</p>
@@ -48,7 +60,7 @@
       <input type="password" formControlName="novaSenha" autocomplete="new-password" />
     </label>
 
-    <button type="submit" [disabled]="salvandoSenha()">
+    <button type="submit" class="btn btn--primary" [disabled]="salvandoSenha()">
       {{ salvandoSenha() ? 'Salvando...' : 'Alterar senha' }}
     </button>
   </form>

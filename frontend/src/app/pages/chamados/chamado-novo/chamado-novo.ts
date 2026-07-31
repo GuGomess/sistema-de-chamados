@@ -7,6 +7,7 @@ import { catchError, forkJoin, of } from 'rxjs';
 import { AuthService } from '../../../core/services/auth.service';
 import { ChamadoService } from '../../../core/services/chamado.service';
 import { Categoria, Prioridade } from '../../../core/models/chamado.model';
+import { Icon } from '../../../shared/icon/icon';
 
 interface ErrorResponse {
   errors?: Record<string, string[]>;
@@ -14,7 +15,7 @@ interface ErrorResponse {
 
 @Component({
   selector: 'app-chamado-novo',
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, Icon],
   templateUrl: './chamado-novo.html',
   styleUrl: './chamado-novo.scss',
 })

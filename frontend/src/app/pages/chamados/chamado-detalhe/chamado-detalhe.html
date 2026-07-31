@@ -1,9 +1,13 @@
 <section class="chamado-detalhe-wrap">
   @if (carregando()) {
-    <p>Carregando chamado...</p>
+    <p class="vazio">Carregando chamado...</p>
   } @else if (erro()) {
     <p class="erro" role="alert">{{ erro() }}</p>
   } @else if (chamado(); as chamado) {
+    <a class="voltar" routerLink="/chamados">
+      <app-icon name="arrow-left" /> Chamados
+    </a>
+
     <div class="content-head">
       <h1>#{{ chamado.id }} · {{ chamado.titulo }}</h1>
       <span class="chip status">{{ chamado.status.nome }}</span>
@@ -14,24 +18,24 @@
 
     <div class="sla-strip">
       <div class="sla-i">
-        <span class="l">Solicitante</span>
+        <span class="l"><app-icon name="user" />Solicitante</span>
         <span class="v">{{ chamado.solicitante.nome }}</span>
       </div>
       <div class="sla-i">
-        <span class="l">Técnico</span>
+        <span class="l"><app-icon name="user" />Técnico</span>
         <span class="v">{{ chamado.tecnico?.nome ?? 'Não atribuído' }}</span>
       </div>
       @if (!ehCliente()) {
         <div class="sla-i">
-          <span class="l">Categoria</span>
+          <span class="l"><app-icon name="tag" />Categoria</span>
           <span class="v">{{ chamado.categoria.nome }}</span>
         </div>
         <div class="sla-i">
-          <span class="l">Departamento</span>
+          <span class="l"><app-icon name="building" />Departamento</span>
           <span class="v">{{ chamado.departamento.nome }}</span>
         </div>
         <div class="sla-i">
-          <span class="l">Prazo resposta</span>
+          <span class="l"><app-icon name="clock" />Prazo resposta</span>
           <span class="v">
             {{ chamado.prazoResposta ? (chamado.prazoResposta | date: 'dd/MM/yyyy HH:mm') : '—' }}
             @if (chamado.prazoResposta && chamado.situacaoSlaResposta !== 'EmDia') {
@@ -40,7 +44,12 @@
               }}</span>
             }
             @if (podeAjustarPrazo()) {
-              <button type="button" class="btn-alterar-prazo" [disabled]="salvando()" (click)="toggleEdicaoPrazoResposta()">
+              <button
+                type="button"
+                class="btn-alterar-prazo"
+                [disabled]="salvando()"
+                (click)="toggleEdicaoPrazoResposta()"
+              >
                 {{ editandoPrazoResposta() ? 'Cancelar' : 'Alterar prazo' }}
               </button>
             }
@@ -52,14 +61,21 @@
                 <input type="datetime-local" formControlName="prazoResposta" [disabled]="salvando()" />
               </label>
               <div class="prazo-edicao-acoes">
-                <button type="submit" [disabled]="salvando()">Confirmar</button>
-                <button type="button" [disabled]="salvando()" (click)="cancelarEdicaoPrazoResposta()">Cancelar</button>
+                <button type="submit" class="btn btn--primary btn--sm" [disabled]="salvando()">Confirmar</button>
+                <button
+                  type="button"
+                  class="btn btn--secondary btn--sm"
+                  [disabled]="salvando()"
+                  (click)="cancelarEdicaoPrazoResposta()"
+                >
+                  Cancelar
+                </button>
               </div>
             </form>
           }
         </div>
         <div class="sla-i">
-          <span class="l">Prazo resolução</span>
+          <span class="l"><app-icon name="clock" />Prazo resolução</span>
           <span class="v">
             {{ chamado.prazoResolucao ? (chamado.prazoResolucao | date: 'dd/MM/yyyy HH:mm') : '—' }}
             @if (chamado.prazoResolucao && chamado.situacaoSlaResolucao !== 'EmDia') {
@@ -68,7 +84,12 @@
               }}</span>
             }
             @if (podeAjustarPrazo()) {
-              <button type="button" class="btn-alterar-prazo" [disabled]="salvando()" (click)="toggleEdicaoPrazoResolucao()">
+              <button
+                type="button"
+                class="btn-alterar-prazo"
+                [disabled]="salvando()"
+                (click)="toggleEdicaoPrazoResolucao()"
+              >
                 {{ editandoPrazoResolucao() ? 'Cancelar' : 'Alterar prazo' }}
               </button>
             }
@@ -89,8 +110,15 @@
                 ></textarea>
               </label>
               <div class="prazo-edicao-acoes">
-                <button type="submit" [disabled]="salvando()">Confirmar</button>
-                <button type="button" [disabled]="salvando()" (click)="cancelarEdicaoPrazoResolucao()">Cancelar</button>
+                <button type="submit" class="btn btn--primary btn--sm" [disabled]="salvando()">Confirmar</button>
+                <button
+                  type="button"
+                  class="btn btn--secondary btn--sm"
+                  [disabled]="salvando()"
+                  (click)="cancelarEdicaoPrazoResolucao()"
+                >
+                  Cancelar
+                </button>
               </div>
             </form>
           }
@@ -103,7 +131,7 @@
     }
 
     <div class="corpo">
-      <div class="descricao">
+      <div class="descricao surface-card">
         <div class="descricao-head">
           <h2>Descrição</h2>
           @if (chamado.conteudoEditado) {
@@ -117,10 +145,12 @@
         @if ((podeEditarConteudo() && !editandoConteudo()) || podeOcultarDescricao()) {
           <div class="linha-acoes">
             @if (podeEditarConteudo() && !editandoConteudo()) {
-              <button type="button" [disabled]="salvando()" (click)="iniciarEdicaoConteudo()">Editar</button>
+              <button type="button" class="btn btn--secondary btn--sm" [disabled]="salvando()" (click)="iniciarEdicaoConteudo()">
+                <app-icon name="pencil" /> Editar
+              </button>
             }
             @if (podeOcultarDescricao()) {
-              <button type="button" [disabled]="salvando()" (click)="ocultarDescricaoChamado()">
+              <button type="button" class="btn btn--secondary btn--sm" [disabled]="salvando()" (click)="ocultarDescricaoChamado()">
                 {{ chamado.descricaoOculta ? 'Reexibir descrição' : 'Ocultar descrição' }}
               </button>
             }
@@ -138,12 +168,12 @@
               <textarea formControlName="descricao" rows="4" [disabled]="salvando()"></textarea>
             </label>
             <div class="edicao-acoes">
-              <button type="submit" [disabled]="salvando()">Salvar</button>
-              <button type="button" [disabled]="salvando()" (click)="cancelarEdicaoConteudo()">Cancelar</button>
+              <button type="submit" class="btn btn--primary btn--sm" [disabled]="salvando()">Salvar</button>
+              <button type="button" class="btn btn--secondary btn--sm" [disabled]="salvando()" (click)="cancelarEdicaoConteudo()">Cancelar</button>
             </div>
           </form>
         } @else {
-          <p>{{ chamado.descricao }}</p>
+          <p class="descricao-texto">{{ chamado.descricao }}</p>
         }
 
         <p class="meta">
@@ -156,7 +186,7 @@
       </div>
 
       @if (podeAssumir() || podeReabrir() || podeAlterarStatus() || podeAjustarPrazo() || podeFecharComoCliente() || podeEncaminhar() || podeDevolverHelpDesk()) {
-        <aside class="acoes">
+        <aside class="acoes surface-card">
           <h2>Ações</h2>
 
           @if (acaoErro()) {
@@ -164,11 +194,15 @@
           }
 
           @if (podeAssumir()) {
-            <button type="button" [disabled]="salvando()" (click)="assumir()">Assumir chamado</button>
+            <button type="button" class="btn btn--primary" [disabled]="salvando()" (click)="assumir()">
+              <app-icon name="check" /> Assumir chamado
+            </button>
           }
 
           @if (podeReabrir()) {
-            <button type="button" [disabled]="salvando()" (click)="reabrir()">Reabrir chamado</button>
+            <button type="button" class="btn btn--secondary" [disabled]="salvando()" (click)="reabrir()">
+              <app-icon name="undo" /> Reabrir chamado
+            </button>
           }
 
           @if (podeAlterarStatus()) {
@@ -227,7 +261,9 @@
                 Motivo (opcional)
                 <textarea formControlName="motivo" rows="2" placeholder="Motivo do fechamento"></textarea>
               </label>
-              <button type="submit" [disabled]="salvando()">Fechar chamado</button>
+              <button type="submit" class="btn btn--secondary" [disabled]="salvando()">
+                <app-icon name="x" /> Fechar chamado
+              </button>
             </form>
           }
 
@@ -246,8 +282,8 @@
           }
 
           @if (podeDevolverHelpDesk()) {
-            <button type="button" [disabled]="salvando()" (click)="toggleDevolverHelpDesk()">
-              {{ devolvendoHelpDesk() ? 'Cancelar' : 'Devolver ao HelpDesk' }}
+            <button type="button" class="btn btn--secondary" [disabled]="salvando()" (click)="toggleDevolverHelpDesk()">
+              <app-icon name="undo" /> {{ devolvendoHelpDesk() ? 'Cancelar' : 'Devolver ao HelpDesk' }}
             </button>
             @if (devolvendoHelpDesk()) {
               <form [formGroup]="devolverHelpDeskForm" (ngSubmit)="devolverAoHelpDesk()" novalidate class="prazo-form">
@@ -260,7 +296,7 @@
                     [disabled]="salvando()"
                   ></textarea>
                 </label>
-                <button type="submit" [disabled]="salvando()">Confirmar</button>
+                <button type="submit" class="btn btn--primary btn--sm" [disabled]="salvando()">Confirmar</button>
               </form>
             }
           }
@@ -268,136 +304,182 @@
       }
     </div>
 
-    <section class="historico">
-      <h2>Histórico</h2>
+    <section class="anexos surface-card">
+      <h2>Anexos</h2>
 
-      @if (carregandoHistorico()) {
-        <p>Carregando histórico...</p>
-      } @else if (historico().length === 0) {
-        <p class="vazio">Nenhum evento registrado ainda.</p>
+      @if (carregandoAnexos()) {
+        <p class="vazio">Carregando anexos...</p>
+      } @else if (anexos().length === 0) {
+        <p class="vazio">Nenhum anexo ainda.</p>
       } @else {
-        <ul class="lista-historico">
-          @for (evento of historico(); track evento.id) {
-            <li class="evento-historico">
-              <div class="evento-head">
-                <span class="acao">{{ evento.acao }}</span>
-                <span class="data">{{ evento.criadoEm | date: 'dd/MM/yyyy HH:mm' }}</span>
+        <ul class="lista-anexos">
+          @for (anexo of anexos(); track anexo.id) {
+            <li class="anexo">
+              @if (anexoThumbUrl(anexo.id); as thumb) {
+                <img
+                  class="anexo-thumb"
+                  [src]="thumb"
+                  [alt]="anexo.nomeArquivo"
+                  (click)="visualizarAnexo(anexo)"
+                />
+              } @else {
+                <span class="anexo-thumb anexo-thumb--icone"><app-icon name="document" /></span>
+              }
+              <div class="anexo-info">
+                <span class="nome">{{ anexo.nomeArquivo }}</span>
+                <span class="meta-anexo">
+                  {{ formatarTamanho(anexo.tamanhoBytes) }} · {{ anexo.autor.nome }} ·
+                  {{ anexo.criadoEm | date: 'dd/MM/yyyy HH:mm' }}
+                  @if (anexo.editado) {
+                    · Editado
+                  }
+                </span>
               </div>
-              <p class="meta">{{ evento.autor.nome }}</p>
-              @if (evento.acao === 'Departamento alterado' || evento.acao === 'Devolvido ao HelpDesk') {
-                <p class="detalhe">
-                  {{ evento.departamentoAnterior?.nome ?? '—' }} → {{ evento.departamentoNovo?.nome ?? '—' }}
-                </p>
-              }
-              @if (evento.detalhe) {
-                <p class="detalhe">{{ evento.detalhe }}</p>
-              }
+              <div class="anexo-acoes">
+                @if (anexo.tipoMime === 'application/pdf') {
+                  <button type="button" class="btn btn--ghost btn--sm" (click)="visualizarAnexo(anexo)">Visualizar</button>
+                }
+                <button type="button" class="btn btn--ghost btn--sm" (click)="baixarAnexo(anexo)">
+                  <app-icon name="download" />
+                </button>
+                @if (podeSubstituirAnexo(anexo)) {
+                  <label class="substituir-anexo btn btn--ghost btn--sm">
+                    Substituir
+                    <input
+                      type="file"
+                      (change)="substituirAnexo(anexo, $event)"
+                      [disabled]="substituindoAnexoId() === anexo.id"
+                    />
+                  </label>
+                }
+              </div>
             </li>
           }
         </ul>
       }
+
+      @if (anexoErro()) {
+        <p class="erro" role="alert">{{ anexoErro() }}</p>
+      }
+
+      <label class="upload-anexo">
+        <app-icon name="paper-clip" /> Enviar novo anexo
+        <input type="file" (change)="enviarAnexo($event)" [disabled]="enviandoAnexo()" />
+      </label>
+      @if (enviandoAnexo()) {
+        <p class="enviando">Enviando arquivo...</p>
+      }
     </section>
 
-    <section class="comentarios">
+    <section class="comentarios surface-card">
       <h2>Comentários</h2>
 
       @if (carregandoComentarios()) {
-        <p>Carregando comentários...</p>
+        <p class="vazio">Carregando comentários...</p>
       } @else if (comentarios().length === 0) {
         <p class="vazio">Nenhum comentário ainda.</p>
       } @else {
         <ul class="lista-comentarios">
           @for (comentario of comentarios(); track comentario.id) {
             <li class="comentario" [class.interno]="comentario.interno" [class.oculta]="comentario.oculta">
-              <div class="comentario-head">
-                <span class="autor">{{ comentario.autor.nome }}</span>
-                @if (comentario.interno) {
-                  <span class="badge interno">Nota interna</span>
-                }
-                @if (comentario.oculta) {
-                  <span class="badge oculta">Oculto</span>
-                }
-                <span class="data">
-                  {{ comentario.criadoEm | date: 'dd/MM/yyyy HH:mm' }}
-                  @if (comentario.editado) {
-                    · Editado
+              <span class="avatar-mini">{{ comentario.autor.nome.charAt(0) }}</span>
+              <div class="comentario-corpo">
+                <div class="comentario-head">
+                  <span class="autor">{{ comentario.autor.nome }}</span>
+                  @if (comentario.interno) {
+                    <span class="badge interno">Nota interna</span>
                   }
-                </span>
-              </div>
-
-              @if (editandoComentarioId() === comentario.id) {
-                <form
-                  [formGroup]="comentarioEdicaoForm"
-                  (ngSubmit)="salvarEdicaoComentario(comentario)"
-                  novalidate
-                  class="form-comentario-edicao"
-                >
-                  <label>
-                    Mensagem
-                    <textarea formControlName="mensagem" rows="3"></textarea>
-                  </label>
-                  <div class="edicao-acoes">
-                    <button type="submit" [disabled]="enviandoComentario()">Salvar</button>
-                    <button type="button" [disabled]="enviandoComentario()" (click)="cancelarEdicaoComentario()">Cancelar</button>
-                  </div>
-                </form>
-              } @else {
-                <p class="mensagem">{{ comentario.mensagem }}</p>
-                @if (podeEditarComentario(comentario) || ehAdministrador()) {
-                  <div class="linha-acoes">
-                    @if (podeEditarComentario(comentario)) {
-                      <button type="button" (click)="iniciarEdicaoComentario(comentario)">Editar</button>
+                  @if (comentario.oculta) {
+                    <span class="badge oculta">Oculto</span>
+                  }
+                  <span class="data">
+                    {{ comentario.criadoEm | date: 'dd/MM/yyyy HH:mm' }}
+                    @if (comentario.editado) {
+                      · Editado
                     }
-                    @if (ehAdministrador()) {
-                      <button type="button" (click)="ocultarComentario(comentario)">
-                        {{ comentario.oculta ? 'Reexibir' : 'Ocultar' }}
-                      </button>
-                    }
-                  </div>
-                }
-              }
+                  </span>
+                </div>
 
-              @if (comentario.anexos.length > 0) {
-                <ul class="lista-anexos">
-                  @for (anexo of comentario.anexos; track anexo.id) {
-                    <li class="anexo">
-                      @if (anexoThumbUrl(anexo.id); as thumb) {
-                        <img
-                          class="anexo-thumb"
-                          [src]="thumb"
-                          [alt]="anexo.nomeArquivo"
-                          (click)="visualizarAnexo(anexo)"
-                        />
+                @if (editandoComentarioId() === comentario.id) {
+                  <form
+                    [formGroup]="comentarioEdicaoForm"
+                    (ngSubmit)="salvarEdicaoComentario(comentario)"
+                    novalidate
+                    class="form-comentario-edicao"
+                  >
+                    <label>
+                      Mensagem
+                      <textarea formControlName="mensagem" rows="3"></textarea>
+                    </label>
+                    <div class="edicao-acoes">
+                      <button type="submit" class="btn btn--primary btn--sm" [disabled]="enviandoComentario()">Salvar</button>
+                      <button type="button" class="btn btn--secondary btn--sm" [disabled]="enviandoComentario()" (click)="cancelarEdicaoComentario()">Cancelar</button>
+                    </div>
+                  </form>
+                } @else {
+                  <p class="mensagem">{{ comentario.mensagem }}</p>
+                  @if (podeEditarComentario(comentario) || ehAdministrador()) {
+                    <div class="linha-acoes">
+                      @if (podeEditarComentario(comentario)) {
+                        <button type="button" class="btn btn--ghost btn--sm" (click)="iniciarEdicaoComentario(comentario)">
+                          <app-icon name="pencil" /> Editar
+                        </button>
                       }
-                      <div class="anexo-info">
-                        <span class="nome">{{ anexo.nomeArquivo }}</span>
-                        <span class="meta-anexo">
-                          {{ formatarTamanho(anexo.tamanhoBytes) }}
-                          @if (anexo.editado) {
-                            · Editado
-                          }
-                        </span>
-                      </div>
-                      <div class="anexo-acoes">
-                        @if (anexo.tipoMime === 'application/pdf') {
-                          <button type="button" (click)="visualizarAnexo(anexo)">Visualizar</button>
-                        }
-                        <button type="button" (click)="baixarAnexo(anexo)">Baixar</button>
-                        @if (podeSubstituirAnexo(anexo)) {
-                          <label class="substituir-anexo">
-                            Substituir arquivo
-                            <input
-                              type="file"
-                              (change)="substituirAnexo(anexo, $event)"
-                              [disabled]="substituindoAnexoId() === anexo.id"
-                            />
-                          </label>
-                        }
-                      </div>
-                    </li>
+                      @if (ehAdministrador()) {
+                        <button type="button" class="btn btn--ghost btn--sm" (click)="ocultarComentario(comentario)">
+                          {{ comentario.oculta ? 'Reexibir' : 'Ocultar' }}
+                        </button>
+                      }
+                    </div>
                   }
-                </ul>
-              }
+                }
+
+                @if (comentario.anexos.length > 0) {
+                  <ul class="lista-anexos">
+                    @for (anexo of comentario.anexos; track anexo.id) {
+                      <li class="anexo">
+                        @if (anexoThumbUrl(anexo.id); as thumb) {
+                          <img
+                            class="anexo-thumb"
+                            [src]="thumb"
+                            [alt]="anexo.nomeArquivo"
+                            (click)="visualizarAnexo(anexo)"
+                          />
+                        } @else {
+                          <span class="anexo-thumb anexo-thumb--icone"><app-icon name="document" /></span>
+                        }
+                        <div class="anexo-info">
+                          <span class="nome">{{ anexo.nomeArquivo }}</span>
+                          <span class="meta-anexo">
+                            {{ formatarTamanho(anexo.tamanhoBytes) }}
+                            @if (anexo.editado) {
+                              · Editado
+                            }
+                          </span>
+                        </div>
+                        <div class="anexo-acoes">
+                          @if (anexo.tipoMime === 'application/pdf') {
+                            <button type="button" class="btn btn--ghost btn--sm" (click)="visualizarAnexo(anexo)">Visualizar</button>
+                          }
+                          <button type="button" class="btn btn--ghost btn--sm" (click)="baixarAnexo(anexo)">
+                            <app-icon name="download" />
+                          </button>
+                          @if (podeSubstituirAnexo(anexo)) {
+                            <label class="substituir-anexo btn btn--ghost btn--sm">
+                              Substituir
+                              <input
+                                type="file"
+                                (change)="substituirAnexo(anexo, $event)"
+                                [disabled]="substituindoAnexoId() === anexo.id"
+                              />
+                            </label>
+                          }
+                        </div>
+                      </li>
+                    }
+                  </ul>
+                }
+              </div>
             </li>
           }
         </ul>
@@ -421,7 +503,7 @@
         }
 
         <label class="upload-anexo">
-          Anexar arquivo(s)
+          <app-icon name="paper-clip" /> Anexar arquivo(s)
           <input type="file" multiple (change)="selecionarArquivosComentario($event)" [disabled]="enviandoComentario()" />
         </label>
 
@@ -431,22 +513,69 @@
               <li>
                 <span class="nome">{{ arquivo.name }}</span>
                 <span class="meta-anexo">{{ formatarTamanho(arquivo.size) }}</span>
-                <button type="button" (click)="removerArquivoComentario(i)">Remover</button>
+                <button type="button" class="icon-btn" (click)="removerArquivoComentario(i)" aria-label="Remover arquivo">
+                  <app-icon name="x" />
+                </button>
               </li>
             }
           </ul>
         }
 
-        <button type="submit" [disabled]="enviandoComentario()">Comentar</button>
+        <button type="submit" class="btn btn--primary" [disabled]="enviandoComentario()">Comentar</button>
       </form>
     </section>
 
+    <section class="historico surface-card">
+      <h2>
+        <button
+          type="button"
+          class="historico-toggle"
+          (click)="toggleHistorico()"
+          [attr.aria-expanded]="historicoExpandido()"
+        >
+          <span>Histórico</span>
+          @if (historico().length > 0) {
+            <span class="badge">{{ historico().length }}</span>
+          }
+          <app-icon [name]="historicoExpandido() ? 'chevron-up' : 'chevron-down'" />
+        </button>
+      </h2>
+
+      @if (historicoExpandido()) {
+        @if (carregandoHistorico()) {
+          <p class="vazio">Carregando histórico...</p>
+        } @else if (historico().length === 0) {
+          <p class="vazio">Nenhum evento registrado ainda.</p>
+        } @else {
+          <ul class="lista-historico timeline">
+            @for (evento of historico(); track evento.id) {
+              <li class="evento-historico">
+                <div class="evento-head">
+                  <span class="acao">{{ evento.acao }}</span>
+                  <span class="data">{{ evento.criadoEm | date: 'dd/MM/yyyy HH:mm' }}</span>
+                </div>
+                <p class="meta">{{ evento.autor.nome }}</p>
+                @if (evento.acao === 'Departamento alterado' || evento.acao === 'Devolvido ao HelpDesk') {
+                  <p class="detalhe">
+                    {{ evento.departamentoAnterior?.nome ?? '—' }} → {{ evento.departamentoNovo?.nome ?? '—' }}
+                  </p>
+                }
+                @if (evento.detalhe) {
+                  <p class="detalhe">{{ evento.detalhe }}</p>
+                }
+              </li>
+            }
+          </ul>
+        }
+      }
+    </section>
+
     @if (mostrarBlocoAvaliacao()) {
-      <section class="avaliacao">
+      <section class="avaliacao surface-card">
         <h2>Avaliação do atendimento</h2>
 
         @if (carregandoAvaliacao()) {
-          <p>Carregando avaliação...</p>
+          <p class="vazio">Carregando avaliação...</p>
         } @else {
           @if (avaliacaoErro()) {
             <p class="erro" role="alert">{{ avaliacaoErro() }}</p>
@@ -478,7 +607,7 @@
                 Avaliar somente para administradores
               </label>
 
-              <button type="submit" [disabled]="enviandoAvaliacao()">Enviar avaliação</button>
+              <button type="submit" class="btn btn--primary" [disabled]="enviandoAvaliacao()">Enviar avaliação</button>
             </form>
           }
 
@@ -510,14 +639,19 @@
                 </label>
 
                 <div class="edicao-acoes">
-                  <button type="submit" [disabled]="enviandoAvaliacao()">Salvar</button>
-                  <button type="button" (click)="cancelarEdicaoAvaliacao()">Cancelar</button>
+                  <button type="submit" class="btn btn--primary btn--sm" [disabled]="enviandoAvaliacao()">Salvar</button>
+                  <button type="button" class="btn btn--secondary btn--sm" (click)="cancelarEdicaoAvaliacao()">Cancelar</button>
                 </div>
               </form>
             } @else if (ehAdministrador() || (ehCliente() && av.autor.id === usuarioId) || (ehTecnico() && av.publica && !av.oculta)) {
               <div class="avaliacao-leitura" [class.oculta]="av.oculta">
                 <div class="avaliacao-head">
-                  <span class="nota">Nota: {{ av.nota }}/5</span>
+                  <span class="estrelas" aria-hidden="true">
+                    @for (i of [0, 1, 2, 3, 4]; track i) {
+                      <app-icon [name]="i < av.nota ? 'star-filled' : 'star'" />
+                    }
+                  </span>
+                  <span class="nota">{{ av.nota }}/5</span>
                   @if (!av.publica) {
                     <span class="badge">Somente administradores</span>
                   }
@@ -537,11 +671,11 @@
                 @if ((ehCliente() && av.autor.id === usuarioId) || ehAdministrador()) {
                   <div class="avaliacao-acoes">
                     @if (ehCliente() && av.autor.id === usuarioId) {
-                      <button type="button" (click)="iniciarEdicaoAvaliacao(av)">Editar</button>
-                      <button type="button" (click)="apagarAvaliacao(av)">Apagar</button>
+                      <button type="button" class="btn btn--ghost btn--sm" (click)="iniciarEdicaoAvaliacao(av)">Editar</button>
+                      <button type="button" class="btn btn--ghost btn--sm" (click)="apagarAvaliacao(av)">Apagar</button>
                     }
                     @if (ehAdministrador() && av.publica) {
-                      <button type="button" (click)="ocultarAvaliacao(av)">{{ av.oculta ? 'Reexibir' : 'Ocultar' }}</button>
+                      <button type="button" class="btn btn--ghost btn--sm" (click)="ocultarAvaliacao(av)">{{ av.oculta ? 'Reexibir' : 'Ocultar' }}</button>
                     }
                   </div>
                 }
@@ -551,69 +685,6 @@
         }
       </section>
     }
-
-    <section class="anexos">
-      <h2>Anexos</h2>
-
-      @if (carregandoAnexos()) {
-        <p>Carregando anexos...</p>
-      } @else if (anexos().length === 0) {
-        <p class="vazio">Nenhum anexo ainda.</p>
-      } @else {
-        <ul class="lista-anexos">
-          @for (anexo of anexos(); track anexo.id) {
-            <li class="anexo">
-              @if (anexoThumbUrl(anexo.id); as thumb) {
-                <img
-                  class="anexo-thumb"
-                  [src]="thumb"
-                  [alt]="anexo.nomeArquivo"
-                  (click)="visualizarAnexo(anexo)"
-                />
-              }
-              <div class="anexo-info">
-                <span class="nome">{{ anexo.nomeArquivo }}</span>
-                <span class="meta-anexo">
-                  {{ formatarTamanho(anexo.tamanhoBytes) }} · {{ anexo.autor.nome }} ·
-                  {{ anexo.criadoEm | date: 'dd/MM/yyyy HH:mm' }}
-                  @if (anexo.editado) {
-                    · Editado
-                  }
-                </span>
-              </div>
-              <div class="anexo-acoes">
-                @if (anexo.tipoMime === 'application/pdf') {
-                  <button type="button" (click)="visualizarAnexo(anexo)">Visualizar</button>
-                }
-                <button type="button" (click)="baixarAnexo(anexo)">Baixar</button>
-                @if (podeSubstituirAnexo(anexo)) {
-                  <label class="substituir-anexo">
-                    Substituir arquivo
-                    <input
-                      type="file"
-                      (change)="substituirAnexo(anexo, $event)"
-                      [disabled]="substituindoAnexoId() === anexo.id"
-                    />
-                  </label>
-                }
-              </div>
-            </li>
-          }
-        </ul>
-      }
-
-      @if (anexoErro()) {
-        <p class="erro" role="alert">{{ anexoErro() }}</p>
-      }
-
-      <label class="upload-anexo">
-        Enviar novo anexo
-        <input type="file" (change)="enviarAnexo($event)" [disabled]="enviandoAnexo()" />
-      </label>
-      @if (enviandoAnexo()) {
-        <p class="enviando">Enviando arquivo...</p>
-      }
-    </section>
   }
 </section>
 
@@ -622,7 +693,9 @@
     <div class="preview-modal" (click)="$event.stopPropagation()">
       <div class="preview-head">
         <span class="nome">{{ preview.nomeArquivo }}</span>
-        <button type="button" class="fechar" (click)="fecharPreview()" aria-label="Fechar visualização">×</button>
+        <button type="button" class="fechar icon-btn" (click)="fecharPreview()" aria-label="Fechar visualização">
+          <app-icon name="x" />
+        </button>
       </div>
       <div class="preview-corpo">
         @if (preview.tipoMime.startsWith('image/')) {
