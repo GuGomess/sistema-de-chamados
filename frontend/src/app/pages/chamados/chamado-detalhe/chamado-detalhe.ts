@@ -612,8 +612,8 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
     }
 
     const { nota, comentario, publica } = this.avaliacaoForm.getRawValue();
-    if (nota === null || nota < 0 || nota > 5) {
-      this.avaliacaoErro.set('Selecione uma nota entre 0 e 5.');
+    if (nota === null || nota < 1 || nota > 5) {
+      this.avaliacaoErro.set('Selecione uma nota de 1 a 5 estrelas.');
       return;
     }
 
@@ -639,6 +639,14 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
     });
   }
 
+  protected selecionarNotaNova(nota: number): void {
+    this.avaliacaoForm.patchValue({ nota });
+  }
+
+  protected selecionarNotaEdicao(nota: number): void {
+    this.avaliacaoEdicaoForm.patchValue({ nota });
+  }
+
   protected iniciarEdicaoAvaliacao(av: Avaliacao): void {
     this.avaliacaoErro.set(null);
     this.editandoAvaliacaoId.set(av.id);
@@ -659,8 +667,8 @@ export class ChamadoDetalhe implements OnInit, OnDestroy {
     }
 
     const { nota, comentario, publica } = this.avaliacaoEdicaoForm.getRawValue();
-    if (nota === null || nota < 0 || nota > 5) {
-      this.avaliacaoErro.set('Selecione uma nota entre 0 e 5.');
+    if (nota === null || nota < 1 || nota > 5) {
+      this.avaliacaoErro.set('Selecione uma nota de 1 a 5 estrelas.');
       return;
     }
 

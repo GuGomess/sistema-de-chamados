@@ -525,51 +525,6 @@
       </form>
     </section>
 
-    <section class="historico surface-card">
-      <h2>
-        <button
-          type="button"
-          class="historico-toggle"
-          (click)="toggleHistorico()"
-          [attr.aria-expanded]="historicoExpandido()"
-        >
-          <span>Histórico</span>
-          @if (historico().length > 0) {
-            <span class="badge">{{ historico().length }}</span>
-          }
-          <app-icon [name]="historicoExpandido() ? 'chevron-up' : 'chevron-down'" />
-        </button>
-      </h2>
-
-      @if (historicoExpandido()) {
-        @if (carregandoHistorico()) {
-          <p class="vazio">Carregando histórico...</p>
-        } @else if (historico().length === 0) {
-          <p class="vazio">Nenhum evento registrado ainda.</p>
-        } @else {
-          <ul class="lista-historico timeline">
-            @for (evento of historico(); track evento.id) {
-              <li class="evento-historico">
-                <div class="evento-head">
-                  <span class="acao">{{ evento.acao }}</span>
-                  <span class="data">{{ evento.criadoEm | date: 'dd/MM/yyyy HH:mm' }}</span>
-                </div>
-                <p class="meta">{{ evento.autor.nome }}</p>
-                @if (evento.acao === 'Departamento alterado' || evento.acao === 'Devolvido ao HelpDesk') {
-                  <p class="detalhe">
-                    {{ evento.departamentoAnterior?.nome ?? '—' }} → {{ evento.departamentoNovo?.nome ?? '—' }}
-                  </p>
-                }
-                @if (evento.detalhe) {
-                  <p class="detalhe">{{ evento.detalhe }}</p>
-                }
-              </li>
-            }
-          </ul>
-        }
-      }
-    </section>
-
     @if (mostrarBlocoAvaliacao()) {
       <section class="avaliacao surface-card">
         <h2>Avaliação do atendimento</h2>
@@ -584,16 +539,6 @@
           @if (podeAvaliarAgora()) {
             <form [formGroup]="avaliacaoForm" (ngSubmit)="enviarAvaliacao()" novalidate class="form-avaliacao">
               <label>
-                Nota (0 a 5)
-                <select formControlName="nota">
-                  <option [ngValue]="null">Selecione uma nota</option>
-                  @for (nota of [0, 1, 2, 3, 4, 5]; track nota) {
-                    <option [ngValue]="nota">{{ nota }}</option>
-                  }
-                </select>
-              </label>
-
-              <label>
                 Comentário (opcional)
                 <textarea formControlName="comentario" rows="3" placeholder="Conte como foi o atendimento..."></textarea>
               </label>
@@ -607,6 +552,21 @@
                 Avaliar somente para administradores
               </label>
 
+              <div class="estrelas-input" role="radiogroup" aria-label="Nota de 1 a 5 estrelas">
+                @for (n of [1, 2, 3, 4, 5]; track n) {
+                  <button
+                    type="button"
+                    class="estrela-btn"
+                    role="radio"
+                    [attr.aria-checked]="avaliacaoForm.value.nota === n"
+                    [attr.aria-label]="n + ' estrela' + (n > 1 ? 's' : '')"
+                    (click)="selecionarNotaNova(n)"
+                  >
+                    <app-icon [name]="(avaliacaoForm.value.nota ?? 0) >= n ? 'star-filled' : 'star'" />
+                  </button>
+                }
+              </div>
+
               <button type="submit" class="btn btn--primary" [disabled]="enviandoAvaliacao()">Enviar avaliação</button>
             </form>
           }
@@ -614,16 +574,6 @@
           @for (av of avaliacoes(); track av.id) {
             @if (editandoAvaliacaoId() === av.id) {
               <form [formGroup]="avaliacaoEdicaoForm" (ngSubmit)="salvarEdicaoAvaliacao(av)" novalidate class="form-avaliacao">
-                <label>
-                  Nota (0 a 5)
-                  <select formControlName="nota">
-                    <option [ngValue]="null">Selecione uma nota</option>
-                    @for (nota of [0, 1, 2, 3, 4, 5]; track nota) {
-                      <option [ngValue]="nota">{{ nota }}</option>
-                    }
-                  </select>
-                </label>
-
                 <label>
                   Comentário (opcional)
                   <textarea formControlName="comentario" rows="3"></textarea>
@@ -637,6 +587,21 @@
                   <input type="radio" formControlName="publica" [value]="false" />
                   Avaliar somente para administradores
                 </label>
+
+                <div class="estrelas-input" role="radiogroup" aria-label="Nota de 1 a 5 estrelas">
+                  @for (n of [1, 2, 3, 4, 5]; track n) {
+                    <button
+                      type="button"
+                      class="estrela-btn"
+                      role="radio"
+                      [attr.aria-checked]="avaliacaoEdicaoForm.value.nota === n"
+                      [attr.aria-label]="n + ' estrela' + (n > 1 ? 's' : '')"
+                      (click)="selecionarNotaEdicao(n)"
+                    >
+                      <app-icon [name]="(avaliacaoEdicaoForm.value.nota ?? 0) >= n ? 'star-filled' : 'star'" />
+                    </button>
+                  }
+                </div>
 
                 <div class="edicao-acoes">
                   <button type="submit" class="btn btn--primary btn--sm" [disabled]="enviandoAvaliacao()">Salvar</button>
@@ -685,6 +650,51 @@
         }
       </section>
     }
+
+    <section class="historico surface-card">
+      <h2>
+        <button
+          type="button"
+          class="historico-toggle"
+          (click)="toggleHistorico()"
+          [attr.aria-expanded]="historicoExpandido()"
+        >
+          <span>Histórico</span>
+          @if (historico().length > 0) {
+            <span class="badge">{{ historico().length }}</span>
+          }
+          <app-icon [name]="historicoExpandido() ? 'chevron-up' : 'chevron-down'" />
+        </button>
+      </h2>
+
+      @if (historicoExpandido()) {
+        @if (carregandoHistorico()) {
+          <p class="vazio">Carregando histórico...</p>
+        } @else if (historico().length === 0) {
+          <p class="vazio">Nenhum evento registrado ainda.</p>
+        } @else {
+          <ul class="lista-historico timeline">
+            @for (evento of historico(); track evento.id) {
+              <li class="evento-historico">
+                <div class="evento-head">
+                  <span class="acao">{{ evento.acao }}</span>
+                  <span class="data">{{ evento.criadoEm | date: 'dd/MM/yyyy HH:mm' }}</span>
+                </div>
+                <p class="meta">{{ evento.autor.nome }}</p>
+                @if (evento.acao === 'Departamento alterado' || evento.acao === 'Devolvido ao HelpDesk') {
+                  <p class="detalhe">
+                    {{ evento.departamentoAnterior?.nome ?? '—' }} → {{ evento.departamentoNovo?.nome ?? '—' }}
+                  </p>
+                }
+                @if (evento.detalhe) {
+                  <p class="detalhe">{{ evento.detalhe }}</p>
+                }
+              </li>
+            }
+          </ul>
+        }
+      }
+    </section>
   }
 </section>
 

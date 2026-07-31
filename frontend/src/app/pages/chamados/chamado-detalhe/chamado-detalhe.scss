@@ -472,6 +472,36 @@ form {
   font-size: var(--fs-sm);
 }
 
+.estrelas-input {
+  display: inline-flex;
+  gap: 0.15rem;
+}
+
+.estrela-btn {
+  display: inline-flex;
+  padding: 0.15rem;
+  color: var(--warning);
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: transform var(--transition-fast);
+
+  .icon {
+    width: 1.5rem;
+    height: 1.5rem;
+  }
+
+  &:hover {
+    transform: scale(1.15);
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--shadow-focus);
+  }
+}
+
 .avaliacao-acoes {
   display: flex;
   gap: var(--space-2);
