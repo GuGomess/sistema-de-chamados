@@ -241,20 +241,6 @@
             </form>
           }
 
-          @if (podeAtribuirTecnico()) {
-            <form [formGroup]="atribuirForm" novalidate class="prazo-form">
-              <label>
-                Atribuir técnico
-                <select formControlName="idTecnico" [disabled]="salvando()" (change)="atribuirTecnico()">
-                  <option [ngValue]="null">Não atribuído</option>
-                  @for (tecnico of tecnicos(); track tecnico.id) {
-                    <option [ngValue]="tecnico.id">{{ tecnico.nome }}</option>
-                  }
-                </select>
-              </label>
-            </form>
-          }
-
           @if (podeFecharComoCliente()) {
             <form [formGroup]="fecharClienteForm" (ngSubmit)="fecharComoCliente()" novalidate class="prazo-form">
               <label>
@@ -299,6 +285,20 @@
                 <button type="submit" class="btn btn--primary btn--sm" [disabled]="salvando()">Confirmar</button>
               </form>
             }
+          }
+
+          @if (podeAtribuirTecnico()) {
+            <form [formGroup]="atribuirForm" novalidate class="prazo-form">
+              <label>
+                Atribuir técnico
+                <select formControlName="idTecnico" [disabled]="salvando()" (change)="atribuirTecnico()">
+                  <option [ngValue]="null">Não atribuído</option>
+                  @for (tecnico of tecnicos(); track tecnico.id) {
+                    <option [ngValue]="tecnico.id">{{ tecnico.nome }}</option>
+                  }
+                </select>
+              </label>
+            </form>
           }
         </aside>
       }
