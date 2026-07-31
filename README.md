@@ -1,5 +1,7 @@
 # Sistema de Chamados
 
+> **Roadmap do projeto:** todas as fases de desenvolvimento, tarefas e decisões estão documentadas publicamente no quadro do Trello: **[trello.com/b/xkteidTo](https://trello.com/b/xkteidTo)**
+
 Sistema web de **help desk / service desk** para registro, atendimento e acompanhamento de chamados de suporte. Clientes abrem solicitações, técnicos as atendem dentro de prazos de **SLA**, e administradores acompanham tudo por um **dashboard** com gráficos e métricas, incluindo histórico completo, comentários, anexos, avaliações e notificações em tempo real em cada chamado.
 
 O projeto está funcional de ponta a ponta: backend (.NET/ASP.NET Core) e frontend (Angular) implementados, com suíte de testes automatizados em ambos e deploy containerizado via Docker Compose.
